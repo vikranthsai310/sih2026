@@ -4,6 +4,10 @@ The justification for this project is that it serves people who cannot type. **A
 that assumes literacy would refute its own premise.** Every rule below descends from that
 sentence.
 
+> This document specifies interaction — modes, policy, rules. Every screen is drawn at low
+> fidelity in [WIREFRAMES.md](WIREFRAMES.md), including the state variants (transmitting,
+> floor busy, receiving, degraded) that a static list of screens cannot show.
+
 ## 1. The operating screen
 
 ```
@@ -142,6 +146,9 @@ properties of the QR path are in [SECURITY.md §5](SECURITY.md#5-provisioning).
 | Settings | Packs and storage, provisioning, alert test, metrics export, about and licences | 2 taps |
 | Provisioning | QR display or scan | 2 taps |
 | Metrics | Latency histogram, resource graph, CSV export | 2 taps |
+
+Each of these is drawn in [WIREFRAMES.md](WIREFRAMES.md), which also covers the build order
+— the interface is never further ahead than the engine feeding it.
 
 The **alert test** control in settings sends an alert to your own device. It exists so that
 step 5 of the demonstration can be rehearsed without a second operator, and so that a user

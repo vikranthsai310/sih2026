@@ -84,6 +84,95 @@ decision.
 
 `ACK` and `HEARTBEAT` MUST NOT be relayed. `ALERT` MUST be relayed if `TTL` permits.
 
+### 2.1 Type carries handling; flags carry encoding
+
+`TYPE` says how a frame is *handled* — queue priority, acknowledgement, whether the
+receiver announces it on the alarm stream. `FLAGS` says how the payload is *encoded* —
+`PACKED` for script packing, `TEMPLATE` for a one-byte identifier.
+
+The two are independent, which is what makes a **template-coded alert** expressible:
+`TYPE_ALERT` with `TEMPLATE` set. `TYPE_TEMPLATE` is retained as shorthand for a routine,
+non-priority template message and is exactly equivalent to `TYPE_TEXT` with `TEMPLATE`
+set; a receiver MUST treat the two identically.
+
+A frame MUST NOT set both `PACKED` and `TEMPLATE`.
+
+### 2.2 Frame layouts by type
+
+Worked byte maps. Every field is big-endian; `SEQ` is shown as `nnnn`.
+
+**`TEXT` — packed Hindi sentence, unauthenticated · 45 B**
+
+```
+ off   0    1    2  3    4     5  6    7    8    9   10   11 … 42   43 44
+     ┌────┬────┬──────┬─────┬──────┬────┬────┬────┬────┬─────────┬───────┐
+     │ A1 │ 11 │ nnnn │ 8A  │ 0020 │ 02 │ FF │ 07 │ 03 │ 32 B    │ CRC16 │
+     └────┴────┴──────┴─────┴──────┴────┴────┴────┴────┴─────────┴───────┘
+       │    │           │      │      │    │    │    │  packed text
+       │    │           │      │      │    │    │    └ TTL   3 hops
+       │    │           │      │      │    │    └ GRP   channel 7
+       │    │           │      │      │    └ DST   FF broadcast
+       │    │           │      │      └ SRC   node 02
+       │    │           │      └ LEN   0x0020 = 32 payload bytes
+       │    │           └ FLAGS 0x8A = FINAL | PACKED | CONFIDENCE 2
+       │    └ TYPE 1 TEXT · LANG 1 Hindi
+       └ MAGIC A · VER 1
+```
+
+**`TEXT` — same sentence, AES-256-GCM with a 16-byte tag · 61 B**
+
+```
+ off   0    1    2  3    4     5  6    7    8    9   10   11 … 58   59 60
+     ┌────┬────┬──────┬─────┬──────┬────┬────┬────┬────┬─────────┬───────┐
+     │ A1 │ 11 │ nnnn │ AA  │ 0030 │ 02 │ FF │ 07 │ 03 │ 32 + 16 │ CRC16 │
+     └────┴────┴──────┴─────┴──────┴────┴────┴────┴────┴─────────┴───────┘
+                        │      │                        ciphertext ‖ tag
+                        │      └ LEN counts ciphertext PLUS tag
+                        └ FLAGS 0xAA adds ENCRYPTED
+```
+
+The nonce is not on the wire. It is derived as `EPOCH ‖ SRC ‖ SEQ ‖ 0x00×5` (§6.2), and
+the associated data is the full 11-byte header, so `SRC`, `DST`, `TYPE` and `FLAGS` are all
+bound into the tag.
+
+**`ALERT` — template code with coordinates, 8-byte tag · 30 B**
+
+```
+ off   0    1    2  3    4     5  6    7    8    9   10   11 … 27   28 29
+     ┌────┬────┬──────┬─────┬──────┬────┬────┬────┬────┬─────────┬───────┐
+     │ A1 │ 21 │ nnnn │ A7  │ 0011 │ 02 │ FF │ 07 │ 03 │ 9 + 8   │ CRC16 │
+     └────┴────┴──────┴─────┴──────┴────┴────┴────┴────┴─────────┴───────┘
+            │           │                              │
+            │           │                              └ 01 = template id,
+            │           │                                then 8 B position
+            │           └ FLAGS 0xA7 = FINAL | ENCRYPTED | TEMPLATE | CONF 3
+            └ TYPE 2 ALERT · LANG 1 Hindi
+```
+
+One payload byte of meaning. The receiver renders template `0x01` in **its own** selected
+language, so this frame is announced in Tamil on a Tamil handset with no translation model
+(§5.1).
+
+**Remaining types** — header is identical in every case; only `TYPE`, `FLAGS` and the
+payload differ.
+
+| Type | Byte 1 | Payload | `LEN` | Total unauth. | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `TEXT` plain UTF-8 | `1L` | UTF-8 bytes | var | 13 + n | `PACKED` clear |
+| `TEXT` packed | `1L` | Packed bytes | var | 13 + n | `PACKED` set |
+| `ALERT` | `2L` | As `TEXT` or template | var | 13 + n | Acknowledged and retried |
+| `ACK` | `3L` | Acknowledged `SEQ` | 2 | **15 B** | Never relayed |
+| `PTT_CTL` | `4L` | `01` seize / `00` release | 1 | **14 B** | Drives the busy indicator |
+| `HEARTBEAT` | `5L` | §9 payload | 12 | **25 B** | Every 2 s; never relayed |
+| `TEMPLATE` | `6L` | Template id | 1 | **14 B** | Routine template traffic |
+| `POSITION` | `7L` | Lat, lon (§10) | 8 | **21 B** | |
+| `AUDIO_FB` | `8L` | Opus frame | var | 13 + n | Wi-Fi only; refused elsewhere |
+
+`L` is the language index nibble, 0–9.
+
+Add 8 or 16 bytes to every total when `ENCRYPTED` is set, per the tag length negotiated for
+the transport (§6.3).
+
 ---
 
 ## 3. Language indices
@@ -328,10 +417,11 @@ configured that way. There is no silent path to unauthenticated operation.
 | 5 | `ENCRYPTED` | Payload is AES-GCM sealed per §6 |
 | 4 | `FRAGMENT` | More fragments follow; see §11. BLE and serial transports only |
 | 3 | `PACKED` | Payload uses single-byte script packing (§4). When clear, the payload is plain UTF-8 |
-| 2 | reserved | MUST be transmitted as 0 and ignored on receipt |
+| 2 | `TEMPLATE` | Payload is a one-byte template identifier (§5), optionally followed by a `POSITION` body. Lets any `TYPE` carry a template code — see §2.1 |
 | 1–0 | `CONFIDENCE` | 0 low, 1 medium, 2 high, 3 template-matched |
 
 `FINAL` and `PARTIAL` MUST NOT both be set. A frame with both set MUST be discarded.
+`PACKED` and `TEMPLATE` MUST NOT both be set. A frame with both set MUST be discarded.
 
 ---
 
@@ -485,6 +575,8 @@ tests in `core-proto`.
 - [ ] CRC-16/CCITT-FALSE of `123456789` is `0x29B1`
 - [ ] A frame with a bad CRC is discarded and the reader resynchronises on `0xA1`
 - [ ] A frame with `FINAL` and `PARTIAL` both set is discarded
+- [ ] A frame with `PACKED` and `TEMPLATE` both set is discarded
+- [ ] `TYPE_TEMPLATE` and `TYPE_TEXT` with `TEMPLATE` set are handled identically
 - [ ] A frame with a reserved `TYPE` or a `LANG` above 9 is discarded
 - [ ] A replayed `(SRC, EPOCH, SEQ)` is rejected
 - [ ] A frame with a modified `SRC` fails AEAD verification
