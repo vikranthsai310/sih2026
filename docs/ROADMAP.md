@@ -1,5 +1,16 @@
 # Roadmap
 
+> ## The nearest deadline is not the build
+>
+> **Idea submission closes 20 September 2026.** What is due is six slides as a PDF, on the
+> official template. No code is submitted and no demonstration is given.
+>
+> The eight-week plan below is the *build*, and it only matters if the submission gets
+> through. Content for the slides is written and ready in
+> [IDEA_SUBMISSION.md](IDEA_SUBMISSION.md); the remaining work is filling the template,
+> exporting to PDF, and uploading. **Do that first, in week 1, in parallel with
+> engineering** — not in the week it is due.
+
 Eight weeks. The governing rule is that the end-to-end loop closes before any effort is
 spent on model quality.
 
@@ -76,13 +87,23 @@ demonstrable system.
 ### What gets cut, in order, if time is lost
 
 1. Matcha-TTS benchmarking — Piper is sufficient
-2. Wi-Fi transport — BT Classic and BLE cover the requirement
-3. Languages beyond five — report five well rather than ten badly
-4. `AUDIO_FB` Opus fallback — a nice answer to a question nobody may ask
-5. LoRa hop — the strongest differentiator, but it is a differentiator, not a requirement
+2. `AUDIO_FB` Opus fallback — a nice answer to a question nobody may ask
+3. Multi-hop relay, `POSITION`, store-and-forward — **none of these appear in the problem
+   statement**; they are ours
+4. **Encryption, replay window and pairing** — ISRO asks for none of it (see
+   [SECURITY.md §0](SECURITY.md#0-this-is-not-a-stated-requirement)). Degrade to a fixed
+   pre-shared key compiled into the build, keep the UNSECURED banner honest, and say so
+5. Wi-Fi transport — BT Classic and BLE cover the requirement
+6. Languages beyond five — report five well rather than ten badly
+7. LoRa hop — the strongest differentiator, but a differentiator, not a requirement
 
-**Never cut:** the loop, the alert path, encryption, the scorecard. Those are requirements
-or they are the argument.
+**Never cut:** the loop, the alert path, the ten-language coverage, the scorecard. The
+first two are ISRO's words; the rest is 80 % of the mark.
+
+> Security sits at position 4 deliberately. It is the right engineering call and it is
+> genuinely defensible under "robust, deployable system architecture" — but it is worth
+> **zero marks directly**, and a week spent on AEAD that should have gone to word error
+> rate is a week traded from a 40 % criterion into a 0 % one.
 
 ## 5. Parallel tracks
 

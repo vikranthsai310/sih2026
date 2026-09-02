@@ -188,7 +188,7 @@ Every one of these carries the originating `tMic` or `tRx` timestamp. That is wh
 | --- | --- | --- | --- |
 | Language | Kotlin | Java | Coroutines and `Flow` map cleanly onto the queue-and-stage model |
 | UI | Jetpack Compose | Views | Fewer files for a small team; the interface is simple and mostly custom-drawn |
-| Inference runtime | ONNX Runtime via sherpa-onnx | LiteRT, ExecuTorch | One library covers recognition, synthesis, VAD and endpointing, with an Android archive and Kotlin bindings. Both alternatives are named in the problem statement and are recorded as evaluated |
+| Inference runtime | ONNX Runtime via sherpa-onnx | TensorFlow Lite for Microcontrollers, PyTorch Mobile | **See §7.1 — ISRO names the alternatives, so this choice needs defending in writing** |
 | Async | Coroutines + `Flow` | RxJava, callbacks | Structured cancellation matters when a service holds four long-lived threads |
 | Storage | DataStore + Room | SharedPreferences + files | Outbox needs queries; configuration needs typed access |
 | Audio output | `AudioTrack` streaming | Oboe | `AudioTrack` first; Oboe only if the output stage exceeds its 80 ms budget |
@@ -196,3 +196,35 @@ Every one of these carries the originating `tMic` or `tRx` timestamp. That is wh
 
 Toolchain versions are pinned in [SETUP.md](SETUP.md), not here, so that this document
 does not go stale on a dependency bump.
+
+### 7.1 Why ONNX Runtime and not the frameworks ISRO names
+
+The problem statement says:
+
+> Teams must build their pipelines using open-source machine learning and TinyML
+> frameworks. Recommended tools include **TensorFlow Lite for Microcontrollers, PyTorch
+> Mobile or similar**.
+
+We use ONNX Runtime, via sherpa-onnx. That falls under "or similar" and is compliant, but
+a reviewer reading two named tools and seeing a third will ask why. The answer, on the
+record:
+
+| Candidate | Assessment |
+| --- | --- |
+| **TensorFlow Lite for Microcontrollers** | Designed for microcontrollers — bare-metal targets with kilobytes of RAM and no operating system. Our target is a 4 GB Android handset running a 35 MB Conformer and a VITS vocoder. TFLite Micro has no dynamic memory allocator, no threading, and no operator coverage for transformer attention at this scale. **It is the wrong member of the family**; full TensorFlow Lite / LiteRT would be the right comparison |
+| **LiteRT** (full TFLite, the correct comparison) | Genuinely viable. Rejected because no maintained TFLite build of IndicConformer or Piper VITS exists, so adopting it means converting and re-validating every model in both directions — weeks of work in a schedule whose defining rule is that the loop closes in week 3 |
+| **PyTorch Mobile / ExecuTorch** | Viable. Rejected for the same reason plus a larger runtime footprint, which is scored directly under Efficiency (20 %) |
+| **ONNX Runtime via sherpa-onnx** ✅ | One Apache-2.0 library covers recognition, synthesis, VAD **and** endpointing behind Kotlin bindings, with an Android archive. Upstream IndicConformer and Piper are already ONNX. XNNPACK gives ARM int8 acceleration. Nothing needs converting to close the loop |
+
+Three consequences worth stating plainly to a jury:
+
+1. **It is open source** — Apache-2.0 and MIT throughout, which is the actual restriction.
+   ONNX Runtime is Microsoft-originated but not proprietary; "not proprietary" is the test,
+   not "not from a large company".
+2. **It is not a voice-activation SDK** — the specific thing prohibited. It is a general
+   tensor runtime. Every model, and the entire pipeline, is ours.
+3. **LiteRT and ExecuTorch were evaluated, not ignored**, and remain drop-in alternatives
+   behind the same module boundary if a reviewer prefers one.
+
+The honest one-line summary: *ONNX Runtime is what lets the loop close in week 3 rather
+than week 6, and the schedule is the highest-severity risk in the register (P-01).*

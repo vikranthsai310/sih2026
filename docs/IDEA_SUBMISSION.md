@@ -1,5 +1,11 @@
 # SIH idea submission — slide content
 
+> ## Deadline: 20 September 2026
+>
+> This is the **next hard deadline for the project** and it governs everything in
+> [ROADMAP.md](ROADMAP.md). The eight-week build plan is downstream of surviving it.
+> What is due is six slides as a PDF — not code, not a demonstration.
+
 Content for `Doc/SIH2026-IDEA-Presentation-Format (1).pptx`. Six slides maximum including
 the title slide; the template's instruction slide is deleted before upload; the file is
 uploaded as **PDF**, not PPT.
@@ -18,14 +24,24 @@ points and figures on purpose. If a line does not fit on one line of the slide, 
 
 ## Slide 1 — Title
 
+Copy these **exactly** from the portal. A wrong theme or a paraphrased title on slide 1 is
+an unforced error before a reviewer has read anything.
+
 | Field | Value |
 | --- | --- |
-| Problem Statement ID | **26173** |
-| Problem Statement Title | Development of lightweight multilingual STT and TTS for low-bandwidth voice communication |
-| Theme | Space Technology / Disaster Management |
+| Problem Statement ID | **26173** (PS number `SIH26173`) |
+| Problem Statement Title | **iTantra -Indian Multilingual TTS & STT Aided Neural Transceiver Radio Access for low bitrate links** |
+| Theme | **Smart Automation** |
 | PS Category | **Software** |
+| Organisation | Indian Space Research Organisation (ISRO) |
+| Department | Department of Space / Indian Space Research Organisation |
 | Team ID | _____________ |
 | Team Name | _____________ |
+
+> **iTantra is ISRO's name for the problem statement, not ours.** Use it as the title
+> because that is what the portal says, but do not present it as a product name we coined —
+> a reviewer who knows the PS will notice, and claiming their title as our branding reads
+> badly. If the team wants its own product name, it goes *alongside* the official title.
 
 Put the product name and the one-line thesis on this slide if the template leaves room:
 
@@ -52,13 +68,18 @@ Put the product name and the one-line thesis on this slide if the template leave
 - Text → speech **on the receiving phone**
 - Both people only speak and listen — **neither reads nor types**
 
-**How it addresses the problem**
+**How it addresses the problem** — ISRO's own words on the left, ours on the right
 
-- 3 s of Hindi speech: **96 000 B → 45 B**, a **2 133×** reduction
-- Fits LoRa, HF and narrowband satellite links, on which voice is impossible
-- 10 Indian languages · fully offline · no cloud, no SIM, no proprietary SDK
-- Voice at both ends because the people who most need it **cannot type**: literacy, gloves,
-  darkness, stress, ten scripts
+| The statement asks for | We deliver |
+| --- | --- |
+| *"vocal audio… difficult to transmit through low data rate links"* | 3 s of Hindi speech: **96 000 B → 45 B**, a **2 133×** reduction |
+| *"alert and distress based scenarios"* | Alarm-stream delivery that wakes a locked, silenced handset |
+| *"more inclusive… even if they are literate or not"* | Voice at both ends. Nobody reads, nobody types |
+| *"10 Indian Languages"* | All ten, on-device, fully offline |
+| *"wifi/Bluetooth connected embedded device"* | Same frames over Bluetooth SPP to a LoRa node — 2–15 km |
+
+Quoting the statement back is deliberate. A reviewer scoring against their own text should
+be able to find every phrase of it answered.
 
 **Innovation and uniqueness**
 

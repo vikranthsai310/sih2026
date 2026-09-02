@@ -13,7 +13,7 @@ Resolved divergences are listed at the bottom of this page.
 
 | Document | What it settles |
 | --- | --- |
-| [REQUIREMENTS.md](REQUIREMENTS.md) | R1–R11 restated as testable requirements, the four constraints, and a traceability matrix from requirement to module to test |
+| [REQUIREMENTS.md](REQUIREMENTS.md) | **ISRO's problem statement verbatim**, then R1–R11 restated as testable requirements, the four constraints, and a traceability matrix from requirement to module to test |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Module boundaries, dependency rules, threading model, service lifecycle, end-to-end signal path |
 
 ### Component specifications
@@ -42,7 +42,7 @@ Resolved divergences are listed at the bottom of this page.
 | --- | --- |
 | [SETUP.md](SETUP.md) | Development environment, toolchain versions, model acquisition, first build |
 | [ROADMAP.md](ROADMAP.md) | Eight weeks with an acceptance gate per week, and the ordering rule that governs all of it |
-| [RISKS.md](RISKS.md) | The risk register — twenty numbered risks, owners, triggers, mitigations, status |
+| [RISKS.md](RISKS.md) | The risk register — twenty-nine numbered risks, owners, triggers, mitigations, status |
 | [DEMO.md](DEMO.md) | The nine-step demonstration runbook, equipment list, failure recovery |
 | [IDEA_SUBMISSION.md](IDEA_SUBMISSION.md) | Slide-by-slide content for the official SIH idea-submission template |
 | [GLOSSARY.md](GLOSSARY.md) | Every term of art used anywhere in the project |

@@ -1,6 +1,6 @@
 # Risk register
 
-Twenty identified failure modes, each with a designed response. **Severity reflects impact
+Twenty-nine identified failure modes, each with a designed response. **Severity reflects impact
 on the assessed criteria**, not merely on the software — a defect that costs marks is more
 severe here than one that merely annoys a user.
 
@@ -46,10 +46,11 @@ Detail and verification for all five is in [SECURITY.md](SECURITY.md).
 | **P-03** | Live pairing fails on stage | Med | Application | QR provisioning; devices pre-paired before the session; a rehearsed recovery path; the demonstration script fixed by week 8; a third pre-configured handset kept ready | OPEN |
 | **P-04** | Licence incompatibility discovered late | Low | Transport | `LICENSES.md` maintained from week 1; GPL and non-commercial components flagged on entry, not on discovery; a CI gate fails any dependency without an entry | MITIGATING |
 
-## 4. Risks added during specification
+## 4. Risks added during specification and problem-statement review
 
-Identified while writing the normative specification and not present in the original design
-document.
+Identified while writing the normative specification, and while auditing our documents
+against ISRO's verbatim text in [REQUIREMENTS.md §0](REQUIREMENTS.md#0-the-problem-statement-verbatim).
+None appears in the original design document.
 
 | ID | Risk | Sev | Owner | Mitigation | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -58,6 +59,9 @@ document.
 | **S-07** | AEAD nonce reuse under a fixed key, which destroys GCM entirely | **High** | Transport | Nonce derived as `EPOCH ‖ SRC ‖ SEQ`; `EPOCH` persisted and incremented on every `SEQ` wrap and every service start; uniqueness asserted over 10⁷ simulated frames including restarts | MITIGATING |
 | **T-14** | Quoted frame sizes omit the authentication tag, so the headline compression figure does not survive a technical question | Low | Evaluation | Report all four compression ratios — unauthenticated, authenticated, versus Opus, and template best-case. See [EVALUATION.md §5](EVALUATION.md#5-efficiency--20--of-the-mark) | MITIGATING |
 | **P-05** | Listening panel of 15 native speakers per language cannot be assembled in time, leaving MOS unreported | Med | Evaluation | Begin recruiting in week 5, not week 7. If a language cannot reach 15 panellists, report the actual panel size rather than dropping the figure | OPEN |
+| **P-06** | **Idea submission deadline missed or met with a rushed deck.** Closes **20 September 2026** — the nearest hard deadline, and earlier than any build milestone | **High** | Application | Slide content is already written in [IDEA_SUBMISSION.md](IDEA_SUBMISSION.md). Fill the official template, export to PDF and upload in **week 1**, in parallel with engineering, not in the week it falls due. Verify PS ID `26173`, title and theme **Smart Automation** against the portal before upload | OPEN |
+| **P-07** | Effort spent on work the problem statement never asked for — cryptography, relay, addressing, position — while a scored criterion goes unmeasured | **High** | All | [REQUIREMENTS.md §0](REQUIREMENTS.md#0-the-problem-statement-verbatim) records ISRO's text verbatim and names what is self-imposed. Unrequired work sits on the cut list in [ROADMAP.md §4](ROADMAP.md#4-critical-path) above languages and the LoRa hop. Weekly gate check asks one question: *has anything in the 80 % gone unmeasured this week while unrequired work advanced?* | OPEN |
+| **T-15** | ONNX Runtime is not among the frameworks ISRO names, and the choice is challenged at evaluation | Low | ASR | "or similar" permits it, and the written defence is in [ARCHITECTURE.md §7.1](ARCHITECTURE.md#71-why-onnx-runtime-and-not-the-frameworks-isro-names) — including why TFLite **Micro** is the wrong family member for a 4 GB handset. LiteRT and ExecuTorch remain drop-in behind the module boundary | MITIGATING |
 
 ## 5. Review cadence
 

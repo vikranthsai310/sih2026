@@ -5,6 +5,77 @@ identifier, an owning module, an acceptance test, and a verification method. Not
 this document is aspirational — if a row cannot be demonstrated, the requirement is not
 met.
 
+## 0. The problem statement, verbatim
+
+Everything below in §1 is our *restatement*. This section is ISRO's own text, reproduced
+without edit, so that any claim in this repository can be audited against the source.
+
+| | |
+| --- | --- |
+| PS number | `SIH26173` |
+| Title | iTantra -Indian Multilingual TTS & STT Aided Neural Transceiver Radio Access for low bitrate links |
+| Organisation | Indian Space Research Organisation (ISRO) |
+| Department | Department of Space / Indian Space Research Organisation |
+| Category | Software |
+| Theme | Smart Automation |
+| Idea submission deadline | **20 September 2026** |
+
+> **Background** As vocal audio information is very data intensive making it difficult to
+> transmit through low data rate links. In alert and distress based scenarios Transmitting
+> Audio information is critical instead of written message as it will be more inclusive and
+> will cater to everyone even if they are literate or not.
+>
+> **Description** Build an Android App with lightweight, highly accurate STT and TTS models
+> for 10 Indian Languages (Hindi, Gujarati, Marathi, Kannada, Malayalam, Tamil, Telugu,
+> Odia, Bengali, English) that runs locally on a low-power device. The system's STT module
+> when activated after detecting pauses and stoppages should form the sentences detected and
+> must instantly and efficiently stream the data through wifi/Bluetooth connected embedded
+> device or another phone with same application with minimal latency. The systems TTS module
+> when activated after receiving the Text data should convert it into intelligible speech
+> which will be played as a voice note and alert type messages will be announced at highest
+> volume non-interruptible. To verify the complete loop two phones with same app one in TTS
+> mode and another in STT mode can be connected via wifi or Bluetooth and it should work
+> like a walkie talkie using push to talk feature, if turned off it should work like a phone.
+>
+> **Key Metrics for Evaluation**
+> - Efficiency: Model size, App size (RAM/Flash footprint) and CPU usage during idle
+>   listening. (20%)
+> - Accuracy: Low Word Error Rate for STT and High human legibility and flow for TTS. (40%)
+> - Latency: The Time delay between the Words said and STT completion, Time delay between
+>   the text received and audio processed and played for TTS along with RTF (Real Time
+>   Factor). The time delta between the sentence said and the same sentence started as audio
+>   in another phone. (20%)
+>
+> **Software & Framework Restrictions**
+> - Open-Source Only: The use of proprietary, closed-source, or commercial voice-activation
+>   SDKs is strictly prohibited.
+> - Allowed Frameworks: Teams must build their pipelines using open-source machine learning
+>   and TinyML frameworks. Recommended tools include TensorFlow Lite for Microcontrollers,
+>   PyTorch Mobile or similar.
+> - Fully Offline Working: Model or pipeline should work fully offline only and no internet
+>   hosted API based solutions are expected and encouraged for the STT or TTS.
+>
+> **Expected Solution** Teams are expected to deliver a robust, deployable system
+> architecture. A successful submission must strictly satisfy the following technical
+> boundaries:
+> - Hardware & Runtime Environment: The Android application must run smoothly on Low and Mid
+>   rage mobile phones.
+
+### What the statement does not say
+
+These words appear **nowhere** in the text above: *security, encryption, authentication,
+privacy, tamper, integrity, group, channel, addressing, relay, multi-hop*.
+
+Everything in this repository concerning cryptography, pairing, addressing and relay is
+therefore **self-imposed scope**. It is defensible under "robust, deployable system
+architecture", and the reasoning is set out in
+[SECURITY.md §0](SECURITY.md#0-this-is-not-a-stated-requirement) — but it is not a
+requirement, it is worth no marks directly, and it is on the cut list in
+[ROADMAP.md §4](ROADMAP.md#4-critical-path).
+
+**"iTantra" is ISRO's title for the problem statement, not a product name we invented.**
+Use it, but do not present it as our branding.
+
 ## 1. Functional requirements
 
 ### R1 — Lightweight, accurate STT and TTS for ten Indian languages
@@ -129,7 +200,7 @@ how the system performs.
 
 | ID | Constraint | Consequence for the design | How we prove it |
 | --- | --- | --- | --- |
-| C1 | **Open source only** | No proprietary voice SDK. Rules out Google Speech Services, Azure Speech, Picovoice. Also rules out Google Nearby Connections for transport — raw platform sockets instead. | [LICENSES.md](../LICENSES.md) enumerates every dependency with its licence and role. |
+| C1 | **Open source only** — ISRO prohibits "proprietary, closed-source, or commercial **voice-activation** SDKs" | Rules out Google Speech Services, Azure Speech, Picovoice. **We apply this more broadly than required**, also excluding Google Nearby Connections for transport in favour of raw platform sockets — a self-imposed tightening, not ISRO's words, adopted because a single blanket rule is easier to audit than a boundary argument about what counts as voice-activation. | [LICENSES.md](../LICENSES.md) enumerates every dependency with its licence and role. |
 | C2 | **Fully offline at runtime** | No network call, ever. Language packs may be fetched once during setup; the running system never touches a network. | No `INTERNET` permission in the shipped manifest; demonstration conducted in aeroplane mode. |
 | C3 | **Approved frameworks** | TensorFlow Lite, PyTorch Mobile, ONNX Runtime or equivalent. Our runtime is ONNX Runtime via sherpa-onnx — permissively licensed, ARM-optimised, explicitly in scope. | Dependency list; LiteRT and ExecuTorch evaluated as alternates and recorded. |
 | C4 | **Low and mid-range phones** | Target is a 4 GB entry-tier Snapdragon or Helio handset. Every number in every document is measured on that class of hardware. | The target device is named in [SETUP.md](SETUP.md) and every scorecard records the device it was produced on. |
@@ -139,12 +210,17 @@ how the system performs.
 Eighty per cent of the marks are allocated to measurable properties. This is unusual and
 it is a gift: the jury has said exactly what to instrument.
 
+**ISRO states three criteria totalling 80 %.** The remaining 20 % is not described. The
+last row below is **our inference**, not their words, and must never be presented as their
+rubric — if asked, say the statement allocates 80 % and we assume the balance rewards a
+complete, robust, well-presented system.
+
 | Weight | Criterion | What it forces |
 | --- | --- | --- |
 | 40 % | Accuracy | Low WER for STT, high legibility and natural flow for TTS. Requires a real evaluation harness over held-out benchmark data, per language, reported honestly, including under noise. |
 | 20 % | Latency | STT delay, TTS delay, real-time factor, and the end-to-end delta between a sentence spoken on one handset and heard on the other. Requires per-stage instrumentation in the shipped application. |
 | 20 % | Efficiency | Model size, application size, RAM and flash footprint, idle CPU. Requires quantisation, on-demand language packs, and a tiered wake-up path. |
-| 20 % | Implied | Completeness, robustness, and presentation of the delivered system. |
+| 20 % | *Unstated — our inference* | ISRO does not describe this share. We assume completeness, robustness and presentation of the delivered system, which is also where self-imposed work such as security earns its keep. Present it as an assumption, never as their criterion. |
 
 **Design principle drawn from the rubric:** instrument from day one. The application shows
 a permanent latency and resource strip and can print its own scorecard. Most competing

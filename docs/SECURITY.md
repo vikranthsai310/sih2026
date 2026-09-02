@@ -1,5 +1,37 @@
 # Security
 
+## 0. This is not a stated requirement
+
+**ISRO does not ask for any of this.** The words *security, encryption, authentication,
+privacy, tamper* and *integrity* appear nowhere in Problem Statement 26173, reproduced
+verbatim in [REQUIREMENTS.md §0](REQUIREMENTS.md#0-the-problem-statement-verbatim). The
+three stated criteria are Accuracy (40 %), Latency (20 %) and Efficiency (20 %). **None of
+them is affected by anything in this document.**
+
+Everything here is self-imposed. It is here anyway, for one reason, in ISRO's own words:
+
+> *"In **alert and distress** based scenarios…"*
+> *"alert type messages will be announced at **highest volume non-interruptible**"*
+> *"Teams are expected to deliver a **robust, deployable** system architecture."*
+
+We are building a device that wakes a locked, silenced handset and announces at maximum
+volume on command. If it accepts unauthenticated input, anyone within radio range can
+trigger that in a disaster zone. A system with that capability and no authentication is not
+"robust and deployable" — it is a liability with a demo attached. That is the whole of the
+justification, and it is enough.
+
+**Three rules follow, and they are binding:**
+
+1. **This work never competes with the scored criteria.** A week spent on AEAD that should
+   have gone to word error rate trades a 40 % criterion for a 0 % one.
+2. **It is on the cut list**, at position 4 of 7, above languages beyond five and above the
+   LoRa hop. See [ROADMAP.md §4](ROADMAP.md#4-critical-path). If the schedule slips, this
+   degrades to a fixed pre-shared key compiled into the build, with the UNSECURED banner
+   kept honest.
+3. **Present it as robustness, in one line.** Do not present it as a requirement, do not
+   claim ISRO asked for it, and do not spend demonstration time on it. It belongs in the
+   unstated 20 %, not in the 80 % that is written down.
+
 ## 1. Why this matters more here than in a typical hackathon project
 
 iTantra exists to raise alarms. A system that can wake a locked, silenced handset and
