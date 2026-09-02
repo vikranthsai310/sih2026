@@ -25,7 +25,7 @@ Resolved divergences are listed at the bottom of this page.
 | [TRANSPORT.md](TRANSPORT.md) | The `Link` interface and its four implementations, discovery, reconnection, queueing, stream framing |
 | [PROTOCOL.md](PROTOCOL.md) | **Normative wire format.** Frame layout, script packing including escapes, template tables, AEAD construction, relay and replay rules |
 | [MODELS.md](MODELS.md) | Language pack format, manifest schema, export and quantisation pipeline, storage lifecycle |
-| [UX.md](UX.md) | Screens, the two modes, alert delivery sequence, provisioning, inclusive design rules |
+| [UX.md](UX.md) | Screens, the two modes, alert delivery sequence, pairing, inclusive design rules |
 | [WIREFRAMES.md](WIREFRAMES.md) | Every screen at low fidelity, with the layout system, state variants, banners and navigation map |
 
 ### Verification
@@ -62,15 +62,16 @@ Resolved divergences are listed at the bottom of this page.
 
 ## Divergences from `Doc/iTantra.html`
 
-The design document is Revision 1.0 and remains accurate as an argument. Three details
-were under-specified for implementation and have been settled here. Each is a deliberate
-change, not a transcription error.
+The design document is Revision 1.0 and remains accurate as an argument. Five details
+were under-specified or over-specified for implementation and have been settled here.
+Each is a deliberate change, not a transcription error.
 
 | Topic | Design document | Specification | Why |
 | --- | --- | --- | --- |
 | Script packing | "roughly seventy code points cover ordinary running text" — no handling for anything else | [PROTOCOL.md §4](PROTOCOL.md#4-level-2--script-packing) defines a complete single-byte alphabet with a 4-byte escape for any codepoint outside it | Real messages contain ASCII digits, punctuation, and ZWJ/ZWNJ, none of which sit in an Indic block. Without an escape the packer is lossy on ordinary input. |
 | Frame size with encryption | The 45 B figure is quoted alongside AES-256-GCM as though both hold at once | [PROTOCOL.md §6](PROTOCOL.md#6-cryptography) specifies a deterministic nonce (transmitted implicitly) and a transport-dependent tag length: 45 B unauthenticated, 53 B on low-rate links, 61 B on Bluetooth and Wi-Fi | A GCM tag and nonce are not free. Quoting the unauthenticated figure while claiming authenticated framing is the kind of gap a technical jury finds. State both. |
-| Template profile | "up to 255 entries per deployment profile", but no frame field identifies the profile | [PROTOCOL.md §5](PROTOCOL.md#5-level-3--template-codes) binds the profile to the group at provisioning and advertises its digest in `HEARTBEAT` | Two devices holding different template tables would silently speak different sentences from the same byte. That is a safety defect, not a compatibility inconvenience. |
+| Template profile | "up to 255 entries per deployment profile", but no frame field identifies the profile | [PROTOCOL.md §5](PROTOCOL.md#5-level-3--template-codes) binds the profile to the shared key at pairing and advertises its digest in `HEARTBEAT` | Two devices holding different template tables would silently speak different sentences from the same byte. That is a safety defect, not a compatibility inconvenience. |
+| Groups and channels | A `GRP` byte carries "a channel identifier", and the interface has the user create or join a named group | [UX.md §5](UX.md#5-pairing) removes the concept. The byte becomes `KEYID`, derived from the shared key as a cheap pre-AEAD reject filter and never shown; the interface has only pairing | The key already separates traffic cryptographically — an unpaired device fails the tag whatever channel byte it saw — so `GRP` duplicated it. Worse, create/join forced a first-time user to answer a question they cannot answer, in an app premised on the user not reading. |
 | Template-coded alerts | `TYPE` has separate `ALERT` and `TEMPLATE` codes, so a template-coded alert has no representation — the payload budget quotes one but the type nibble cannot express it | [PROTOCOL.md §2.1](PROTOCOL.md#21-type-carries-handling-flags-carry-encoding) makes `TYPE` carry handling and `FLAGS` carry encoding: the former reserved flag bit 2 becomes `TEMPLATE` | Priority and payload encoding are orthogonal. Conflating them in one nibble makes the most operationally important frame — a one-byte alert — unrepresentable. |
 
 ## Maintaining these documents

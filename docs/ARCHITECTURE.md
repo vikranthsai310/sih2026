@@ -14,7 +14,7 @@ handsets.
  │  Ring buffer · 20 ms hops  │              │  CRC · decrypt · de-dupe   │
  │            ▼               │              │            ▼               │
  │  Tier 0   energy gate      │              │  Address filter            │
- │  Tier 1   Silero VAD       │  idle path   │  group / dest / TTL        │
+ │  Tier 1   Silero VAD       │  idle path   │  keyid / dest / TTL        │
  │            ▼  speech       │              │            ▼               │
  │  Feature extraction        │              │  Unpack script  ·  or      │
  │  80-dim log-mel            │              │  expand template code      │
@@ -176,8 +176,8 @@ Every one of these carries the originating `tMic` or `tRx` timestamp. That is wh
 
 | Store | Contents | Mechanism |
 | --- | --- | --- |
-| Group configuration | Group ID, node ID, template profile digest, roster | DataStore, plaintext |
-| Group key | AES-256 key material | **Android Keystore only.** Never DataStore, never a file, never a log |
+| Pairing configuration | Key id, node ID, template profile digest, roster | DataStore, plaintext |
+| Shared key | AES-256 key material | **Android Keystore only.** Never DataStore, never a file, never a log |
 | Language packs | Models, tokens, voices, rules | App-private external files, verified by SHA-256 |
 | Outbox | Undelivered frames for store-and-forward | Room, capped at 500 frames or 24 h |
 | Metrics | Rolling latency histogram, resource samples | In-memory ring, exported to CSV on demand |

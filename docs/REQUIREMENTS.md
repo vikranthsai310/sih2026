@@ -187,4 +187,4 @@ omission.
   cross-language messaging is out of scope and should be described that way.
 - **Code-mixed Hindi–English speech is a known weakness** (risk T-06). English is retained
   in the biasing lexicon; the limitation is disclosed rather than concealed.
-- **No message history sync, no group management beyond provisioning, no file transfer.**
+- **No message history sync, no channel management, no file transfer.** There is no notion of a named group to create or join — pairing distributes a key, and the units that hold it are the radio set.

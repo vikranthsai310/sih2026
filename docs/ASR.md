@@ -132,7 +132,7 @@ the words whose misrecognition would be most costly, and requires **no retrainin
 | Domain lexicon | Distress and operational vocabulary, per language, shipped in the pack | ~300 terms |
 | Negation terms | "not", "do not", "नहीं", and equivalents, weighted high | ~20 terms |
 | Deployment gazetteer | Place names, sector labels, unit callsigns, loaded per deployment | ~200 terms |
-| Roster | Display names of nodes in the current group, injected at runtime | ≤ 254 terms |
+| Roster | Display names of paired units, injected at runtime | ≤ 254 terms |
 
 Hotword score 1.5 by default; the value is a per-language tunable recorded in the pack
 manifest.

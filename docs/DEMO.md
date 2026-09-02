@@ -37,7 +37,7 @@ you prove it" — which is the whole assessment.
 | Item | Quantity | Note |
 | --- | --- | --- |
 | Target handset | 2 | Both with the **identical APK**; checksum verified |
-| Spare handset | 1 | Pre-provisioned into the same group, charged, in the bag (P-03) |
+| Spare handset | 1 | Already paired, charged, in the bag (P-03) |
 | LoRa nodes | 2 | Charged, pre-paired over Bluetooth SPP, antennas fitted |
 | Power banks | 2 | Handsets at 100 %, not charging during the demo — charging changes thermal behaviour |
 | Printed scorecard | 2 copies | For step 9, in case the projector fails |
@@ -49,7 +49,7 @@ Run 30 minutes before. Every item has failed for someone.
 
 - [ ] Both handsets charged above 80 %, not plugged in
 - [ ] Identical APK checksum on both handsets
-- [ ] Handsets **already paired** in Bluetooth settings and already provisioned into the group
+- [ ] Handsets **already paired** in Bluetooth settings and already paired with each other
 - [ ] `LINK OK` showing on both, each visible in the other's roster
 - [ ] Aeroplane mode toggled on and the loop verified once, fully, end to end
 - [ ] Alert test run on the receiving handset — vendor audio policy verified on *this* device

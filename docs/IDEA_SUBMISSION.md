@@ -84,7 +84,7 @@ Put the product name and the one-line thesis on this slide if the template leave
 | Synthesis | Piper VITS voices (MIT), streaming chunked playout |
 | Detection | Silero VAD (MIT), 1.8 MB |
 | Transport | Bluetooth RFCOMM · BLE GATT · Wi-Fi · serial → LoRa (SX1276, 865.5 MHz) |
-| Security | AES-256-GCM per group, replay window, QR provisioning |
+| Security | AES-256-GCM shared key, replay window, QR pairing |
 
 **Methodology** — one flow diagram, not text:
 
@@ -121,7 +121,7 @@ Put the product name and the one-line thesis on this slide if the template leave
 | Thermal throttling on entry-tier silicon | 30-minute soak testing; **sustained figures reported**, not peak |
 | No adequate open Odia voice | Coqui VITS trained on IIT Madras IndicTTS data; assigned week 4, not week 7 |
 | Model work eating the schedule | Loop first with weak models; quality is an upgrade path, never a prerequisite |
-| Fraudulent alert injection | AES-256-GCM per group; sender identity inside the authenticated region |
+| Fraudulent alert injection | AES-256-GCM shared key; sender identity inside the authenticated region |
 
 **Viability**
 

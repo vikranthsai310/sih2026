@@ -147,7 +147,7 @@ mode the speaker is muted outright while the floor is held.
 Speaker identity is discarded by the compression scheme, so it is reconstructed at the
 receiver: each node identifier maps to a distinct speaker embedding of the multi-speaker
 voice, so messages from different senders sound different. The mapping is
-`sid = src % speakerCount`, stable for the life of a group, and shown alongside the display
+`sid = src % speakerCount`, stable for the life of a pairing, and shown alongside the display
 name in the interface.
 
 ### Alert delivery profile

@@ -93,7 +93,7 @@ something has gone wrong and it is a release blocker, not a nuisance.
 1. Install the **same APK** on both handsets — verify with `adb shell pm path` and compare
    checksums. Symmetry (R9) is a requirement, not an accident.
 2. Pair the handsets in Android Bluetooth settings **before** launching.
-3. On device A: create group, display QR. On device B: scan it.
+3. On device A: show its code. On device B: point at it.
 4. Both should show `LINK OK` and each other in the roster within 5 s.
 
 ## 6. Profiling

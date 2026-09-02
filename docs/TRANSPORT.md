@@ -81,7 +81,7 @@ negotiated MTU are fragmented per [PROTOCOL.md §11](PROTOCOL.md#11-fragmentatio
 
 Power consumption is roughly a tenth of Bluetooth Classic, which makes BLE the correct
 **standby** transport and is what supports the eight-hour endurance claim. It is also
-natively broadcast, which makes group operation straightforward.
+natively broadcast, which makes all-units operation straightforward.
 
 ## 4. Wi-Fi — Direct or hosted network
 
@@ -164,7 +164,7 @@ them.
 | Phase | Behaviour |
 | --- | --- |
 | Discovery | RFCOMM: bonded devices first, then a bounded 12 s scan. BLE: advertise and scan on the service UUID. Wi-Fi: UDP broadcast on port `38174`, 1 s interval, 10 attempts |
-| Connection | Role is decided at provisioning — the group creator is the host. No negotiation on the wire |
+| Connection | Role is decided at provisioning — the first unit is the host. No negotiation on the wire |
 | Heartbeat | Every 2 s; three consecutive misses mark the peer offline |
 | Backoff | Exponential with jitter, 1 s → 30 s, reset on a successful frame |
 | Store and forward | Frames queue in the outbox while disconnected and flush in order on reconnection |

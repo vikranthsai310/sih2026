@@ -57,106 +57,102 @@ An operator who has learned one screen has learned all of them.
 
 ## 2. First run
 
-Shown once, before any group exists. Three cards, no prose.
+One screen. No decision to make: nothing to create, nothing to join.
 
 ```
  ┌──────────────────────────────────────────────┐
  │                                              │
  │                  i T a n t r a               │   app mark
- │                                              │
  │       Speech in. Speech out. No network.     │   14 sp
  │                                              │
  ├──────────────────────────────────────────────┤
- │                                              │
- │   ┌────────────────────────────────────┐     │
- │   │  [+]   CREATE A GROUP              │     │   96 dp
- │   │        You become the base station │     │
- │   └────────────────────────────────────┘     │
- │                                              │
- │   ┌────────────────────────────────────┐     │
- │   │  [#]   JOIN A GROUP                │     │   96 dp
- │   │        Scan the QR on another unit │     │
- │   └────────────────────────────────────┘     │
- │                                              │
+ │  Your name     [ Base                  ]     │   64 dp, local only
+ │  Language      [ हिन्दी              ▾ ]      │   48 dp
  ├──────────────────────────────────────────────┤
- │  Language        [ हिन्दी          ▾ ]        │   48 dp
- │  Packs ready     Hindi · English             │
+ │            [    S T A R T    ]               │   96 dp
  └──────────────────────────────────────────────┘
 ```
 
+Pressing START generates a key, takes node 01, and goes straight to the operating screen.
+The unit is now usable on its own — there is nothing to set up and nothing to join.
+
 The language selector is on this screen deliberately: the first interaction must be
-possible for someone who does not read English.
+possible for someone who does not read English. A name is offered but not required.
 
 ---
 
-## 3. Provisioning — create
+## 3. Pairing
+
+**Replaces the old create/join pair.** Every unit shows this same screen, always. It
+displays its own code and can scan another's; whoever points the camera is the one who
+joins.
 
 ```
  ┌──────────────────────────────────────────────┐
- │  ‹  CREATE GROUP                             │
- ├──────────────────────────────────────────────┤
- │  Group name    [ RESCUE-A              ]     │   64 dp field
- │  Your name     [ Base                  ]     │   64 dp field
- │  Profile       [ Flood relief        ▾ ]     │   template table
+ │  ‹  ADD A UNIT                               │
  ├──────────────────────────────────────────────┤
  │                                              │
  │        ████ ██  ████  ██ ████ ██             │
  │        ██ ████ ██  ████ ██  ████             │
  │        ████  ██ ████ ██  ██ ██               │   QR, 240 dp
- │        ██  ████  ██  ████ ████ ██            │
+ │        ██  ████  ██  ████ ████ ██            │   FLAG_SECURE
  │        ████ ██ ████  ██ ██  ██               │
  │                                              │
- │        Scan this on every other unit         │
- │        Expires in 1:47                       │   120 s countdown
+ │        Show this to the other unit           │
+ │        Code refreshes in 1:47                │   120 s
  │                                              │
  ├──────────────────────────────────────────────┤
- │  JOINED                                      │
- │  ● Ravi        node 02        just now       │
- │  ● Meena       node 03        12 s ago       │
+ │                     or                       │
  ├──────────────────────────────────────────────┤
- │            [    D O N E    ]                 │   72 dp
- └──────────────────────────────────────────────┘
-```
-
-`FLAG_SECURE` is set on this screen — no screenshots, no recents thumbnail. The QR carries
-the AES-256 group key, and the key must never cross the radio medium
-([SECURITY.md §5](SECURITY.md#5-provisioning)).
-
-The joined list updates live so the creator knows when to stop displaying the code, and the
-countdown makes the 120 s expiry visible rather than surprising.
-
----
-
-## 4. Provisioning — join
-
-```
- ┌──────────────────────────────────────────────┐
- │  ‹  JOIN GROUP                               │
- ├──────────────────────────────────────────────┤
- │                                              │
  │      ┌────────────────────────────────┐      │
- │      │                                │      │
  │      │   ┌──┐                  ┌──┐   │      │
- │      │   │                        │   │      │   camera preview
- │      │                                │      │   with reticle
- │      │            [ scan ]            │      │
+ │      │                                │      │   camera preview
+ │      │      POINT AT ANOTHER UNIT     │      │   with reticle
  │      │                                │      │
- │      │   │                        │   │      │
  │      │   └──┘                  └──┘   │      │
  │      └────────────────────────────────┘      │
- │                                              │
- │        Point at the QR on the other unit     │
- │                                              │
  ├──────────────────────────────────────────────┤
- │  Your name     [ Ravi                  ]     │   local only
+ │  PAIRED                                      │
+ │  ● Ravi        node 02        just now       │   updates live
+ │  ● Meena       node 03        12 s ago       │
  ├──────────────────────────────────────────────┤
  │  ENTER CODE MANUALLY                         │   fallback, text
  └──────────────────────────────────────────────┘
 ```
 
+Both halves are on one screen because that is what removes the decision. Two handsets on a
+table: one person points at the other. Neither operator has to know, or be told, which of
+them is the "creator".
+
+`FLAG_SECURE` is set — no screenshots, no recents thumbnail. The QR carries the AES-256
+shared key, and the key must never cross the radio medium
+([SECURITY.md §5](SECURITY.md#5-provisioning)).
+
 The manual-entry fallback exists for a cracked camera or a failed scan on stage. It is
-deliberately the least prominent element — it requires literacy, so it can never be the
-primary path.
+deliberately the least prominent element on the screen — it requires literacy, so it can
+never be the primary path.
+
+---
+
+## 4. Scan succeeded
+
+```
+ ┌──────────────────────────────────────────────┐
+ │                                              │
+ │                    ✓                         │   96 dp,
+ │                                              │   haptic + spoken
+ │            P A I R E D                       │   cue (rule 2)
+ │                                              │
+ │        You are unit 03 of 3                  │
+ │        Ravi · Base · you                     │
+ │                                              │
+ ├──────────────────────────────────────────────┤
+ │            [   S T A R T   ]                 │   96 dp
+ └──────────────────────────────────────────────┘
+```
+
+Confirmed by haptics and a spoken cue, not by a text dialog (rule 2). The unit count is the
+only number that matters here and it is stated in words the operator can hear.
 
 ---
 
@@ -310,7 +306,7 @@ Released push-to-talk. The primary action becomes a state display rather than a 
  ┌──────────────────────────────────────────────┐
  │  ☰   RESCUE-A        6 units      ● LINK OK  │
  ├──────────────────────────────────────────────┤
- │  [▾ RAVI             ]  [▾ हिन्दी         ]   │   1:1 or group
+ │  [▾ RAVI             ]  [▾ हिन्दी         ]   │   1:1 or all
  ├──────────────────────────────────────────────┤
  │                                              │
  │        ┌──────────────────────────┐          │
@@ -546,7 +542,7 @@ never stored; the replay control re-synthesises from text.
  │  ○ Wi-Fi          ▯▯▯▯   150 m   not joined  │
  │  ○ Radio · LoRa   ▮▮▮▮   2–15 km  paired     │
  ├──────────────────────────────────────────────┤
- │  Switching transport keeps the group and     │
+ │  Switching transport keeps the pairing and   │
  │  reconnects automatically.                   │
  └──────────────────────────────────────────────┘
 ```
@@ -599,10 +595,10 @@ warning disappears.
  ┌──────────────────────────────────────────────┐
  │  ‹   SETTINGS                                │
  ├──────────────────────────────────────────────┤
- │  GROUP                                       │
+ │  UNITS                                       │
  │  RESCUE-A · node 01 · 6 units            ›   │
  │  Add a unit — show QR                    ›   │
- │  Rotate group key                        ›   │   re-provision
+ │  Rotate shared key                       ›   │   re-provision
  ├──────────────────────────────────────────────┤
  │  LANGUAGE AND PACKS                          │
  │  Active language          हिन्दी          ›   │
@@ -722,8 +718,8 @@ that silently stops working is worse than one that says it has stopped.
  └──────────────────────────────────────────────┘
 
  ┌──────────────────────────────────────────────┐
- │  ⛔  UNSECURED — this group is not      [i]  │   red, permanent
- │      encrypted                               │   no silent path
+ │  ⛔  UNSECURED — no encryption          [i]  │   red, permanent
+ │      on this pairing                         │   no silent path
  └──────────────────────────────────────────────┘
 
  ┌──────────────────────────────────────────────┐
@@ -757,7 +753,7 @@ is more than one.
      │                   │                   │
      │              (1 tap each)        CONFIRM SEND
      │
-   SETTINGS ── STORAGE · PROVISIONING · METRICS · LICENCES
+   SETTINGS ── STORAGE · ADD A UNIT · METRICS · LICENCES
    (via ☰)         (2 taps from operating)
 
    INCOMING ALERT interrupts any screen, including the lock screen
@@ -776,7 +772,7 @@ that feeds it.
 | 2 | 15 transport section, a text field to send |
 | 3 | 5, 6, 8 — the loop is visible end to end |
 | 5 | 9, 11, 12, 7 — modes and alerts |
-| 6 | 3, 4, 20 — provisioning and degraded states |
+| 6 | 3, 4, 20 — pairing and degraded states |
 | 7 | 13, 14, 16, 17, 18 — coverage |
 | 8 | 19, 2 — metrics and first run |
 

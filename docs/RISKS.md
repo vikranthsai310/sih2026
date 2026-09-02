@@ -29,10 +29,10 @@ Status values: `OPEN` · `MITIGATING` · `CLOSED` · `ACCEPTED`.
 
 | ID | Risk | Sev | Owner | Mitigation | Status |
 | --- | --- | --- | --- | --- | --- |
-| **S-01** | Fraudulent alert injected by an unauthorised transmitter, played at maximum volume | High | Transport | AES-256-GCM with a per-group pre-shared key; the sender identifier lies inside the authenticated region; frames failing authentication are discarded silently | OPEN |
+| **S-01** | Fraudulent alert injected by an unauthorised transmitter, played at maximum volume | High | Transport | AES-256-GCM with a pre-shared key held by every paired unit; the sender identifier lies inside the authenticated region; frames failing authentication are discarded silently | OPEN |
 | **S-02** | Recorded alert replayed later | High | Transport | 64-entry sliding replay window per sender keyed on `(EPOCH, SEQ)`; sequence numbers outside the window rejected | OPEN |
 | **S-03** | Recognition error inverts meaning — "do not evacuate" becomes "now evacuate" | High | ASR | Confidence transmitted with every frame; recognised text displayed to the sender before transmission; explicit confirmation required for alert-class messages; negation terms added to the biasing lexicon | OPEN |
-| **S-04** | Key material exposed on a captured device | Med | Transport | Android Keystore storage; group re-keying supported; a device is removed from a group by rotating the key at the next provisioning | OPEN |
+| **S-04** | Key material exposed on a captured device | Med | Transport | Android Keystore storage; re-keying supported; a unit is removed by rotating the key at the next provisioning | OPEN |
 | **S-05** | Two operators transmit simultaneously on a half-duplex channel, garbling both | Med | Application | `PTT_CTL` floor announcement, channel-busy indicator, randomised backoff before retry | OPEN |
 
 Detail and verification for all five is in [SECURITY.md](SECURITY.md).

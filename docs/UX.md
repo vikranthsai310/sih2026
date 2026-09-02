@@ -116,32 +116,57 @@ Normative. A review may reject a change for violating any of these.
 Rule 3 is the one that gets violated. "Add a label" is the reflex fix for an unclear
 control; the correct fix is a clearer icon plus the label.
 
-## 5. Provisioning
+## 5. Pairing
 
-Users are not asked to enter identifiers.
+**There is no group to create and none to join.** Users are not asked to enter
+identifiers, and they are not asked to decide which kind of device they are.
+
+Every unit does exactly the same thing: it shows its own code, and it can scan another's.
 
 ```
- CREATOR                                JOINER
- ───────                                ──────
- Create group                           Scan QR
-   ├ random group ID                      ├ receives key, group, profile
-   ├ random AES-256 key                   ├ claims next free node ID
-   ├ template profile + digest            ├ key → Keystore
-   └ shows QR (FLAG_SECURE, 120 s)        └ display name entered locally
+ EVERY UNIT, ALWAYS THE SAME SCREEN
+ ──────────────────────────────────
+ On first launch, with nothing to scan:
+   ├ generates a 256-bit AES key        → Keystore
+   ├ derives KEYID = SHA-256(key)[0]
+   ├ takes node 01, template profile
+   └ is immediately usable, alone
+
+ When it scans another unit's code:
+   ├ adopts that unit's key and profile
+   ├ claims the next free node ID
+   └ discards its own key
 ```
+
+The asymmetry that used to be a screen — creator versus joiner — is now decided by who
+points the camera. Whoever scans, joins. Nobody has to know which one they are.
 
 Display names are local to each device. Pairing is the most common point of failure in live
-demonstrations, and reducing it to a scan removes that risk (risk P-03). Security
-properties of the QR path are in [SECURITY.md §5](SECURITY.md#5-provisioning).
+demonstrations, and reducing it to *point at the other phone* removes both the failure and
+the decision (risk P-03). Security properties of the optical path are in
+[SECURITY.md §5](SECURITY.md#5-provisioning).
+
+### Why there are no groups
+
+The `GRP` byte that used to carry a channel number is gone; the header now carries `KEYID`,
+derived from the key and never shown to anyone. Channels were doing no work the key was not
+already doing — a unit that does not hold the key fails the authentication tag and discards
+the frame regardless of what channel byte it saw. What is left is pairing, which is
+unavoidable: the key has to reach the other handset somehow.
+
+Two teams operating in the same place still do not hear each other, because they hold
+different keys. The only capability given up is one handset holding several keys and
+switching between them with a dial — which no requirement asks for, and which the byte is
+still on the wire to support if it is ever wanted.
 
 ## 6. Screens
 
 | Screen | Contents | Depth from operating screen |
 | --- | --- | --- |
 | Operating | The screen in §1 | — |
-| Roster | Units in the group: name, node ID, battery, link quality, last heard | 1 tap |
+| Roster | Units paired: name, node ID, battery, link quality, last heard | 1 tap |
 | Message log | Last 24 h of sent and received text with delivery state, replayable as audio | 1 tap |
-| Channel | Group selector, PTT/phone mode toggle, transport selector | 1 tap |
+| Channel | Address selector, PTT/phone mode toggle, transport selector | 1 tap |
 | Language | Ten languages, showing which packs are installed | 1 tap |
 | Settings | Packs and storage, provisioning, alert test, metrics export, about and licences | 2 taps |
 | Provisioning | QR display or scan | 2 taps |
@@ -164,7 +189,7 @@ A system that silently stops working is worse than one that says it has stopped.
 | `INITIALISING` | Transmit disabled, "loading models" with progress, never a blank screen |
 | `READY` | Transmit enabled, link indicator green |
 | `DEGRADED` | Amber banner with a **reason string**: mic unavailable, link down, thermal throttling, storage full |
-| `UNSECURED` | Permanent red banner whenever any configured group is unauthenticated. No silent path |
+| `UNSECURED` | Permanent red banner whenever the units are paired without encryption. No silent path |
 | `TEMPLATE MISMATCH` | Persistent warning naming the peer; template sending disabled |
 | Floor held by peer | Busy indicator with the peer's name |
 | Low confidence | Recognised text shown with a caution marker before transmission |

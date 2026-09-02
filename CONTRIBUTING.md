@@ -33,7 +33,7 @@ assertion over the full block plus ASCII.
 Closes T-13.
 ```
 
-Never commit: model binaries, keystores, group keys, `local.properties`, benchmark output.
+Never commit: model binaries, keystores, shared keys, `local.properties`, benchmark output.
 `.gitignore` covers all of these; if you are fighting it, stop and ask.
 
 ## 3. Pull requests
