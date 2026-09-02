@@ -1,18 +1,12 @@
 # Roadmap
 
-> ## The nearest deadline is not the build
->
-> **Idea submission closes 20 September 2026.** What is due is six slides as a PDF, on the
-> official template. No code is submitted and no demonstration is given.
->
-> The eight-week plan below is the *build*, and it only matters if the submission gets
-> through. Content for the slides is written and ready in
-> [IDEA_SUBMISSION.md](IDEA_SUBMISSION.md); the remaining work is filling the template,
-> exporting to PDF, and uploading. **Do that first, in week 1, in parallel with
-> engineering** — not in the week it is due.
-
 Eight weeks. The governing rule is that the end-to-end loop closes before any effort is
 spent on model quality.
+
+> **Idea submission (20 September 2026) is owned outside this plan.** Slide content is
+> written and ready in [IDEA_SUBMISSION.md](IDEA_SUBMISSION.md) for whoever is handling it;
+> the engineering track below does not block on it and is not blocked by it. Tracked as
+> risk P-06.
 
 > ## The scheduling rule that matters
 >
@@ -121,7 +115,7 @@ These run continuously from week 1, not as a phase:
 
 | Milestone | Depends on | Note |
 | --- | --- | --- |
-| SIH idea submission PPT | Sections 01–03 of the design document | Content is drafted in [IDEA_SUBMISSION.md](IDEA_SUBMISSION.md); must be uploaded as **PDF**, six slides maximum |
+| SIH idea submission PPT | Sections 01–03 of the design document | **Owned outside this plan.** Content is drafted in [IDEA_SUBMISSION.md](IDEA_SUBMISSION.md); must be uploaded as **PDF**, six slides maximum, by 20 September 2026 |
 | Target handset acquired | — | Week 1. Blocks every reportable number (P-02) |
 | LoRa hardware acquired | — | Order by week 4; a two-week lead time will otherwise consume the differentiator |
 | Listening panel recruited | Week 7 voices | 15 native speakers per language is the largest logistical task in the evaluation — start recruiting in week 5 |
