@@ -238,7 +238,7 @@ stream.acceptWaveform(samples, 16000)
 while (recognizer.isReady(stream)) recognizer.decode(stream)
 val text = recognizer.getResult(stream).text
 if (recognizer.isEndpoint(stream)) {
-    link.send(Frame.encode(text, lang = HI, dst = BROADCAST))
+    link.send(Frame.encode(text, lang = HI))   // always broadcast
     recognizer.reset(stream)
 }
 ```

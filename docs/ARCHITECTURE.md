@@ -13,8 +13,8 @@ handsets.
  │            ▼               │              │            ▼               │
  │  Ring buffer · 20 ms hops  │              │  CRC · decrypt · de-dupe   │
  │            ▼               │              │            ▼               │
- │  Tier 0   energy gate      │              │  Address filter            │
- │  Tier 1   Silero VAD       │  idle path   │  keyid / dest / TTL        │
+ │  Tier 0   energy gate      │              │  KEYID filter              │
+ │  Tier 1   Silero VAD       │  idle path   │  key check · TTL           │
  │            ▼  speech       │              │            ▼               │
  │  Feature extraction        │              │  Unpack script  ·  or      │
  │  80-dim log-mel            │              │  expand template code      │
@@ -164,7 +164,7 @@ stopped (risk T-12).
 | `AudioRecord` → capture | `ShortArray(320)` | 20 ms at 16 kHz mono, pre-allocated ring |
 | Capture → inference | `SpeechBlock(pcm, tMic)` | `tMic` is the capture timestamp, carried end to end for latency accounting |
 | Inference → app | `Hypothesis(text, isFinal, confidence, tEndpoint)` | Partials are advisory and never transmitted unless `PARTIAL` is set |
-| App → `core-proto` | `Utterance(text, lang, priority, dst)` | |
+| App → `core-proto` | `Utterance(text, lang, priority)` | No destination — every frame is broadcast |
 | `core-proto` → `core-link` | `ByteArray` | Complete framed, CRC'd, optionally sealed frame |
 | `core-link` → `core-proto` | `ByteArray` | One frame, already de-framed from the stream |
 | `core-proto` → `core-tts` | `Utterance(text, lang, priority, src)` | |

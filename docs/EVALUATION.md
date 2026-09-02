@@ -131,9 +131,9 @@ Reported three ways, because one of them will be challenged:
 
 | Comparison | Ratio | When to quote it |
 | --- | --- | --- |
-| Packed text vs raw PCM, unauthenticated | 2 133× | The headline |
-| Packed text vs raw PCM, authenticated | 1 574× | The honest deployment figure |
-| Packed text vs Opus at 6 kbps | 42× | **When asked "why not just use a codec?"** |
+| Packed text vs raw PCM, unauthenticated | 2 182× | The headline |
+| Packed text vs raw PCM, authenticated | 1 600× | The honest deployment figure |
+| Packed text vs Opus at 6 kbps | 43× | **When asked "why not just use a codec?"** |
 | Template code vs raw PCM | 7 385× | The best case, clearly labelled as best case |
 
 Have all four ready. Quoting only the largest and being asked for the Opus comparison

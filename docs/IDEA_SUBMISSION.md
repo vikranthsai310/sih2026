@@ -72,7 +72,7 @@ Put the product name and the one-line thesis on this slide if the template leave
 
 | The statement asks for | We deliver |
 | --- | --- |
-| *"vocal audio… difficult to transmit through low data rate links"* | 3 s of Hindi speech: **96 000 B → 45 B**, a **2 133×** reduction |
+| *"vocal audio… difficult to transmit through low data rate links"* | 3 s of Hindi speech: **96 000 B → 44 B**, a **2 182×** reduction |
 | *"alert and distress based scenarios"* | Alarm-stream delivery that wakes a locked, silenced handset |
 | *"more inclusive… even if they are literate or not"* | Voice at both ends. Nobody reads, nobody types |
 | *"10 Indian Languages"* | All ten, on-device, fully offline |
@@ -89,7 +89,7 @@ be able to find every phrase of it answered.
   no translation model
 - The same code that talks to a phone talks to a radio — RFCOMM is a serial cable
 
-**Visual for this slide:** the two-phone signal path with `45 B` on the arrow between them.
+**Visual for this slide:** the two-phone signal path with `44 B` on the arrow between them.
 
 ---
 
@@ -111,7 +111,7 @@ be able to find every phrase of it answered.
 
 ```
  Mic → VAD (3 tiers) → Conformer ASR → endpoint → template match / script pack
-     → 11-byte frame + AES-GCM + CRC → [ BT · BLE · Wi-Fi · LoRa ]
+     → 10-byte frame + AES-GCM + CRC → [ BT · BLE · Wi-Fi · LoRa ]
      → verify → unpack → normalise → phonemise → VITS → streaming audio
 ```
 
@@ -179,7 +179,7 @@ be able to find every phrase of it answered.
 
 - Sub-second delivery: **500–800 ms** end to end in push-to-talk mode
 - Alerts wake a locked, silenced handset and announce at full volume
-- 2 133× compression puts voice communication on links that could never carry it
+- 2 182× compression puts voice communication on links that could never carry it
 
 **One-sentence close:** *On the links that work when infrastructure does not, audio is
 impossible and iTantra is comfortable. That gap is the product.*

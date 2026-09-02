@@ -13,7 +13,7 @@
 | **Duty cycle** | The proportion of elapsed time a transmitter is active. Regulated in the 865–867 MHz LoRa band |
 | **Endpointing** | Deciding that an utterance has finished, so that a final result can be emitted |
 | **EPOCH** | A per-sender counter, incremented on every `SEQ` wrap and every service start, that guarantees the AEAD nonce is never reused |
-| **Frame** | One complete protocol message: 11-byte header, payload, 2-byte CRC |
+| **Frame** | One complete protocol message: 10-byte header, payload, 2-byte CRC. There is no destination field — every frame is broadcast |
 | **GATT** | The Bluetooth Low Energy attribute protocol; data is exchanged through named characteristics rather than a stream |
 | **Half / full duplex** | Half duplex permits one direction at a time — the walkie-talkie mode. Full duplex permits both simultaneously — the telephone mode |
 | **Hotword** | A phrase supplied to the decoder for score boosting. Synonymous here with a biasing term |

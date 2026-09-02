@@ -14,7 +14,7 @@ sentence.
  ┌──────────────────────────────────────────────┐
  │  RESCUE-A            6 units      ● LINK OK  │
  ├──────────────────────────────────────────────┤
- │   ALL UNITS  ▾                    हिन्दी  ▾   │
+ │   PTT · ALL UNITS                 हिन्दी  ▾   │
  ├──────────────────────────────────────────────┤
  │                                              │
  │                                              │
@@ -146,7 +146,7 @@ demonstrations, and reducing it to *point at the other phone* removes both the f
 the decision (risk P-03). Security properties of the optical path are in
 [SECURITY.md §5](SECURITY.md#5-provisioning).
 
-### Why there are no groups
+### Why there are no groups, and no addresses
 
 The `GRP` byte that used to carry a channel number is gone; the header now carries `KEYID`,
 derived from the key and never shown to anyone. Channels were doing no work the key was not
@@ -159,14 +159,22 @@ different keys. The only capability given up is one handset holding several keys
 switching between them with a dial — which no requirement asks for, and which the byte is
 still on the wire to support if it is ever wanted.
 
+The destination byte went the same way, and for the same reason. ISRO asks for something
+that "should work like a walkie talkie"; a walkie-talkie has no address book, and if you
+can hear the channel you hear everything on it. `DST` is gone, the header is 10 bytes, and
+the roster and address-selector screens went with it. **Nine screens remain** — see
+[WIREFRAMES.md](WIREFRAMES.md).
+
+This is a one-way door for private messaging. If unit-to-unit calls are ever wanted, `DST`
+returns and the protocol version increments.
+
 ## 6. Screens
 
 | Screen | Contents | Depth from operating screen |
 | --- | --- | --- |
 | Operating | The screen in §1 | — |
-| Roster | Units paired: name, node ID, battery, link quality, last heard | 1 tap |
-| Message log | Last 24 h of sent and received text with delivery state, replayable as audio | 1 tap |
-| Channel | Address selector, PTT/phone mode toggle, transport selector | 1 tap |
+| Message log | Last 24 h of sent and received text with delivery state, replayable as audio. Sender names here replace the roster | 1 tap |
+| Mode and transport | PTT/phone toggle and transport selector. **No address selector** — every message reaches every unit | 1 tap |
 | Language | Ten languages, showing which packs are installed | 1 tap |
 | Settings | Packs and storage, provisioning, alert test, metrics export, about and licences | 2 taps |
 | Provisioning | QR display or scan | 2 taps |

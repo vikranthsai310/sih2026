@@ -14,12 +14,12 @@ integrity and authentication. The payload is what remains.
 ## 1. Frame layout
 
 ```
- byte   0      1      2   3      4      5   6      7      8      9     10     11 …    n-2 n-1
-      ┌──────┬──────┬──────────┬──────┬──────────┬──────┬──────┬──────┬──────┬───────┬─────────┐
-      │MAGIC │ TYPE │   SEQ    │FLAGS │   LEN    │ SRC  │ DST  │KEYID │ TTL  │PAYLOAD│  CRC16  │
-      │ VER  │ LANG │          │      │          │      │      │      │      │       │         │
-      └──────┴──────┴──────────┴──────┴──────────┴──────┴──────┴──────┴──────┴───────┴─────────┘
-        └──────────────────── header, 11 bytes ─────────────────────┘         └─ trailer, 2 ─┘
+ byte   0      1      2   3      4      5   6      7      8      9     10 …     n-2 n-1
+      ┌──────┬──────┬──────────┬──────┬──────────┬──────┬──────┬──────┬───────┬─────────┐
+      │MAGIC │ TYPE │   SEQ    │FLAGS │   LEN    │ SRC  │KEYID │ TTL  │PAYLOAD│  CRC16  │
+      │ VER  │ LANG │          │      │          │      │      │      │       │         │
+      └──────┴──────┴──────────┴──────┴──────────┴──────┴──────┴──────┴───────┴─────────┘
+        └────────────────── header, 10 bytes ──────────────────┘        └─ trailer, 2 ─┘
 ```
 
 | Field | Bytes | Definition |
@@ -29,8 +29,7 @@ integrity and authentication. The payload is what remains.
 | `SEQ` | 2 | Per-sender sequence number, big-endian. Increments once per transmitted frame, wraps at `0xFFFF`. Drives acknowledgement, duplicate suppression and the replay window. |
 | `FLAGS` | 1 | Bitfield (§7). |
 | `LEN` | 2 | Payload length in bytes, big-endian, **not** including header or CRC. MUST be ≤ 1024. This field is the basis of stream framing. |
-| `SRC` | 1 | Sender node identifier (§8). |
-| `DST` | 1 | Destination node, or `0xFF` for broadcast. |
+| `SRC` | 1 | Sender node identifier (§8). **There is no destination field** — every frame is broadcast to every unit holding the key, exactly as a walkie-talkie is. See §8. |
 | `KEYID` | 1 | First byte of SHA-256 of the shared key. A **cheap reject filter**, not a security control — it lets a frame from an unpaired transmitter be dropped without running AEAD verification. Derived automatically; never configured, never shown to the user. A collision (1 in 256) costs one wasted verification and is then rejected by the tag. |
 | `TTL` | 1 | Remaining relay hops. Decremented on forward; a frame arriving with `TTL == 0` MUST NOT be forwarded. Default 3. |
 | `PAYLOAD` | `LEN` | Packed text, template identifier, coordinates, or control data. Sealed when `ENCRYPTED` is set (§6). |
@@ -51,20 +50,25 @@ decision.
 
 | Frame | Header | Payload | Tag | Total | Time on a 300 bps link |
 | --- | --- | --- | --- | --- | --- |
-| Template alert, unauthenticated | 13 B | 1 B | — | 14 B | 0.4 s |
-| Template alert, 8-byte tag | 13 B | 1 B | 8 B | 22 B | 0.6 s |
-| Template alert with coordinates, 8-byte tag | 13 B | 9 B | 8 B | 30 B | 0.8 s |
-| Packed Hindi sentence, unauthenticated | 13 B | 32 B | — | 45 B | 1.2 s |
-| Packed Hindi sentence, 8-byte tag | 13 B | 32 B | 8 B | 53 B | 1.4 s |
-| Packed Hindi sentence, 16-byte tag | 13 B | 32 B | 16 B | 61 B | 1.6 s |
-| Plain UTF-8 sentence, unauthenticated | 13 B | 99 B | — | 112 B | 3.0 s |
+| Template alert, unauthenticated | 12 B | 1 B | — | **13 B** | 0.3 s |
+| Template alert, 8-byte tag | 12 B | 1 B | 8 B | 21 B | 0.6 s |
+| Template alert with coordinates, 8-byte tag | 12 B | 9 B | 8 B | 29 B | 0.8 s |
+| Packed Hindi sentence, unauthenticated | 12 B | 32 B | — | **44 B** | 1.2 s |
+| Packed Hindi sentence, 8-byte tag | 12 B | 32 B | 8 B | 52 B | 1.4 s |
+| Packed Hindi sentence, 16-byte tag | 12 B | 32 B | 16 B | 60 B | 1.6 s |
+| Plain UTF-8 sentence, unauthenticated | 12 B | 99 B | — | 111 B | 3.0 s |
 | Equivalent Opus audio at 6 kbps | — | 2 250 B | — | 2 250 B | 60 s |
 
-> **Quote the authenticated figure.** The 45 B number is the unauthenticated frame. In
-> any deployment worth defending, `ENCRYPTED` is set, and the honest figure is 53 B on a
-> low-rate link or 61 B on Bluetooth. Against raw PCM that is still 1 574× and against the
-> Opus floor it is 42×. Both numbers are defensible; only one of them survives a question
+> **Quote the authenticated figure.** The 44 B number is the unauthenticated frame. In
+> any deployment worth defending, `ENCRYPTED` is set, and the honest figure is 52 B on a
+> low-rate link or 60 B on Bluetooth. Against raw PCM that is still 1 600× and against the
+> Opus floor it is 43×. Both numbers are defensible; only one of them survives a question
 > from a technical jury.
+>
+> **A note on the 13 B template frame.** The design document quotes "13 B — header plus a
+> one-byte message ID" and a 7 385× ratio. With an 11-byte header that was arithmetically
+> impossible; with the destination byte removed it is exactly right. The headline figure in
+> `Doc/iTantra.html` is now literally true rather than approximately so.
 
 ---
 
@@ -101,50 +105,49 @@ A frame MUST NOT set both `PACKED` and `TEMPLATE`.
 
 Worked byte maps. Every field is big-endian; `SEQ` is shown as `nnnn`.
 
-**`TEXT` — packed Hindi sentence, unauthenticated · 45 B**
+**`TEXT` — packed Hindi sentence, unauthenticated · 44 B**
 
 ```
- off   0    1    2  3    4     5  6    7    8    9   10   11 … 42   43 44
-     ┌────┬────┬──────┬─────┬──────┬────┬────┬────┬────┬─────────┬───────┐
-     │ A1 │ 11 │ nnnn │ 8A  │ 0020 │ 02 │ FF │ 07 │ 03 │ 32 B    │ CRC16 │
-     └────┴────┴──────┴─────┴──────┴────┴────┴────┴────┴─────────┴───────┘
-       │    │           │      │      │    │    │    │  packed text
-       │    │           │      │      │    │    │    └ TTL   3 hops
-       │    │           │      │      │    │    └ KEYID derived from the key
-       │    │           │      │      │    └ DST   FF broadcast
-       │    │           │      │      └ SRC   node 02
+ off   0    1    2  3    4     5  6    7    8    9   10 … 41    42 43
+     ┌────┬────┬──────┬─────┬──────┬────┬────┬────┬─────────┬───────┐
+     │ A1 │ 11 │ nnnn │ 8A  │ 0020 │ 02 │ 07 │ 03 │ 32 B    │ CRC16 │
+     └────┴────┴──────┴─────┴──────┴────┴────┴────┴─────────┴───────┘
+       │    │           │      │      │    │    │  packed text
+       │    │           │      │      │    │    └ TTL   3 hops
+       │    │           │      │      │    └ KEYID derived from the key
+       │    │           │      │      └ SRC   node 02 — no destination field
        │    │           │      └ LEN   0x0020 = 32 payload bytes
        │    │           └ FLAGS 0x8A = FINAL | PACKED | CONFIDENCE 2
        │    └ TYPE 1 TEXT · LANG 1 Hindi
        └ MAGIC A · VER 1
 ```
 
-**`TEXT` — same sentence, AES-256-GCM with a 16-byte tag · 61 B**
+**`TEXT` — same sentence, AES-256-GCM with a 16-byte tag · 60 B**
 
 ```
- off   0    1    2  3    4     5  6    7    8    9   10   11 … 58   59 60
-     ┌────┬────┬──────┬─────┬──────┬────┬────┬────┬────┬─────────┬───────┐
-     │ A1 │ 11 │ nnnn │ AA  │ 0030 │ 02 │ FF │ 07 │ 03 │ 32 + 16 │ CRC16 │
-     └────┴────┴──────┴─────┴──────┴────┴────┴────┴────┴─────────┴───────┘
-                        │      │                        ciphertext ‖ tag
+ off   0    1    2  3    4     5  6    7    8    9   10 … 57    58 59
+     ┌────┬────┬──────┬─────┬──────┬────┬────┬────┬─────────┬───────┐
+     │ A1 │ 11 │ nnnn │ AA  │ 0030 │ 02 │ 07 │ 03 │ 32 + 16 │ CRC16 │
+     └────┴────┴──────┴─────┴──────┴────┴────┴────┴─────────┴───────┘
+                        │      │                   ciphertext ‖ tag
                         │      └ LEN counts ciphertext PLUS tag
                         └ FLAGS 0xAA adds ENCRYPTED
 ```
 
 The nonce is not on the wire. It is derived as `EPOCH ‖ SRC ‖ SEQ ‖ 0x00×5` (§6.2), and
-the associated data is the full 11-byte header, so `SRC`, `DST`, `TYPE` and `FLAGS` are all
-bound into the tag.
+the associated data is the full 10-byte header, so `SRC`, `TYPE` and `FLAGS` are all bound
+into the tag.
 
-**`ALERT` — template code with coordinates, 8-byte tag · 30 B**
+**`ALERT` — template code with coordinates, 8-byte tag · 29 B**
 
 ```
- off   0    1    2  3    4     5  6    7    8    9   10   11 … 27   28 29
-     ┌────┬────┬──────┬─────┬──────┬────┬────┬────┬────┬─────────┬───────┐
-     │ A1 │ 21 │ nnnn │ A7  │ 0011 │ 02 │ FF │ 07 │ 03 │ 9 + 8   │ CRC16 │
-     └────┴────┴──────┴─────┴──────┴────┴────┴────┴────┴─────────┴───────┘
-            │           │                              │
-            │           │                              └ 01 = template id,
-            │           │                                then 8 B position
+ off   0    1    2  3    4     5  6    7    8    9   10 … 26    27 28
+     ┌────┬────┬──────┬─────┬──────┬────┬────┬────┬─────────┬───────┐
+     │ A1 │ 21 │ nnnn │ A7  │ 0011 │ 02 │ 07 │ 03 │ 9 + 8   │ CRC16 │
+     └────┴────┴──────┴─────┴──────┴────┴────┴────┴─────────┴───────┘
+            │           │                         │
+            │           │                         └ 01 = template id,
+            │           │                           then 8 B position
             │           └ FLAGS 0xA7 = FINAL | ENCRYPTED | TEMPLATE | CONF 3
             └ TYPE 2 ALERT · LANG 1 Hindi
 ```
@@ -158,15 +161,15 @@ payload differ.
 
 | Type | Byte 1 | Payload | `LEN` | Total unauth. | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `TEXT` plain UTF-8 | `1L` | UTF-8 bytes | var | 13 + n | `PACKED` clear |
-| `TEXT` packed | `1L` | Packed bytes | var | 13 + n | `PACKED` set |
-| `ALERT` | `2L` | As `TEXT` or template | var | 13 + n | Acknowledged and retried |
-| `ACK` | `3L` | Acknowledged `SEQ` | 2 | **15 B** | Never relayed |
-| `PTT_CTL` | `4L` | `01` seize / `00` release | 1 | **14 B** | Drives the busy indicator |
-| `HEARTBEAT` | `5L` | §9 payload | 12 | **25 B** | Every 2 s; never relayed |
-| `TEMPLATE` | `6L` | Template id | 1 | **14 B** | Routine template traffic |
-| `POSITION` | `7L` | Lat, lon (§10) | 8 | **21 B** | |
-| `AUDIO_FB` | `8L` | Opus frame | var | 13 + n | Wi-Fi only; refused elsewhere |
+| `TEXT` plain UTF-8 | `1L` | UTF-8 bytes | var | 12 + n | `PACKED` clear |
+| `TEXT` packed | `1L` | Packed bytes | var | 12 + n | `PACKED` set |
+| `ALERT` | `2L` | As `TEXT` or template | var | 12 + n | Acknowledged and retried |
+| `ACK` | `3L` | Acknowledged `SEQ` | 2 | **14 B** | Never relayed |
+| `PTT_CTL` | `4L` | `01` seize / `00` release | 1 | **13 B** | Drives the busy indicator |
+| `HEARTBEAT` | `5L` | §9 payload | 12 | **24 B** | Every 2 s; never relayed |
+| `TEMPLATE` | `6L` | Template id | 1 | **13 B** | Routine template traffic |
+| `POSITION` | `7L` | Lat, lon (§10) | 8 | **20 B** | |
+| `AUDIO_FB` | `8L` | Opus frame | var | 12 + n | Wi-Fi only; refused elsewhere |
 
 `L` is the language index nibble, 0–9.
 
@@ -340,7 +343,7 @@ maximum-volume evacuation order is a weapon. **Encryption is the real address.**
   at provisioning, stored in Android Keystore, never written to DataStore, a file, or a
   log.
 - **Plaintext:** the payload only.
-- **Associated data:** the **entire 11-byte header**. This binds `SRC`, `DST`, `KEYID`,
+- **Associated data:** the **entire 10-byte header**. This binds `SRC`, `KEYID`,
   `TYPE`, `SEQ` and `FLAGS` into the authentication tag, so none of them can be altered by
   an attacker without invalidating the frame. In particular the sender identity is
   authenticated, which is what defeats impersonation (risk S-01).
@@ -430,17 +433,19 @@ Radio does not route; it broadcasts. Every device within range receives every
 transmission, and selection happens at the receiver. This is how aviation, military and
 amateur radio have always worked, and iTantra reproduces it in software.
 
+**Every frame goes to every unit. There is no destination field and no private message.**
+The problem statement asks for something that "should work like a walkie talkie", and a
+walkie-talkie has no address book — if you can hear the channel, you hear everything on it.
+Selection is by key, not by address: hold the key and you are on the net, or you are not.
+
 ```kotlin
-fun accept(f: Frame): Boolean = when {
-    f.keyId != myKeyId -> false   // not our key — cheap reject before AEAD
-    f.dst == BROADCAST -> true    // addressed to all units
-    f.dst == myNode    -> true    // addressed to me
-    else               -> false   // someone else's traffic
-}
+fun accept(f: Frame): Boolean =
+    f.keyId == myKeyId            // cheap reject before AEAD; the tag is the real test
 ```
 
-Three bytes deliver broadcast operation, private one-to-one messages, and independent
-channels sharing one physical medium.
+One byte, one comparison, and it is only an optimisation — a frame that passes it still has
+to produce a valid authentication tag. Removing `DST` removed a byte from every frame, two
+branches from the receive path, and one screen from the application.
 
 ### Reserved node identifiers
 
@@ -450,7 +455,7 @@ channels sharing one physical medium.
 | `0x01` | First unit, conventionally the base station |
 | `0x02`–`0xFD` | Assigned nodes |
 | `0xFE` | Reserved for gateway or relay hardware |
-| `0xFF` | Broadcast — all units on the channel |
+| `0xFF` | Reserved. Formerly the broadcast destination; every frame is now broadcast, so no unit may claim it |
 
 ### Relay
 
@@ -460,7 +465,7 @@ duplicates; without it, three mutually visible devices generate an unbounded bro
 storm (risk T-10).
 
 ```kotlin
-if (f.dst != myNode && f.ttl > 0 && seen.add(Triple(f.src, f.epoch, f.seq)))
+if (f.ttl > 0 && seen.add(Triple(f.src, f.epoch, f.seq)))
     link.send(f.copy(ttl = f.ttl - 1))
 ```
 
@@ -514,7 +519,7 @@ semantics to produce the 30 B "template alert with coordinates" case in §1.
 Only BLE (244 B usable after MTU negotiation) and serial transports need it. RFCOMM and
 TCP are byte streams and MUST NOT fragment.
 
-- The sender splits the **sealed** payload into chunks of at most `mtu - 13` bytes.
+- The sender splits the **sealed** payload into chunks of at most `mtu - 12` bytes.
 - Every fragment except the last sets `FRAGMENT`.
 - All fragments of one message share `SEQ`; fragment order is transmission order.
 - The receiver reassembles into a buffer capped at 1024 B and discards the partial message
@@ -528,7 +533,7 @@ TCP are byte streams and MUST NOT fragment.
 | Mechanism | Applies to | Behaviour |
 | --- | --- | --- |
 | CRC-16 | All frames | Corrupt frames are discarded, never spoken. A garbled instruction is more dangerous than a missing one |
-| Acknowledge and retry | `ALERT` only | Up to 3 retries at 300 ms. Ordinary conversation is fire-and-forget — retransmitting stale speech is worse than losing it |
+| Acknowledge and retry | `ALERT` only | Every unit that accepts an `ALERT` sends an `ACK`, so the sender receives several. The alert counts as delivered on the **first** ack; retries stop then, up to 3 at 300 ms. The interface shows `3 of 6 units`, which is better information than a single tick. Ordinary conversation is fire-and-forget — retransmitting stale speech is worse than losing it |
 | Heartbeat | Link | Every 2 s; three missed heartbeats mark the peer offline |
 | Store and forward | All | Frames queue in the outbox when the peer is unreachable and flush on reconnection, with pending / sent / delivered states surfaced in the UI |
 | Reconnection | Link | Exponential backoff with jitter, 1 s to 30 s; the service restores the socket without user action |

@@ -76,7 +76,7 @@ written by the peer, one is notified by the host.
 | Default MTU | 23 B |
 | Negotiated MTU | 247 B, giving ~244 usable |
 
-A typical sentence fits in a single packet after negotiation. Frames exceeding the
+A typical sentence — 44 B unauthenticated, 60 B with a full tag — fits in a single packet after negotiation. Frames exceeding the
 negotiated MTU are fragmented per [PROTOCOL.md §11](PROTOCOL.md#11-fragmentation).
 
 Power consumption is roughly a tenth of Bluetooth Classic, which makes BLE the correct

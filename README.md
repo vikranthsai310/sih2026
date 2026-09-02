@@ -15,8 +15,8 @@ bytes — small enough to cross a radio link that could never carry a voice.
 | --- | --- | --- |
 | Raw PCM, 16 kHz 16-bit mono | 96 000 B | No — 43 minutes |
 | Opus at 6 kbps (the practical floor) | 2 250 B | No — 60 s |
-| **iTantra packed text** | **45 B** | **Yes — 1.2 s** |
-| **iTantra template code** | **13 B** | **Yes — 0.4 s** |
+| **iTantra packed text** | **44 B** | **Yes — 1.2 s** |
+| **iTantra template code** | **13 B** | **Yes — 0.3 s** |
 
 Audio codecs compress the *waveform*, and a waveform detailed enough to be understood has
 an irreducible size. iTantra does not compress the waveform. It recognises the speech on

@@ -9,7 +9,7 @@ already holding. The script is fixed in week 8 and **not improvised**.
 | --- | --- | --- | --- |
 | 1 | Both handsets on the table, **aeroplane mode visibly enabled**, Bluetooth only | Is this really offline? Settled in three seconds, before any claim is made | 0:20 |
 | 2 | Hold transmit; speak a Tamil sentence. The second handset speaks it in Tamil | Does the core loop work? | 0:40 |
-| 3 | Display the byte counter: transmitted 45 B, equivalent audio 96 000 B, ratio 2 133× | What have you actually achieved? The compression figure, **measured live** rather than asserted | 0:40 |
+| 3 | Display the byte counter: transmitted 44 B, equivalent audio 96 000 B, ratio 2 182× | What have you actually achieved? The compression figure, **measured live** rather than asserted | 0:40 |
 | 4 | Point to the permanent latency strip: STT 210 ms, link 40 ms, TTS 180 ms, total 780 ms | How fast is it? Instrumentation on screen, not on a slide | 0:30 |
 | 5 | Lock the second handset and set it to silent. Send an alert. It wakes and announces at full volume | Does the alert requirement work as specified? | 0:50 |
 | 6 | Release push-to-talk. Hold an ordinary two-way conversation with no button | Does telephone mode work? | 0:50 |
@@ -89,7 +89,7 @@ keeps moving looks prepared; a team crouched over a phone does not.
 | Question | Answer |
 | --- | --- |
 | "Why not just use a codec?" | Opus bottoms out at 6 kbps. The link is 300 bps. It is a bound, not an engineering gap — and against Opus we are still 42× smaller |
-| "Isn't 2 133× misleading — what about encryption?" | Correct, and the honest figure is 1 574× authenticated, 53 B on the wire. Both are in the scorecard |
+| "Isn't 2 182× misleading — what about encryption?" | Correct, and the honest figure is 1 600× authenticated, 52 B on the wire. Both are in the scorecard |
 | "What if the recogniser is wrong?" | Confidence is on the wire and on screen; the sender sees the text before it sends; alerts require confirmation; negations are weighted in the biasing lexicon |
 | "Does the cross-language feature translate anything?" | No, and we do not claim it does. It works for template-coded messages only, because both devices hold the same table in ten languages. Free-form messages are delivered in the language spoken |
 | "How is this different from Meshtastic?" | Meshtastic sends typed text. The entire point here is that the operator never types or reads — which is what makes it usable by someone who cannot |

@@ -38,8 +38,9 @@ iTantra exists to raise alarms. A system that can wake a locked, silenced handse
 announce at maximum volume is, if it accepts unauthenticated input, a weapon: the ability
 to inject a fraudulent evacuation order into a disaster zone.
 
-Address filtering is a **convention, not a control** — any device can set any destination
-byte. Everything in this document follows from that sentence.
+There is no destination field and no address filtering to rely on: every frame reaches
+every unit in radio range. **The key is the only boundary.** Everything in this document
+follows from that sentence.
 
 ## 2. Threat model
 
@@ -67,7 +68,7 @@ byte. Everything in this document follows from that sentence.
 ### Trust boundary
 
 Inside: the application, its models, and Android Keystore. Outside: the radio medium, any
-relay hardware, and every other device until it proves the set of paired units by producing a
+relay hardware, and every other device until it proves it holds the key by producing a
 valid authentication tag.
 
 **A relay node is not trusted.** It forwards sealed frames it cannot read.
@@ -76,7 +77,7 @@ valid authentication tag.
 
 | ID | Risk | Control | Verification |
 | --- | --- | --- | --- |
-| S-01 | Fraudulent alert injected by an unauthorised transmitter, played at maximum volume | AES-256-GCM with a pre-shared key held by every paired unit. The **entire header is associated data**, so `SRC`, `DST`, `TYPE` and `FLAGS` are bound into the tag and cannot be altered. Frames failing authentication are discarded silently | Unit test: every single-byte mutation of a valid frame fails verification. Field test: a unpaired device transmits a well-formed `ALERT`; the target must not speak |
+| S-01 | Fraudulent alert injected by an unauthorised transmitter, played at maximum volume | AES-256-GCM with a pre-shared key held by every paired unit. The **entire header is associated data**, so `SRC`, `TYPE` and `FLAGS` are bound into the tag and cannot be altered. Frames failing authentication are discarded silently | Unit test: every single-byte mutation of a valid frame fails verification. Field test: a unpaired device transmits a well-formed `ALERT`; the target must not speak |
 | S-02 | Recorded alert replayed later | 64-entry sliding replay window per sender keyed on `(EPOCH, SEQ)`; `EPOCH` increments on every `SEQ` wrap and every service start | Unit test: a captured frame replayed immediately, after 1 000 frames, and after a restart is rejected in all three cases |
 | S-03 | Recognition error inverts meaning — "do not evacuate" becomes "now evacuate" | Confidence transmitted with every frame; recognised text shown to the sender **before** transmission; explicit confirmation required for alert-class messages; negation terms weighted in the biasing lexicon | Normalisation and biasing regression suites; a specific negation fixture set per language |
 | S-04 | Key material exposed on a captured device | Keys held in Android Keystore, never in DataStore, a file, a log, or a crash report. Re-keying is supported; a lost device is removed by rotating the key at the next provisioning | Code review gate: no key type may be passed to any logging or serialisation API. Static check in CI |
@@ -116,7 +117,7 @@ next free node identifier. Two handsets on a table: one person points, done.
 | Property | Decision |
 | --- | --- |
 | Key transfer | Optical only. The key never crosses the radio medium, at any point, ever |
-| QR contents | Version, key, `KEYID`, profile ID, profile digest, tag length, creator node ID |
+| QR contents | Version, key, `KEYID`, profile ID, profile digest, tag length, issuing node ID |
 | QR lifetime | A code is valid for 120 s from display, then regenerated. Scanning an expired code fails closed |
 | Storage | Key straight into Keystore on scan; the decoded QR string is never written to disk |
 | Screenshots | The provisioning screen sets `FLAG_SECURE` |

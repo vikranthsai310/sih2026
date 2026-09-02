@@ -39,7 +39,7 @@ An operator who has learned one screen has learned all of them.
  ┌──────────────────────────────────────────────┐
  │  A   status bar          56 dp               │
  ├──────────────────────────────────────────────┤
- │  B   channel + language  48 dp               │
+ │  B   mode + language     48 dp               │
  ├──────────────────────────────────────────────┤
  │                                              │
  │  C   primary action      flexible, ≥ 33 %    │
@@ -132,31 +132,14 @@ The manual-entry fallback exists for a cracked camera or a failed scan on stage.
 deliberately the least prominent element on the screen — it requires literacy, so it can
 never be the primary path.
 
----
-
-## 4. Scan succeeded
-
-```
- ┌──────────────────────────────────────────────┐
- │                                              │
- │                    ✓                         │   96 dp,
- │                                              │   haptic + spoken
- │            P A I R E D                       │   cue (rule 2)
- │                                              │
- │        You are unit 03 of 3                  │
- │        Ravi · Base · you                     │
- │                                              │
- ├──────────────────────────────────────────────┤
- │            [   S T A R T   ]                 │   96 dp
- └──────────────────────────────────────────────┘
-```
-
-Confirmed by haptics and a spoken cue, not by a text dialog (rule 2). The unit count is the
-only number that matters here and it is stated in words the operator can hear.
+**On a successful scan** the screen does not navigate anywhere. The `PAIRED` list gains a
+row, the handset gives a haptic pulse and speaks the new unit count aloud — confirmation by
+haptics and voice, not by a dialog (rule 2). Pairing is a state of this screen, not a
+journey through three of them.
 
 ---
 
-## 5. Operating — push-to-talk, idle
+## 4. Operating — push-to-talk, idle
 
 The main screen. This is the one the jury looks at for six of the seven minutes.
 
@@ -164,7 +147,7 @@ The main screen. This is the one the jury looks at for six of the seven minutes.
  ┌──────────────────────────────────────────────┐
  │  ☰   RESCUE-A        6 units      ● LINK OK  │   A · 56 dp
  ├──────────────────────────────────────────────┤
- │  [▾ ALL UNITS        ]  [▾ हिन्दी         ]   │   B · 48 dp
+ │  PTT  ·  ALL UNITS      [▾ हिन्दी         ]   │   B · 48 dp
  ├──────────────────────────────────────────────┤
  │                                              │
  │        ┌──────────────────────────┐          │
@@ -196,13 +179,13 @@ the display off (rule 4).
 
 ---
 
-## 6. Operating — transmitting
+## 5. Operating — transmitting
 
 ```
  ┌──────────────────────────────────────────────┐
  │  ☰   RESCUE-A        6 units      ● LINK OK  │
  ├──────────────────────────────────────────────┤
- │  [▾ ALL UNITS        ]  [▾ हिन्दी         ]   │
+ │  PTT  ·  ALL UNITS      [▾ हिन्दी         ]   │
  ├──────────────────────────────────────────────┤
  │                                              │
  │        ████████████████████████████          │
@@ -232,13 +215,13 @@ The confidence dots `●●●○` are the two `CONFIDENCE` bits from
 
 ---
 
-## 7. Operating — floor held by a peer
+## 6. Operating — floor held by a peer
 
 ```
  ┌──────────────────────────────────────────────┐
  │  ☰   RESCUE-A        6 units      ● LINK OK  │
  ├──────────────────────────────────────────────┤
- │  [▾ ALL UNITS        ]  [▾ हिन्दी         ]   │
+ │  PTT  ·  ALL UNITS      [▾ हिन्दी         ]   │
  ├──────────────────────────────────────────────┤
  │  ▓▓▓▓▓▓▓▓  MEENA IS SPEAKING  ▓▓▓▓▓▓▓▓▓▓▓▓   │   busy band
  ├──────────────────────────────────────────────┤
@@ -266,13 +249,13 @@ else to stop talking.
 
 ---
 
-## 8. Operating — receiving and speaking
+## 7. Operating — receiving and speaking
 
 ```
  ┌──────────────────────────────────────────────┐
  │  ☰   RESCUE-A        6 units      ● LINK OK  │
  ├──────────────────────────────────────────────┤
- │  [▾ ALL UNITS        ]  [▾ हिन्दी         ]   │
+ │  PTT  ·  ALL UNITS      [▾ हिन्दी         ]   │
  ├──────────────────────────────────────────────┤
  │                                              │
  │   ┌────────────────────────────────────┐     │
@@ -289,16 +272,16 @@ else to stop talking.
  ├──────────────────────────────────────────────┤
  │  Base     sending a team                8 s  │
  ├──────────────────────────────────────────────┤
- │  RX 45 B · unpacked 20 ch · TTS 180 ms       │   byte counter
+ │  RX 44 B · unpacked 20 ch · TTS 180 ms       │   byte counter
  └──────────────────────────────────────────────┘
 ```
 
-The byte counter in band F is what demonstration step 3 points at. Showing `45 B` next to
+The byte counter in band F is what demonstration step 3 points at. Showing `44 B` next to
 `96 000 B equivalent audio` converts the compression claim from a slide into a measurement.
 
 ---
 
-## 9. Operating — phone mode
+## 8. Operating — phone mode
 
 Released push-to-talk. The primary action becomes a state display rather than a control.
 
@@ -306,7 +289,7 @@ Released push-to-talk. The primary action becomes a state display rather than a 
  ┌──────────────────────────────────────────────┐
  │  ☰   RESCUE-A        6 units      ● LINK OK  │
  ├──────────────────────────────────────────────┤
- │  [▾ RAVI             ]  [▾ हिन्दी         ]   │   1:1 or all
+ │  PHONE  ·  ALL UNITS    [▾ हिन्दी         ]   │   mode + language
  ├──────────────────────────────────────────────┤
  │                                              │
  │        ┌──────────────────────────┐          │
@@ -333,7 +316,7 @@ and showing it honestly is better than hiding it.
 
 ---
 
-## 10. Low-confidence confirmation
+## 9. Low-confidence confirmation
 
 Shown before transmission when recogniser confidence is low, and **always** for
 alert-class messages (risk S-03).
@@ -371,7 +354,7 @@ message type that can cause physical harm if it is wrong.
 
 ---
 
-## 11. Alert compose
+## 10. Alert compose
 
 ```
  ┌──────────────────────────────────────────────┐
@@ -408,7 +391,7 @@ Every button is an icon plus a word, never a word alone.
 
 ---
 
-## 12. Incoming alert — locked handset
+## 11. Incoming alert — locked handset
 
 The full-screen intent. This is what demonstration step 5 produces on a locked, silenced
 phone.
@@ -446,39 +429,7 @@ pocket can do.
 
 ---
 
-## 13. Roster
-
-```
- ┌──────────────────────────────────────────────┐
- │  ‹   RESCUE-A                    6 units     │
- ├──────────────────────────────────────────────┤
- │  ●  Base          node 01     ▮▮▮▮  now      │   72 dp rows
- │     creator · हिन्दी           88 %           │
- ├──────────────────────────────────────────────┤
- │  ●  Ravi          node 02     ▮▮▮▯  2 s      │
- │     हिन्दी                     64 %           │
- ├──────────────────────────────────────────────┤
- │  ●  Meena         node 03     ▮▮▯▯  41 s     │
- │     தமிழ்                      71 %           │
- ├──────────────────────────────────────────────┤
- │  ○  Arun          node 04     ▯▯▯▯  4 min    │   offline: 3
- │     relayed via node 02       — —            │   missed beats
- ├──────────────────────────────────────────────┤
- │  ⚠  Gateway       node FE     ▮▮▮▯  now      │
- │     LoRa relay · template mismatch           │   S-06 warning
- ├──────────────────────────────────────────────┤
- │  Tap a unit to address it directly           │
- └──────────────────────────────────────────────┘
-```
-
-Everything on this screen comes from the `HEARTBEAT` payload
-([PROTOCOL.md §9](PROTOCOL.md#9-heartbeat-payload)): battery, link quality, state and
-language. The template-mismatch warning on node FE is risk S-06 surfaced — that node's
-template table differs, so template sending to it is disabled.
-
----
-
-## 14. Message log
+## 12. Message log
 
 ```
  ┌──────────────────────────────────────────────┐
@@ -490,7 +441,7 @@ template table differs, so template sending to it is disabled.
  │  ┌────────────────────────────────────┐      │
  │  │ need help now, two injured      ⟲  │      │   replay 64 dp
  │  └────────────────────────────────────┘      │
- │  45 B · ●●●○ · हिन्दी                         │
+ │  44 B · ●●●○ · हिन्दी                         │
  │                                              │
  │                                  me   8 s    │
  │       ┌────────────────────────────────┐     │
@@ -517,11 +468,11 @@ never stored; the replay control re-synthesises from text.
 
 ---
 
-## 15. Channel and mode
+## 13. Mode and transport
 
 ```
  ┌──────────────────────────────────────────────┐
- │  ‹   CHANNEL                                 │
+ │  ‹   MODE AND TRANSPORT                      │
  ├──────────────────────────────────────────────┤
  │  MODE                                        │
  │  ┌────────────────────┬───────────────────┐  │
@@ -530,11 +481,6 @@ never stored; the replay control re-synthesises from text.
  │  │    500–800 ms      │    750–1100 ms    │  │   honest numbers
  │  │    lowest power    │    higher power   │  │
  │  └────────────────────┴───────────────────┘  │
- ├──────────────────────────────────────────────┤
- │  ADDRESS                                     │
- │  ● ALL UNITS            broadcast  0xFF      │
- │  ○ Ravi                 node 02              │
- │  ○ Meena                node 03              │
  ├──────────────────────────────────────────────┤
  │  TRANSPORT                                   │
  │  ● Bluetooth      ▮▮▮▯   30 m    default     │
@@ -547,13 +493,18 @@ never stored; the replay control re-synthesises from text.
  └──────────────────────────────────────────────┘
 ```
 
+**There is no address section.** Every transmission reaches every paired unit, exactly as
+a walkie-talkie does — see [PROTOCOL.md §8](PROTOCOL.md#8-addressing). The unit count in
+the status bar is the whole of the roster: if it says `6 units`, six handsets will hear
+you.
+
 The transport list is the demonstration's step 8 control: switching from Bluetooth to
 Radio · LoRa is a single tap, and nothing above `core-link` changes
 ([TRANSPORT.md §1](TRANSPORT.md#1-the-abstraction)).
 
 ---
 
-## 16. Language
+## 14. Language
 
 ```
  ┌──────────────────────────────────────────────┐
@@ -589,7 +540,7 @@ warning disappears.
 
 ---
 
-## 17. Settings
+## 15. Settings
 
 ```
  ┌──────────────────────────────────────────────┐
@@ -625,7 +576,7 @@ step 5 be rehearsed without a second operator.
 
 ---
 
-## 18. Packs and storage
+## 16. Packs and storage
 
 ```
  ┌──────────────────────────────────────────────┐
@@ -657,7 +608,7 @@ on screen rather than an estimate, and the licence disclosure is impossible to m
 
 ---
 
-## 19. Metrics
+## 17. Metrics
 
 ```
  ┌──────────────────────────────────────────────┐
@@ -695,7 +646,7 @@ A single best-case number is not a measurement, and
 
 ---
 
-## 20. Degraded states
+## 18. Degraded states
 
 Every degraded state is a banner on the operating screen, with a reason string. A system
 that silently stops working is worse than one that says it has stopped.
@@ -734,47 +685,58 @@ press (risk T-11).
 
 ---
 
-## 21. Navigation map
+## 19. Navigation map
 
 Rule 8: no screen is more than two taps from the operating screen, and nothing operational
 is more than one.
 
 ```
-                    FIRST RUN
-                    /        \
-              CREATE          JOIN
-                    \        /
-                     \      /
-                 ┌──────────────┐
-     ┌───────────│  OPERATING   │───────────┐
-     │           └──────────────┘           │
-     │            /     │     \             │
-   ROSTER   MESSAGES  CHANNEL  LANGUAGE  ALERT COMPOSE
-     │                   │                   │
-     │              (1 tap each)        CONFIRM SEND
-     │
-   SETTINGS ── STORAGE · ADD A UNIT · METRICS · LICENCES
-   (via ☰)         (2 taps from operating)
+                FIRST RUN
+                    │
+                  START            one path in, no branch
+                    ▼
+             ┌──────────────┐
+             │  OPERATING   │   ◄── the application lives here
+             └──────────────┘
+              │      │      │
+              │      │      └──────────► ALERT COMPOSE
+              │      │                          │
+              │      └────► LANGUAGE            ▼
+              │                           CONFIRM SEND
+              └───────────► MESSAGES
+
+                        (1 tap each)
+
+   SETTINGS ── MODE & TRANSPORT · STORAGE · ADD A UNIT · METRICS · LICENCES
+   (via ☰)                (2 taps from operating)
 
    INCOMING ALERT interrupts any screen, including the lock screen
+
+   No roster and no address book. The unit count in the status bar is the
+   roster, and every message goes to every unit.
 ```
 
 ---
 
-## 22. Build order
+## 20. Build order
 
 Wireframes map onto the roadmap so the interface is never further ahead than the engine
 that feeds it.
 
 | Week | Screens |
 | --- | --- |
-| 1 | 5 (static), a text field for recognised output |
-| 2 | 15 transport section, a text field to send |
-| 3 | 5, 6, 8 — the loop is visible end to end |
-| 5 | 9, 11, 12, 7 — modes and alerts |
-| 6 | 3, 4, 20 — pairing and degraded states |
-| 7 | 13, 14, 16, 17, 18 — coverage |
-| 8 | 19, 2 — metrics and first run |
+| 1 | 4 (static), a text field for recognised output |
+| 2 | 13 transport section, a text field to send |
+| 3 | 4, 5, 7 — the loop is visible end to end |
+| 5 | 6, 8, 9, 10, 11 — modes and alerts |
+| 6 | 3, 18 — pairing and degraded states |
+| 7 | 12, 14, 15, 16 — coverage |
+| 8 | 17, 2 — metrics and first run |
 
-Screen 19 is late deliberately: it displays measurements, and there is nothing to display
+Screen 17 is late deliberately: it displays measurements, and there is nothing to display
 until the harness produces them.
+
+**Nine distinct screens**, five of them states of the operating screen rather than pages of
+their own. That is the entire application. Every screen removed — the roster, the address
+book, the create/join branch, the scan-confirmation page — is a screen nobody has to build,
+in an eight-week schedule that has not started.

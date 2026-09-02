@@ -134,8 +134,8 @@ words.
 A compact binary wire protocol with minimal framing overhead.
 
 - **Owner:** `core-proto`
-- **Acceptance:** header ≤ 13 B including CRC; a typical Hindi sentence transmits in
-  ≤ 61 B authenticated on Bluetooth and ≤ 53 B authenticated on a low-rate link; framing
+- **Acceptance:** header ≤ 12 B including CRC; a typical Hindi sentence transmits in
+  ≤ 60 B authenticated on Bluetooth and ≤ 52 B authenticated on a low-rate link; framing
   and transmit stage ≤ 60 ms.
 - **Verification:** the on-screen byte counter, and `latency.csv`.
 - **Specification:** [PROTOCOL.md](PROTOCOL.md).
