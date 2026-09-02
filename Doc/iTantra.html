@@ -1,0 +1,2002 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>iTantra — Technical Design Document</title>
+<style>
+/* ============================================================
+   iTantra — Technical Design Document
+   Print stylesheet · A4 · monochrome editorial
+   ============================================================ */
+
+@page { size: A4; margin: 17mm 16mm 16mm 16mm; }
+@page :first { margin: 0; }
+
+* { box-sizing: border-box; }
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+body {
+  margin: 0;
+  font-family: Georgia, "Cambria", "Times New Roman", serif;
+  font-size: 9.4pt;
+  line-height: 1.62;
+  color: #111;
+  background: #fff;
+  text-rendering: optimizeLegibility;
+  -webkit-font-feature-settings: "kern" 1, "liga" 1;
+}
+
+/* ---------- type scale ---------- */
+h1, h2, h3, h4, .sans, th, .label, .kicker, .num, figcaption {
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+p { margin: 0 0 8pt; text-align: justify; hyphens: auto; }
+strong { font-weight: 700; }
+em { font-style: italic; }
+
+.lead {
+  font-size: 11pt;
+  line-height: 1.55;
+  color: #1a1a1a;
+}
+
+/* ---------- page control ---------- */
+.pb { break-before: page; }
+.avoid { break-inside: avoid; }
+
+/* ============================================================
+   COVER
+   ============================================================ */
+.cover {
+  background: #000;
+  color: #fff;
+  height: 297mm;
+  width: 210mm;
+  padding: 26mm 22mm 20mm;
+  position: relative;
+  break-after: page;
+  display: flex;
+  flex-direction: column;
+}
+.cover .rule-top {
+  height: 2.5pt; background: #fff; width: 46mm; margin-bottom: 9mm;
+}
+.cover .org {
+  font-family: "Segoe UI", sans-serif;
+  font-size: 8pt; letter-spacing: .34em; text-transform: uppercase;
+  color: #9a9a9a; margin-bottom: 3mm;
+}
+.cover .ps {
+  font-family: "Segoe UI", sans-serif;
+  font-size: 8pt; letter-spacing: .28em; text-transform: uppercase;
+  color: #6e6e6e;
+}
+.cover .title {
+  font-family: "Segoe UI", sans-serif;
+  font-size: 74pt; font-weight: 300; letter-spacing: -.035em;
+  line-height: .92; margin: 16mm 0 0; color: #fff;
+}
+.cover .title b { font-weight: 700; }
+.cover .subtitle {
+  font-family: Georgia, serif; font-style: italic;
+  font-size: 15pt; line-height: 1.42; color: #cfcfcf;
+  margin: 9mm 0 0; max-width: 145mm;
+}
+.cover .thesis {
+  margin-top: 12mm; padding-top: 7mm;
+  border-top: .5pt solid #3a3a3a;
+  font-family: Georgia, serif; font-size: 11.5pt; line-height: 1.55;
+  color: #e8e8e8; max-width: 150mm;
+}
+.cover .spacer { flex: 1; }
+.cover .metrics {
+  display: flex; gap: 0; border-top: .5pt solid #3a3a3a; padding-top: 6mm;
+}
+.cover .metrics div { flex: 1; }
+.cover .metrics .v {
+  font-family: "Segoe UI", sans-serif; font-size: 21pt; font-weight: 300;
+  letter-spacing: -.02em; color: #fff; line-height: 1;
+}
+.cover .metrics .k {
+  font-family: "Segoe UI", sans-serif; font-size: 6.6pt; letter-spacing: .2em;
+  text-transform: uppercase; color: #8a8a8a; margin-top: 2.5mm;
+}
+.cover .foot {
+  margin-top: 9mm; font-family: "Segoe UI", sans-serif;
+  font-size: 7.4pt; letter-spacing: .18em; text-transform: uppercase; color: #6e6e6e;
+}
+
+/* ============================================================
+   SECTION HEADINGS
+   ============================================================ */
+.sec-open { break-before: page; padding-top: 2mm; }
+
+h1 {
+  font-size: 25pt; font-weight: 300; letter-spacing: -.028em;
+  line-height: 1.06; margin: 0 0 5mm; color: #000;
+}
+h1 b { font-weight: 700; }
+
+.sec-num {
+  font-family: "Segoe UI", sans-serif; font-size: 8pt; font-weight: 600;
+  letter-spacing: .32em; text-transform: uppercase; color: #000;
+  padding-bottom: 2.5mm; margin-bottom: 4mm;
+  border-bottom: 2pt solid #000; display: block;
+}
+
+h2 {
+  font-size: 12.5pt; font-weight: 600; letter-spacing: -.012em;
+  margin: 9mm 0 3mm; color: #000; break-after: avoid;
+  padding-bottom: 1.6mm; border-bottom: .5pt solid #c9c9c9;
+}
+h3 {
+  font-size: 9.6pt; font-weight: 700; letter-spacing: .01em;
+  margin: 6mm 0 2mm; color: #000; break-after: avoid;
+}
+h4 {
+  font-size: 7.6pt; font-weight: 700; letter-spacing: .18em;
+  text-transform: uppercase; margin: 5mm 0 2mm; color: #444; break-after: avoid;
+}
+
+.dek {
+  font-family: Georgia, serif; font-style: italic; font-size: 10.5pt;
+  line-height: 1.5; color: #444; margin: 0 0 7mm; max-width: 150mm;
+}
+
+/* ============================================================
+   TABLES — editorial rules only
+   ============================================================ */
+table {
+  width: 100%; border-collapse: collapse; margin: 4mm 0 6mm;
+  font-size: 8.3pt; break-inside: avoid;
+}
+thead th {
+  font-family: "Segoe UI", sans-serif; font-size: 6.8pt; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; text-align: left;
+  padding: 2.2mm 2.6mm 2.2mm 0; color: #000;
+  border-top: 1.4pt solid #000; border-bottom: .5pt solid #000;
+  vertical-align: bottom;
+}
+tbody td {
+  padding: 2.1mm 2.6mm 2.1mm 0; vertical-align: top;
+  border-bottom: .4pt solid #dedede; line-height: 1.44;
+}
+tbody tr:last-child td { border-bottom: 1.4pt solid #000; }
+td.n, th.n { text-align: right; padding-right: 0; font-variant-numeric: tabular-nums; }
+td.c, th.c { text-align: center; }
+.t-mono td { font-family: Consolas, "Courier New", monospace; font-size: 7.6pt; }
+td.hl { font-weight: 700; }
+tbody tr.emph td { background: #f2f2f2; font-weight: 600; }
+
+/* ============================================================
+   COMPONENTS
+   ============================================================ */
+.callout {
+  border-left: 2.5pt solid #000; padding: 3mm 0 3mm 5mm;
+  margin: 5mm 0; break-inside: avoid;
+}
+.callout .label {
+  font-size: 6.8pt; font-weight: 700; letter-spacing: .22em;
+  text-transform: uppercase; color: #000; display: block; margin-bottom: 1.8mm;
+}
+.callout p { margin: 0; font-size: 9.4pt; }
+.callout p + p { margin-top: 4pt; }
+
+.quote {
+  border-top: .5pt solid #000; border-bottom: .5pt solid #000;
+  padding: 5mm 0; margin: 6mm 0; text-align: center; break-inside: avoid;
+}
+.quote p {
+  font-family: Georgia, serif; font-size: 13pt; font-style: italic;
+  line-height: 1.42; margin: 0; text-align: center; color: #000;
+}
+.quote .attr {
+  font-family: "Segoe UI", sans-serif; font-size: 6.8pt; letter-spacing: .2em;
+  text-transform: uppercase; color: #777; margin-top: 3mm;
+}
+
+.box {
+  border: .5pt solid #000; padding: 4mm 5mm; margin: 5mm 0; break-inside: avoid;
+}
+.box.filled { background: #f4f4f4; border: none; border-left: 2.5pt solid #000; }
+.box h4 { margin-top: 0; }
+
+pre {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 7.2pt; line-height: 1.5; background: #f5f5f5;
+  border-left: 1.5pt solid #000; padding: 3.2mm 4mm;
+  margin: 3.5mm 0 5mm; overflow: hidden; white-space: pre; break-inside: avoid;
+}
+code {
+  font-family: Consolas, "Courier New", monospace; font-size: 8pt;
+  background: #f0f0f0; padding: .3mm 1mm;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+ul, ol { margin: 0 0 8pt; padding-left: 5mm; }
+li { margin-bottom: 2.4pt; line-height: 1.55; }
+ul.tight li, ol.tight li { margin-bottom: 1pt; }
+ul.clean { list-style: none; padding-left: 0; }
+ul.clean li { padding-left: 5mm; position: relative; }
+ul.clean li:before {
+  content: "—"; position: absolute; left: 0; color: #000;
+}
+
+figcaption {
+  font-size: 6.8pt; letter-spacing: .16em; text-transform: uppercase;
+  color: #777; margin-top: 2.5mm; text-align: left;
+}
+figure { margin: 5mm 0 6mm; break-inside: avoid; }
+
+/* stat strip */
+.stats { display: flex; gap: 0; margin: 5mm 0 6mm; break-inside: avoid;
+  border-top: 1.4pt solid #000; border-bottom: .5pt solid #000; }
+.stats > div { flex: 1; padding: 4mm 3mm 4mm 0; }
+.stats .v { font-family: "Segoe UI", sans-serif; font-size: 19pt;
+  font-weight: 300; letter-spacing: -.03em; line-height: 1; }
+.stats .k { font-family: "Segoe UI", sans-serif; font-size: 6.4pt;
+  letter-spacing: .18em; text-transform: uppercase; color: #666; margin-top: 2.2mm; }
+
+/* two column */
+.cols2 { display: flex; gap: 8mm; }
+.cols2 > div { flex: 1; }
+
+/* ASCII-art style diagrams */
+.diagram {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 7pt; line-height: 1.34; white-space: pre;
+  border-top: .5pt solid #000; border-bottom: .5pt solid #000;
+  padding: 4.5mm 0; margin: 5mm 0; break-inside: avoid;
+}
+
+/* frame byte map */
+.bytemap { width: 100%; border-collapse: collapse; margin: 4mm 0;
+  font-family: Consolas, monospace; font-size: 7pt; break-inside: avoid; }
+.bytemap td { border: .4pt solid #999; padding: 1.8mm 1.4mm; text-align: center; }
+.bytemap td.hdr { background: #000; color: #fff; font-weight: 700; }
+.bytemap td.pay { background: #dcdcdc; }
+.bytemap td.tail { background: #6e6e6e; color: #fff; }
+.bytemap .off { font-size: 5.8pt; color: #777; border: none; padding: .8mm 0; }
+
+/* UI mockup (Figure 9.1) */
+.ui-mock {
+  width: 92mm; margin: 0; border: .8pt solid #000; break-inside: avoid;
+  font-family: "Segoe UI", "Nirmala UI", sans-serif;
+}
+.um-bar {
+  background: #000; color: #fff; display: flex; align-items: center;
+  padding: 2.2mm 3mm; font-size: 7pt; letter-spacing: .1em;
+}
+.um-bar .um-ch { font-weight: 700; letter-spacing: .18em; }
+.um-bar .um-mid { flex: 1; text-align: center; color: #b0b0b0; letter-spacing: .06em; }
+.um-bar .um-ok { color: #fff; font-size: 6.4pt; letter-spacing: .12em; }
+.um-body { padding: 3.5mm 3mm 3mm; }
+.um-row { display: flex; gap: 3mm; align-items: center; margin-bottom: 3.5mm; }
+.um-sel {
+  border: .6pt solid #000; padding: 1.8mm 3mm; font-size: 7.4pt;
+  font-weight: 600; letter-spacing: .1em; flex: 1;
+}
+.um-lang { font-size: 8.4pt; color: #333; }
+.um-ptt {
+  border: 1.6pt solid #000; background: #f0f0f0; text-align: center;
+  padding: 9mm 0; font-size: 11pt; font-weight: 700; letter-spacing: .22em;
+  margin-bottom: 3.5mm;
+}
+.um-btn {
+  flex: 1; text-align: center; border: .6pt solid #000; padding: 2.4mm 0;
+  font-size: 7.2pt; font-weight: 700; letter-spacing: .16em;
+}
+.um-btn.dark { background: #000; color: #fff; }
+.um-log { border-top: .5pt solid #cfcfcf; padding-top: 2.6mm; margin-bottom: 2.6mm; }
+.um-log > div { display: flex; align-items: baseline; margin-bottom: 1.6mm; }
+.um-log .who {
+  width: 13mm; font-size: 6.6pt; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: #000;
+}
+.um-log .msg { flex: 1; font-size: 8.6pt; color: #111; }
+.um-log .t { font-size: 6.4pt; color: #888; letter-spacing: .1em; }
+.um-hud {
+  border-top: .5pt solid #000; padding-top: 2.4mm;
+  font-family: Consolas, monospace; font-size: 6.6pt; line-height: 1.7; color: #333;
+}
+
+/* TOC */
+.toc { margin-top: 6mm; }
+.toc-row {
+  display: flex; align-items: baseline; padding: 1.9mm 0;
+  border-bottom: .4pt solid #e0e0e0; font-family: "Segoe UI", sans-serif;
+  font-size: 8.6pt;
+}
+.toc-row .tn { width: 12mm; font-weight: 700; color: #000; font-size: 7.6pt; letter-spacing: .06em; }
+.toc-row .tt { flex: 1; color: #111; }
+.toc-row .td { color: #888; font-size: 7.4pt; font-family: Georgia, serif; font-style: italic; }
+.toc-row.part {
+  border-bottom: 1.2pt solid #000; margin-top: 5mm; padding-bottom: 1.6mm;
+}
+.toc-row.part .tt { font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: 7.4pt; }
+
+/* running footer text at end of doc */
+.endmark { text-align: center; margin: 12mm 0 0; font-family: "Segoe UI", sans-serif;
+  font-size: 6.6pt; letter-spacing: .3em; text-transform: uppercase; color: #999; }
+
+.risk-id { font-family: Consolas, monospace; font-weight: 700; font-size: 7.4pt; }
+.sev { font-family: "Segoe UI", sans-serif; font-size: 6.2pt; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; padding: .6mm 1.6mm;
+  border: .5pt solid #000; white-space: nowrap; }
+.sev.hi { background: #000; color: #fff; }
+.sev.md { background: #c4c4c4; color: #000; border-color: #777; }
+.sev.lo { background: #fff; color: #555; border-color: #aaa; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     COVER
+     ============================================================ -->
+<div class="cover">
+  <div class="rule-top"></div>
+  <div class="org">Smart India Hackathon 2026</div>
+  <div class="ps">Problem Statement 26173 · ISRO · Department of Space</div>
+
+  <div class="title">i<b>Tantra</b></div>
+
+  <div class="subtitle">
+    Indian Multilingual TTS &amp; STT Aided Neural Transceiver<br>
+    Radio Access for Low Bitrate Links
+  </div>
+
+  <div class="thesis">
+    Speech goes in one end. Speech comes out the other. In between it becomes
+    a few dozen bytes — small enough to cross a radio link that could never
+    carry a voice.
+  </div>
+
+  <div class="spacer"></div>
+
+  <div class="metrics">
+    <div><div class="v">2 133&times;</div><div class="k">Compression</div></div>
+    <div><div class="v">&lt;1 s</div><div class="k">End to end</div></div>
+    <div><div class="v">10</div><div class="k">Languages</div></div>
+    <div><div class="v">0</div><div class="k">Internet</div></div>
+  </div>
+
+  <div class="foot">Complete Technical Design Document &nbsp;·&nbsp; Revision 1.0</div>
+</div>
+
+
+<!-- ============================================================
+     CONTENTS
+     ============================================================ -->
+<div>
+  <span class="sec-num">Contents</span>
+  <h1>What is in this <b>document</b></h1>
+  <p class="dek">A complete engineering account of iTantra: the problem, the physics that
+  makes it hard, the architecture that solves it, the numbers we will be judged on,
+  everything that can go wrong, and the plan to build it.</p>
+
+  <div class="toc">
+    <div class="toc-row part"><span class="tn"></span><span class="tt">Part I — The Case</span></div>
+    <div class="toc-row"><span class="tn">01</span><span class="tt">The Night the Radio Stayed Silent</span><span class="td">the story</span></div>
+    <div class="toc-row"><span class="tn">02</span><span class="tt">The Problem, Decoded</span><span class="td">what ISRO is really asking</span></div>
+    <div class="toc-row"><span class="tn">03</span><span class="tt">Compressing Meaning, Not Waveform</span><span class="td">the core idea</span></div>
+
+    <div class="toc-row part"><span class="tn"></span><span class="tt">Part II — The System</span></div>
+    <div class="toc-row"><span class="tn">04</span><span class="tt">System Architecture</span><span class="td">the whole machine</span></div>
+    <div class="toc-row"><span class="tn">05</span><span class="tt">The Listening Engine</span><span class="td">VAD and speech recognition</span></div>
+    <div class="toc-row"><span class="tn">06</span><span class="tt">The Speaking Engine</span><span class="td">speech synthesis</span></div>
+    <div class="toc-row"><span class="tn">07</span><span class="tt">The Transport Layer</span><span class="td">Bluetooth, Wi-Fi, radio</span></div>
+    <div class="toc-row"><span class="tn">08</span><span class="tt">The Wire Protocol</span><span class="td">frames, addressing, security</span></div>
+    <div class="toc-row"><span class="tn">09</span><span class="tt">The Application</span><span class="td">push-to-talk, alerts, inclusive UX</span></div>
+
+    <div class="toc-row part"><span class="tn"></span><span class="tt">Part III — The Proof</span></div>
+    <div class="toc-row"><span class="tn">10</span><span class="tt">Metrics and Evaluation</span><span class="td">how we score 20/40/20</span></div>
+    <div class="toc-row"><span class="tn">11</span><span class="tt">Issues, Risks and Mitigations</span><span class="td">everything that can break</span></div>
+    <div class="toc-row"><span class="tn">12</span><span class="tt">Open-Source Inventory</span><span class="td">every component and licence</span></div>
+
+    <div class="toc-row part"><span class="tn"></span><span class="tt">Part IV — The Execution</span></div>
+    <div class="toc-row"><span class="tn">13</span><span class="tt">Roadmap and Team</span><span class="td">eight weeks</span></div>
+    <div class="toc-row"><span class="tn">14</span><span class="tt">The Demonstration</span><span class="td">seven minutes on stage</span></div>
+    <div class="toc-row"><span class="tn">15</span><span class="tt">Why This Wins</span><span class="td">differentiation</span></div>
+
+    <div class="toc-row part"><span class="tn"></span><span class="tt">Appendices</span></div>
+    <div class="toc-row"><span class="tn">A</span><span class="tt">Frame Specification</span><span class="td">byte-level reference</span></div>
+    <div class="toc-row"><span class="tn">B</span><span class="tt">Reference Implementation</span><span class="td">core code paths</span></div>
+    <div class="toc-row"><span class="tn">C</span><span class="tt">Glossary</span><span class="td">every term used</span></div>
+  </div>
+
+  <div class="box" style="margin-top:10mm">
+    <h4>How to read this</h4>
+    <p style="margin:0">Sections 01–03 are the argument — read these before building anything, and
+    build your presentation from them. Sections 04–09 are the engineering specification.
+    Sections 10–12 are what the jury scores. Sections 13–15 are the plan. The appendices
+    are reference material for whoever writes the code.</p>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     01 — THE STORY
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part I · Section 01</span>
+  <h1>The night the radio<br><b>stayed silent</b></h1>
+  <p class="dek">Every engineering decision in this document traces back to one physical fact.
+  It is easier to understand that fact as a story than as a number.</p>
+
+  <p class="lead">It is 2 a.m. in the Mahanadi delta. The water has been rising for nine hours.
+  A relief team of four is on an embankment eleven kilometres from the nearest road,
+  and the mobile towers went down before midnight. What they carry is a handheld
+  radio set — the kind that works when everything else has failed, because it needs
+  no infrastructure at all, just a battery and an antenna.</p>
+
+  <p>The team leader needs to say eight words to base: <em>two people injured, we need
+  a boat, sector seventeen.</em> He presses the transmit key. The link is a narrowband
+  data channel — a few hundred bits per second, all that the terrain, the power budget
+  and the spectrum allocation will allow.</p>
+
+  <p>Nothing intelligible comes out the other end. Not because the radio is broken.
+  Because <strong>human speech, as audio, does not fit.</strong></p>
+
+  <h2>Why the audio does not fit</h2>
+
+  <p>Sound is a demanding thing to transmit. To reproduce a human voice with enough
+  fidelity that words remain distinguishable, a microphone must sample air pressure
+  sixteen thousand times a second, and each of those samples needs sixteen bits.
+  That is a quarter of a million bits for every second of speech.</p>
+
+  <p>Modern codecs work miracles on that figure. Opus, the best open-source speech
+  codec available, can carry an intelligible voice at six thousand bits per second —
+  a forty-fold reduction, at the cost of a thin, robotic timbre. It is a genuinely
+  remarkable piece of engineering.</p>
+
+  <p>It is also still ten to twenty times too much for the link in the story.</p>
+
+  <div class="stats">
+    <div><div class="v">256 000</div><div class="k">bits/sec — raw speech</div></div>
+    <div><div class="v">6 000</div><div class="k">bits/sec — Opus floor</div></div>
+    <div><div class="v">300</div><div class="k">bits/sec — the link</div></div>
+  </div>
+
+  <p>This is not a software problem that a cleverer codec will eventually solve. It is
+  a bound. Audio codecs compress the <em>waveform</em> — the shape of the pressure wave —
+  and a waveform detailed enough to be understood has an irreducible size. You can
+  approach that bound. You cannot cross it by a factor of twenty.</p>
+
+  <h2>The move that changes the problem</h2>
+
+  <p>So stop transmitting the waveform.</p>
+
+  <p>The sentence <em>two people injured, we need a boat, sector seventeen</em> carries
+  perhaps forty bytes of actual information. Everything else in those three seconds of
+  audio — the speaker's timbre, the wind behind him, the exact pitch contour, the room
+  acoustics — is <strong>not the message</strong>. It is the carrier the message arrived in.</p>
+
+  <p>If the phone in his hand converts that speech to text <em>before</em> transmission,
+  and the phone at base converts the text back to speech <em>after</em> reception, then
+  what crosses the radio link is forty bytes instead of ninety-six thousand. The two
+  humans still only ever speak and listen. Neither of them reads or types anything.
+  Between them, the message travels as language rather than as sound.</p>
+
+  <div class="quote">
+    <p>We are not transmitting audio.<br>We are transmitting meaning.</p>
+    <div class="attr">The entire thesis, in eight words</div>
+  </div>
+
+  <h2>Why this must be speech at both ends</h2>
+
+  <p>A reasonable objection: if the message is text anyway, why not simply let people
+  type it? The problem statement answers this directly, and the answer is the reason
+  the project exists rather than merely being clever.</p>
+
+  <ul class="clean">
+    <li><strong>Literacy.</strong> A system that requires typing excludes the people most
+    likely to need it. In a disaster the person with critical information is a fisherman,
+    a farmer, a village elder — not necessarily someone who can compose a message in a
+    script under stress.</li>
+    <li><strong>Hands and eyes.</strong> A soldier at altitude wearing gloves, a rescuer
+    on a rope, a driver — none of them can type. All of them can press one large button
+    and talk.</li>
+    <li><strong>Speed under stress.</strong> Speaking a sentence takes three seconds.
+    Typing it in Devanagari on a phone keyboard, in the dark, with cold hands, takes
+    forty — if it happens at all.</li>
+    <li><strong>Language.</strong> Ten Indian languages, ten scripts. Voice is the only
+    interface that is equally native to all of them.</li>
+  </ul>
+
+  <p>So the interface is voice, because voice is inclusive. The transmission is text,
+  because text fits. iTantra is the machine that sits between the two.</p>
+
+  <div class="callout">
+    <span class="label">What we are building</span>
+    <p>An Android application that turns two ordinary phones — or a phone and a radio
+    module — into a walkie-talkie in which speech is converted to text on the sending
+    device, transmitted as a few dozen bytes, and converted back to speech on the
+    receiving device. Ten Indian languages. Entirely offline. No cloud, no SIM,
+    no proprietary SDK.</p>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     02 — PROBLEM DECODED
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part I · Section 02</span>
+  <h1>The problem,<br><b>decoded</b></h1>
+  <p class="dek">The problem statement is written in the language of a requirements
+  document. Translated into engineering terms, it specifies eleven concrete deliverables
+  and four hard constraints.</p>
+
+  <h2>2.1 Requirements, restated</h2>
+
+  <table>
+    <thead>
+      <tr><th style="width:5%">#</th><th style="width:42%">What the statement says</th><th>What that means we must build</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>R1</td><td>Lightweight, highly accurate STT and TTS for ten Indian languages</td><td>Quantised on-device ASR and TTS models per language, with measured word error rate and a reported model footprint</td></tr>
+      <tr><td>R2</td><td>Runs locally on a low-power device</td><td>Inference on a low-end Android phone — no server, budgeted RAM, CPU and thermal envelope</td></tr>
+      <tr><td>R3</td><td>STT activated after detecting pauses and stoppages</td><td>Voice activity detection plus endpointing: a state machine that decides when a sentence has ended</td></tr>
+      <tr><td>R4</td><td>Should form the sentences detected</td><td>Segment-level finalisation, punctuation and text normalisation — not a stream of loose words</td></tr>
+      <tr><td>R5</td><td>Instantly and efficiently stream the data</td><td>A compact binary wire protocol with minimal framing overhead</td></tr>
+      <tr><td>R6</td><td>Through Wi-Fi/Bluetooth connected embedded device or another phone</td><td>A transport abstraction with at least three implementations, one of which is serial-shaped so it can drive a radio module</td></tr>
+      <tr><td>R7</td><td>TTS converts received text into intelligible speech, played as a voice note</td><td>Streaming synthesis with playback beginning before synthesis completes</td></tr>
+      <tr><td>R8</td><td>Alert messages announced at highest volume, non-interruptible</td><td>Alarm-stream audio routing, forced volume, exclusive audio focus, wake lock, lock-screen delivery</td></tr>
+      <tr><td>R9</td><td>Two phones, one TTS one STT, verify the complete loop</td><td>Symmetric application — every device runs both halves and switches role by mode</td></tr>
+      <tr><td>R10</td><td>Work like a walkie-talkie using push-to-talk</td><td>Half-duplex mode with a physical or on-screen PTT control and floor state</td></tr>
+      <tr><td>R11</td><td>If turned off it should work like a phone</td><td>Full-duplex mode: continuous VAD-gated streaming both directions, with barge-in</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2.2 Constraints — non-negotiable</h2>
+
+  <table>
+    <thead><tr><th style="width:22%">Constraint</th><th>Consequence for the design</th></tr></thead>
+    <tbody>
+      <tr><td class="hl">Open source only</td><td>No proprietary voice SDK. Rules out Google Speech Services, Azure, Picovoice and similar. Also rules out Google Nearby Connections for transport — we use raw sockets instead. Every dependency is licence-audited and listed in Section 12.</td></tr>
+      <tr><td class="hl">Fully offline</td><td>No network call at runtime, ever. Language packs may be fetched once during setup; the operating system never touches a network. The demonstration is conducted in aeroplane mode.</td></tr>
+      <tr><td class="hl">Approved frameworks</td><td>TensorFlow Lite, PyTorch Mobile, ONNX Runtime and equivalents. Our runtime is ONNX Runtime via sherpa-onnx — permissively licensed, ARM-optimised, and explicitly within scope.</td></tr>
+      <tr><td class="hl">Low and mid-range phones</td><td>Target device is a four-gigabyte, entry-tier Snapdragon or Helio handset. All numbers in this document are to be measured on that class of hardware, not on a flagship.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2.3 The rubric is the specification</h2>
+
+  <p>Eighty per cent of the marks are allocated to three measurable properties. This is
+  unusual and it is a gift: the jury has told us exactly what to instrument.</p>
+
+  <table>
+    <thead><tr><th style="width:10%" class="n">Weight</th><th style="width:22%">Criterion</th><th>What it forces us to do</th></tr></thead>
+    <tbody>
+      <tr><td class="n hl">40%</td><td class="hl">Accuracy</td><td>Low word error rate for STT; high legibility and natural flow for TTS. Demands a real evaluation harness over a held-out benchmark set, per language, reported honestly — including under noise.</td></tr>
+      <tr><td class="n hl">20%</td><td class="hl">Latency</td><td>Speech-to-text delay, text-to-audio delay, real-time factor, and the end-to-end delta between a sentence spoken on one phone and heard on the other. Demands per-stage instrumentation built into the app.</td></tr>
+      <tr><td class="n hl">20%</td><td class="hl">Efficiency</td><td>Model size, application size, RAM and flash footprint, and CPU usage while idle-listening. Demands quantisation, on-demand language packs and a tiered wake-up path.</td></tr>
+      <tr><td class="n">20%</td><td>Implied</td><td>Completeness, robustness and presentation of the delivered system.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <span class="label">Design principle drawn from the rubric</span>
+    <p>Instrument from day one. The application will display a live latency and resource
+    heads-up display, and will be able to print its own scorecard. Most competing teams
+    will demonstrate that their system works; comparatively few will be able to show
+    <em>measurements</em>. The rubric is asking for measurements.</p>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     03 — CORE IDEA
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part I · Section 03</span>
+  <h1>Compressing meaning,<br><b>not waveform</b></h1>
+  <p class="dek">The compression ratio is the headline number of this project. It deserves
+  to be derived carefully rather than asserted.</p>
+
+  <h2>3.1 The arithmetic</h2>
+
+  <p>Take a representative operational sentence in Hindi:</p>
+
+  <div class="box filled">
+    <p style="margin:0;font-size:12pt">हमें तुरंत मदद चाहिए, दो लोग घायल हैं</p>
+    <p style="margin:2mm 0 0;font-size:8.4pt;color:#555;font-style:italic">
+    “We need help immediately, two people are injured.” Duration when spoken: about 3.0 seconds.</p>
+  </div>
+
+  <table>
+    <thead><tr><th style="width:38%">Representation</th><th class="n" style="width:18%">Size</th><th class="n" style="width:16%">Bits</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>Raw PCM, 16 kHz, 16-bit mono</td><td class="n">96 000 B</td><td class="n">768 000</td><td>What the microphone produces</td></tr>
+      <tr><td>Opus at 16 kbps</td><td class="n">6 000 B</td><td class="n">48 000</td><td>Good quality voice call</td></tr>
+      <tr><td>Opus at 6 kbps</td><td class="n">2 250 B</td><td class="n">18 000</td><td>Thin, robotic, the practical floor</td></tr>
+      <tr><td>UTF-8 text</td><td class="n">99 B</td><td class="n">792</td><td>What the recogniser produces</td></tr>
+      <tr><td>+ framing and addressing</td><td class="n">111 B</td><td class="n">888</td><td>12-byte header, Section 08</td></tr>
+      <tr class="emph"><td>+ script packing (Level 2)</td><td class="n">45 B</td><td class="n">360</td><td>One byte per Devanagari codepoint</td></tr>
+      <tr class="emph"><td>Template code (Level 3)</td><td class="n">13 B</td><td class="n">104</td><td>Header plus a one-byte message ID</td></tr>
+    </tbody>
+  </table>
+
+  <div class="stats">
+    <div><div class="v">96 000 B</div><div class="k">Audio</div></div>
+    <div><div class="v">45 B</div><div class="k">Packed text</div></div>
+    <div><div class="v">2 133&times;</div><div class="k">Ratio</div></div>
+    <div><div class="v">7 385&times;</div><div class="k">With templates</div></div>
+  </div>
+
+  <h2>3.2 Three levels of compression</h2>
+
+  <p>The system does not use one compression scheme; it degrades gracefully through three,
+  choosing the most aggressive one the situation allows.</p>
+
+  <h3>Level 1 — Semantic transcoding</h3>
+  <p>Speech becomes UTF-8 text. This is where the enormous ratio comes from: roughly
+  770 to 1 before any further work. Everything below is refinement.</p>
+
+  <h3>Level 2 — Script packing</h3>
+  <p>UTF-8 encodes Devanagari, Tamil, Kannada and the other Indic scripts at three bytes
+  per character — expensive, because UTF-8 is designed to represent all scripts at once.
+  But the frame header already declares which language this message is in. Given that,
+  the receiver knows exactly which codepoint block applies, and roughly seventy code
+  points cover ordinary running text in any single Indic script. We therefore remap
+  each script into a private single-byte alphabet, and unpack it at the far end.
+  <strong>Three bytes become one.</strong> The transformation is lossless, table-driven,
+  costs microseconds, and is unique to the fact that we control both endpoints.</p>
+
+  <h3>Level 3 — Template codes</h3>
+  <p>In an emergency, vocabulary is small and predictable. A shared table maps the
+  most common operational sentences to single-byte identifiers.</p>
+
+  <pre><code>0x01  We need medical assistance
+0x02  Fire — evacuate immediately
+0x03  Position secure, no casualties
+0x04  Send a boat
+0x05  Request immediate extraction
+...   up to 255 entries per deployment profile</code></pre>
+
+  <p>After recognition, the resulting text is fuzzy-matched against this table. On a
+  confident match the system transmits the identifier rather than the sentence — a
+  single byte. The receiver's table renders the full sentence and speaks it. On a weak
+  match it falls back to Level 2 automatically. The user is never aware of the switch.</p>
+
+  <div class="callout">
+    <span class="label">A consequence worth noticing</span>
+    <p>Because each device holds the template table in <em>all ten languages</em>, a
+    message sent as a template code is spoken in whatever language the receiver has
+    selected. A Hindi speaker's alert reaches a Tamil speaker in Tamil — with no
+    translation model, no additional download, and no additional latency. Cross-language
+    operation falls out of the compression scheme for free.</p>
+  </div>
+
+  <h2>3.3 What we lose, and how we compensate</h2>
+
+  <p>Honesty about the trade-off is a strength in front of a technical jury, and every
+  loss below has a designed answer.</p>
+
+  <table>
+    <thead><tr><th style="width:26%">What is discarded</th><th style="width:34%">Why it matters</th><th>Compensation</th></tr></thead>
+    <tbody>
+      <tr><td>Speaker's voice identity</td><td>Every message sounds like the same synthetic voice; the listener cannot tell who spoke</td><td>A one-byte sender identifier in the header, a display name in the UI, and a distinct synthesis voice per node using multi-speaker embeddings</td></tr>
+      <tr><td>Emotion, urgency, prosody</td><td>A shout and a whisper produce identical text</td><td>An explicit priority flag in the header; alert traffic is routed to the alarm stream at maximum volume, and the synthesis voice uses a faster, harder delivery profile</td></tr>
+      <tr><td>Background audio</td><td>The listener loses situational cues — gunfire, water, machinery</td><td>Accepted. Out of scope, and arguably desirable given the bandwidth budget.</td></tr>
+      <tr><td>Anything the recogniser gets wrong</td><td>An error is unrecoverable; the listener has no audio to fall back on</td><td>Confidence scoring transmitted with each frame, on-screen display of the recognised text before and after transmission, domain vocabulary biasing, and a low-confidence fallback to 6 kbps Opus over the Wi-Fi transport</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3.4 Why this matters to ISRO specifically</h2>
+
+  <p>The bandwidth table below is the justification for the entire project, and belongs
+  in the presentation immediately after the compression figure.</p>
+
+  <table>
+    <thead><tr><th style="width:26%">Link type</th><th class="n" style="width:20%">Usable rate</th><th class="c" style="width:20%">Carries a voice call?</th><th class="c">Carries an iTantra sentence?</th></tr></thead>
+    <tbody>
+      <tr><td>LoRa, SF10, 125 kHz</td><td class="n">~ 1 kbps</td><td class="c">No</td><td class="c hl">Yes — 0.4 s</td></tr>
+      <tr><td>LoRa, long range profile</td><td class="n">~ 0.3 kbps</td><td class="c">No</td><td class="c hl">Yes — 1.2 s</td></tr>
+      <tr><td>HF radio data link</td><td class="n">~ 2 kbps</td><td class="c">No</td><td class="c hl">Yes — 0.2 s</td></tr>
+      <tr><td>Narrowband satellite burst</td><td class="n">~ 1 kbps</td><td class="c">No</td><td class="c hl">Yes — 0.4 s</td></tr>
+      <tr><td>Bluetooth RFCOMM</td><td class="n">~ 200 kbps</td><td class="c">Marginally</td><td class="c hl">Yes — 2 ms</td></tr>
+      <tr><td>Wi-Fi Direct</td><td class="n">&gt; 10 Mbps</td><td class="c">Yes</td><td class="c hl">Yes — instant</td></tr>
+    </tbody>
+  </table>
+
+  <p>Read the middle column, then the right. On the four links that matter operationally —
+  the ones that work when infrastructure does not — audio is impossible and iTantra is
+  comfortable. That gap is the product.</p>
+</div>
+
+
+<!-- ============================================================
+     04 — ARCHITECTURE
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part II · Section 04</span>
+  <h1>System<br><b>architecture</b></h1>
+  <p class="dek">Every device runs the complete system. Nothing is a dedicated transmitter
+  or a dedicated receiver; role is a runtime mode, not a build.</p>
+
+  <h2>4.1 End-to-end signal path</h2>
+
+  <div class="diagram">        DEVICE A — TRANSMIT                          DEVICE B — RECEIVE
+   ┌────────────────────────────┐              ┌────────────────────────────┐
+   │  Microphone   16 kHz mono  │              │  Link receive · reassemble │
+   │            │               │              │            │               │
+   │            ▼               │              │            ▼               │
+   │  Ring buffer · 20 ms hops  │              │  CRC · decrypt · de-dupe   │
+   │            │               │              │            │               │
+   │            ▼               │              │            ▼               │
+   │  Tier 0   energy gate      │              │  Address filter            │
+   │  Tier 1   Silero VAD       │  idle path   │  group / dest / TTL        │
+   │            │               │              │            │               │
+   │            ▼  speech       │              │            ▼               │
+   │  Wake acoustic model       │              │  Unpack script  ·  or      │
+   │            │               │              │  expand template code      │
+   │            ▼               │              │            │               │
+   │  Feature extraction        │              │            ▼               │
+   │  80-dim log-mel            │              │  Text normalisation        │
+   │            │               │              │  numbers · units · dates   │
+   │            ▼               │              │            │               │
+   │  Conformer encoder         │              │            ▼               │
+   │            │               │              │  Phonemisation  espeak-ng  │
+   │            ▼               │              │            │               │
+   │  Transducer decode         │              │            ▼               │
+   │  + hotword biasing         │              │  VITS synthesis, chunked   │
+   │            │               │              │            │               │
+   │            ▼               │              │            ▼               │
+   │  Endpoint detected         │              │  AudioTrack streaming      │
+   │  400 ms silence            │              │            │               │
+   │            │               │              │            ▼               │
+   │            ▼               │              │  ALERT? → alarm stream,    │
+   │  Template match ─ or ─     │              │  max volume, wake lock,    │
+   │  script pack               │              │  exclusive focus, repeat   │
+   │            │               │              │            │               │
+   │            ▼               │              │            ▼               │
+   │  Frame · encrypt · CRC     │              │      ┌───────────┐         │
+   │            │               │              │      │  SPEAKER  │         │
+   └────────────┼───────────────┘              └──────┴───────────┴─────────┘
+                │                                            ▲
+                │        13 – 45 bytes                       │
+                └────────────────────────────────────────────┘
+                   Bluetooth  ·  BLE  ·  Wi-Fi  ·  LoRa / HF</div>
+  <figcaption>Figure 4.1 — Complete signal path. Both halves are present on every device.</figcaption>
+
+  <h2>4.2 Module map</h2>
+
+  <table>
+    <thead><tr><th style="width:22%">Module</th><th style="width:30%">Responsibility</th><th>Principal contents</th></tr></thead>
+    <tbody>
+      <tr><td class="hl">app</td><td>User interface and orchestration</td><td>Compose screens, PTT control, channel and roster UI, settings, latency HUD, provisioning by QR</td></tr>
+      <tr><td class="hl">core-audio</td><td>Capture and playback</td><td>AudioRecord and AudioTrack wrappers, ring buffers, gain control, noise suppression, alert audio policy, focus handling</td></tr>
+      <tr><td class="hl">core-asr</td><td>Speech to text</td><td>sherpa-onnx recogniser binding, three-tier VAD, endpointing state machine, hotword and gazetteer biasing, confidence scoring</td></tr>
+      <tr><td class="hl">core-tts</td><td>Text to speech</td><td>Per-language normalisation rules, phonemiser, chunked VITS synthesis, streaming playout scheduler</td></tr>
+      <tr><td class="hl">core-link</td><td>Transport</td><td>Link interface, RFCOMM, BLE GATT, Wi-Fi socket and Serial implementations; discovery, reconnection, queueing</td></tr>
+      <tr><td class="hl">core-proto</td><td>Wire format</td><td>Frame encode and decode, CRC-16, AES-GCM, script packing tables, template tables, sequence and replay windows, relay logic</td></tr>
+      <tr><td class="hl">core-models</td><td>Asset management</td><td>Language pack manifest, checksum verification, resumable download, storage accounting, model lifecycle</td></tr>
+      <tr><td class="hl">bench</td><td>Evaluation</td><td>WER harness, RTF measurement, latency logger, noise mixing, CSV and scorecard export</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4.3 Threading and lifecycle</h2>
+
+  <p>Audio work must never touch the user-interface thread, and the recogniser must never
+  block capture. Four threads, with bounded queues between them:</p>
+
+  <table>
+    <thead><tr><th style="width:24%">Thread</th><th style="width:16%">Priority</th><th>Duty</th></tr></thead>
+    <tbody>
+      <tr><td>Capture</td><td>URGENT_AUDIO</td><td>Reads 20 ms blocks from AudioRecord, runs the energy gate and VAD, pushes speech blocks into the ASR queue. Must never allocate.</td></tr>
+      <tr><td>Inference</td><td>AUDIO</td><td>Drains the ASR queue, runs encoder and decoder, emits partial and final hypotheses.</td></tr>
+      <tr><td>Link</td><td>DEFAULT</td><td>Blocking socket reads and writes, framing, retransmission timers, heartbeat.</td></tr>
+      <tr><td>Synthesis</td><td>AUDIO</td><td>Chunked TTS generation feeding an AudioTrack in streaming mode.</td></tr>
+    </tbody>
+  </table>
+
+  <p>The whole engine lives in a foreground service with a persistent notification, so
+  that Android does not reclaim it while the screen is off — which is the normal
+  operating state for a radio.</p>
+
+  <div class="callout">
+    <span class="label">Cold start</span>
+    <p>Loading the acoustic and synthesis models costs one to two seconds. That delay
+    must never be paid when the user presses transmit. Models are loaded when the service
+    starts and held resident; the idle path keeps them warm but does no inference.</p>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     05 — LISTENING ENGINE
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part II · Section 05</span>
+  <h1>The listening<br><b>engine</b></h1>
+  <p class="dek">Speech recognition carries the largest share of the accuracy mark and the
+  largest share of the compute budget. It is also where the idle-power score is won or lost.</p>
+
+  <h2>5.1 Three-tier voice activity detection</h2>
+
+  <p>Running the acoustic model continuously would exhaust the battery in about two hours
+  and would fail the efficiency criterion outright. Detection is therefore tiered, so that
+  the expensive stage runs only when the cheap stages agree that a human is speaking.</p>
+
+  <table>
+    <thead><tr><th style="width:8%">Tier</th><th style="width:24%">Mechanism</th><th class="n" style="width:16%">Cost per 20 ms</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td>0</td><td>Energy gate — sum of squares against an adaptive noise floor</td><td class="n">~ 3 µs</td><td>Rejects true silence, which is the overwhelming majority of elapsed time. Effectively free.</td></tr>
+      <tr><td>1</td><td>Silero VAD, 1.8 MB ONNX</td><td class="n">~ 300 µs</td><td>Distinguishes human speech from door slams, engines, wind and music. Prevents false wake-ups.</td></tr>
+      <tr><td>2</td><td>Conformer acoustic model</td><td class="n">~ 4 ms</td><td>Actual recognition. Runs only while tier 1 reports speech.</td></tr>
+    </tbody>
+  </table>
+
+  <p>With a duty cycle typical of radio use — speech perhaps five per cent of the time —
+  measured idle CPU should sit below two per cent of one core. That figure is to be
+  measured with Perfetto on the target handset and reported.</p>
+
+  <h2>5.2 Endpointing — deciding when a sentence has ended</h2>
+
+  <p>The problem statement asks for activation “after detecting pauses and stoppages”
+  and for the system to “form the sentences detected”. This is the endpointing state machine.</p>
+
+  <div class="diagram">   IDLE ──speech detected──► LISTENING ──────────────────► FINALISING ──► IDLE
+     ▲                          │    │                          │
+     │                          │    └─ 8 s elapsed ────────────┤   force cut,
+     │                          │                               │   avoid hogging
+     │                          └─ 400 ms trailing silence ─────┘   the channel
+     │                                                          │
+     └──────────────── frame transmitted ◄──────────────────────┘</div>
+
+  <table>
+    <thead><tr><th style="width:34%">Parameter</th><th class="n" style="width:16%">Value</th><th>Rationale</th></tr></thead>
+    <tbody>
+      <tr><td>Trailing silence, phone mode</td><td class="n">400 ms</td><td>Shorter clips natural inter-clause pauses; longer is perceptible as lag</td></tr>
+      <tr><td>Trailing silence, PTT mode</td><td class="n">150 ms</td><td>Releasing the key is itself an explicit end-of-utterance signal</td></tr>
+      <tr><td>Leading pad</td><td class="n">250 ms</td><td>Retained from the ring buffer so the first phoneme is never clipped</td></tr>
+      <tr><td>Maximum utterance</td><td class="n">8 s</td><td>Bounds latency and prevents one speaker monopolising a half-duplex channel</td></tr>
+      <tr><td>Minimum utterance</td><td class="n">300 ms</td><td>Suppresses coughs, clicks and key noise</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <span class="label">The single largest latency term</span>
+    <p>The 400 ms silence window is the biggest component of end-to-end delay, and it is
+    a design choice rather than a computational cost. In push-to-talk mode the key release
+    replaces it entirely, which is why PTT mode is measurably faster than phone mode —
+    a point worth demonstrating live.</p>
+  </div>
+
+  <h2>5.3 From pressure wave to text</h2>
+
+  <h3>Feature extraction</h3>
+  <p>Raw samples are an inefficient representation. Audio is cut into 25 ms windows every
+  10 ms; each window is transformed to the frequency domain and projected onto 80 mel
+  bands, which are spaced the way human hearing resolves pitch. Three seconds of speech
+  becomes a 300 × 80 matrix — a compact spectro-temporal fingerprint. Cost is roughly
+  one millisecond, computed in native code.</p>
+
+  <h3>Acoustic model</h3>
+  <p>The feature matrix is consumed by a Conformer encoder: convolutional blocks that
+  detect local acoustic events such as plosive bursts and formant transitions, interleaved
+  with self-attention blocks that supply sentence-level context. Output is a sequence of
+  512-dimensional frame embeddings. This stage is approximately eighty-five per cent of
+  the inference cost.</p>
+
+  <h3>Decoding</h3>
+  <p>A transducer or CTC head projects each frame onto a vocabulary of roughly one
+  thousand sub-word tokens defined in the language's token table. Beam search selects the
+  most probable token sequence; repeated and blank emissions collapse, and the surviving
+  tokens are joined into text.</p>
+
+  <h3>Contextual biasing — the highest-yield accuracy work</h3>
+  <p>Decoding scores are boosted for a supplied phrase list. In a distress context the
+  critical vocabulary is small and known in advance: <em>मदद, घायल, आग, निकासी</em>, unit
+  callsigns, sector numbers, local place names. Loading a domain lexicon and a deployment
+  gazetteer measurably reduces error on precisely the words whose misrecognition would be
+  most costly, and requires no retraining. Demonstrating the same audio decoded with
+  biasing off and on is one of the strongest live comparisons available to us.</p>
+
+  <h2>5.4 Model selection</h2>
+
+  <table>
+    <thead><tr><th style="width:24%">Candidate</th><th style="width:12%">Licence</th><th class="n" style="width:14%">Size, int8</th><th>Assessment</th></tr></thead>
+    <tbody>
+      <tr class="emph"><td>AI4Bharat IndicConformer</td><td>Permissive</td><td class="n">~ 35 MB</td><td>Production choice. Trained specifically on Indian languages; covers all ten targets. Requires NeMo-to-ONNX export.</td></tr>
+      <tr><td>Vosk small models</td><td>Apache-2.0</td><td class="n">~ 40 MB</td><td>Prototype choice for week one. Streaming, Android-ready today, lower accuracy. De-risks the schedule.</td></tr>
+      <tr><td>Whisper tiny / base</td><td>MIT</td><td class="n">~ 40–75 MB</td><td>Baseline for comparison only. Not streaming; weak on Odia and Kannada; slow on entry-tier silicon.</td></tr>
+      <tr><td>IndicWhisper</td><td>Permissive</td><td class="n">~ 240 MB</td><td>Strong accuracy, too heavy for the target device. Useful as an accuracy ceiling reference.</td></tr>
+      <tr><td>Meta MMS</td><td>CC-BY-NC</td><td class="n">~ 300 MB</td><td>Broadest coverage; non-commercial licence makes it unsuitable for a deployable claim. Gap-filler only.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5.5 Quantisation</h2>
+
+  <p>Models are trained in 32-bit floating point, which is unnecessary for inference.
+  Dynamic quantisation rewrites the weights as 8-bit integers, exploiting the fact that
+  ARM cores execute integer arithmetic considerably faster than float.</p>
+
+  <table>
+    <thead><tr><th style="width:22%">Precision</th><th class="n" style="width:16%">Size</th><th class="n" style="width:16%">Relative speed</th><th class="n" style="width:16%">WER impact</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>float32, as trained</td><td class="n">~ 120 MB</td><td class="n">1.0&times;</td><td class="n">baseline</td><td>Unshippable</td></tr>
+      <tr><td>float16</td><td class="n">~ 60 MB</td><td class="n">1.3&times;</td><td class="n">≈ 0</td><td>Intermediate</td></tr>
+      <tr class="emph"><td>int8 dynamic</td><td class="n">~ 32 MB</td><td class="n">2.5&times;</td><td class="n">+ ~1% rel.</td><td>Shipped</td></tr>
+    </tbody>
+  </table>
+
+  <p>Four times smaller, two and a half times faster, for approximately one per cent
+  relative degradation. This single transformation is what makes on-device speech viable
+  on an entry-tier handset, and the before-and-after table is direct evidence for the
+  efficiency criterion.</p>
+
+  <pre><code>python -m onnxruntime.quantization.preprocess --input model.onnx --output prep.onnx
+
+python - &lt;&lt;'PY'
+from onnxruntime.quantization import quantize_dynamic, QuantType
+quantize_dynamic("prep.onnx", "model.int8.onnx", weight_type=QuantType.QInt8)
+PY</code></pre>
+</div>
+
+
+<!-- ============================================================
+     06 — SPEAKING ENGINE
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part II · Section 06</span>
+  <h1>The speaking<br><b>engine</b></h1>
+  <p class="dek">Synthesis is scored on intelligibility and natural flow. Two of the four
+  stages below are ordinary software engineering rather than machine learning, and they
+  account for most of the perceived quality.</p>
+
+  <h2>6.1 Text normalisation</h2>
+
+  <p>No neural synthesiser handles raw digits, units or abbreviations correctly, and these
+  are exactly what operational messages contain. A per-language rule file runs before
+  synthesis.</p>
+
+  <table>
+    <thead><tr><th style="width:24%">Input</th><th style="width:34%">Naïve output</th><th>Correct output</th></tr></thead>
+    <tbody>
+      <tr><td>112</td><td>one hundred and twelve</td><td>एक · एक · दो &nbsp;— digit-wise, because it is a number to dial</td></tr>
+      <tr><td>5 km</td><td>five k m</td><td>पाँच किलोमीटर</td></tr>
+      <tr><td>Sector 17</td><td>sector seventeen</td><td>सेक्टर सत्रह</td></tr>
+      <tr><td>14:30</td><td>fourteen colon thirty</td><td>दोपहर दो बजकर तीस मिनट</td></tr>
+    </tbody>
+  </table>
+
+  <p>Distinguishing a quantity from an identifier is a rule, not a model: bare digit runs
+  following a dialling or callsign context are read digit-wise, quantities followed by a
+  unit are read as numbers. Cheap to implement, and it is the difference between a
+  synthesiser that sounds professional and one that sounds broken.</p>
+
+  <h2>6.2 Phonemisation</h2>
+
+  <p>Letters are not sounds. espeak-ng converts orthography to phoneme sequences —
+  <code>मदद</code> to <code>/m ə d ə d/</code> — which are then mapped to integer identifiers.
+  Indic scripts are largely phonetic, which makes this stage far more reliable for our
+  ten languages than it would be for English.</p>
+
+  <div class="callout">
+    <span class="label">Licence note</span>
+    <p>espeak-ng is GPL-3.0. This is acceptable for an open-source submission and is
+    recorded in the licence inventory, but it constrains any future closed-source
+    derivative and must be disclosed rather than discovered.</p>
+  </div>
+
+  <h2>6.3 VITS synthesis</h2>
+
+  <p>Earlier architectures required two models — text to spectrogram, then spectrogram to
+  waveform — and were too slow for phones. VITS performs both in a single pass:</p>
+
+  <ul class="clean">
+    <li>A <strong>text encoder</strong> transforms phoneme identifiers into latent representations.</li>
+    <li>A <strong>duration predictor</strong> assigns a length to each phoneme. This is the
+    stage that produces natural rhythm, and it is why VITS output does not sound
+    metronomic.</li>
+    <li>A <strong>flow-based decoder and vocoder</strong> generates the waveform directly at
+    22 050 samples per second.</li>
+  </ul>
+
+  <p>Measured real-time factor on entry-tier ARM is approximately 0.15 — one second of
+  speech synthesised in about 150 milliseconds.</p>
+
+  <h2>6.4 Chunked synthesis and streaming playout</h2>
+
+  <p>Synthesising a complete sentence and then playing it wastes the entire synthesis
+  duration as latency. Instead the sentence is split at clause boundaries; the first chunk
+  is synthesised and playback begins immediately while subsequent chunks are generated
+  against the playing clock.</p>
+
+  <div class="diagram">   NAÏVE       │◄──────── synthesise whole sentence ────────►│◄─ play ─►│
+               0                                            700 ms
+               time to first audio: 700 ms
+
+   CHUNKED     │◄ chunk 1 ►│◄ chunk 2 ►│◄ chunk 3 ►│
+               0        180 ms
+                           │◄──────────── play ─────────────►│
+               time to first audio: 180 ms</div>
+
+  <p>Total synthesis work is unchanged; perceived latency falls by roughly seventy-five
+  per cent. Since the rubric measures “time delay between the text received and audio
+  processed and played”, this optimisation is directly worth marks.</p>
+
+  <h2>6.5 Voice selection</h2>
+
+  <table>
+    <thead><tr><th style="width:24%">Source</th><th style="width:12%">Licence</th><th class="n" style="width:12%">Per voice</th><th>Assessment</th></tr></thead>
+    <tbody>
+      <tr class="emph"><td>Piper voices</td><td>MIT</td><td class="n">20–60 MB</td><td>Primary. Already ONNX, fast, and covers nine of the ten targets.</td></tr>
+      <tr><td>AI4Bharat Indic-TTS</td><td>Permissive</td><td class="n">~ 90 MB</td><td>Best Indic naturalness. Reserve for languages where Piper quality is inadequate; quantise aggressively.</td></tr>
+      <tr><td>Coqui VITS, self-trained</td><td>MPL-2.0</td><td class="n">~ 50 MB</td><td>Training path for gaps. Odia is the expected gap; IIT Madras IndicTTS data supports this.</td></tr>
+      <tr><td>Meta MMS-TTS</td><td>CC-BY-NC</td><td class="n">~ 40 MB</td><td>Stopgap only, owing to the non-commercial licence.</td></tr>
+      <tr><td>Matcha-TTS</td><td>MIT</td><td class="n">~ 35 MB</td><td>Flow-matching alternative; benchmark against Piper for RTF before committing.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ============================================================
+     07 — TRANSPORT
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part II · Section 07</span>
+  <h1>The transport<br><b>layer</b></h1>
+  <p class="dek">Four physical media, one interface. The application never learns which
+  one is carrying its bytes.</p>
+
+  <h2>7.1 The abstraction</h2>
+
+  <pre><code>interface Link {
+    suspend fun send(frame: ByteArray)
+    val incoming: Flow&lt;ByteArray&gt;
+    val state: StateFlow&lt;LinkState&gt;      // IDLE · DISCOVERING · CONNECTED · DEGRADED · ERROR
+    val mtu: Int
+    val metrics: LinkMetrics             // rssi, round-trip, loss, queue depth
+}</code></pre>
+
+  <p>Four implementations satisfy this contract. Changing transport is a settings toggle,
+  and adding one costs a single file. This abstraction is also what allows the entire
+  transport layer to be developed and tested in week one, before any model exists — a
+  text field replaces the recogniser, and the whole path is exercised.</p>
+
+  <h2>7.2 Bluetooth Classic — RFCOMM</h2>
+
+  <p>RFCOMM is a virtual serial cable. It is the primary transport for two reasons: it is
+  a reliable ordered byte stream requiring no additional protocol work, and it is the
+  <em>same</em> profile that an ESP32 or a radio modem exposes. The code that talks to
+  another phone is the code that talks to a radio.</p>
+
+  <pre><code>val ITANTRA_UUID = UUID.fromString("8ce255c0-200a-11e0-ac64-0800200c9a66")
+
+// host
+val server = adapter.listenUsingRfcommWithServiceRecord("iTantra", ITANTRA_UUID)
+val socket = server.accept(); server.close()
+
+// peer
+adapter.cancelDiscovery()                         // discovery cripples throughput
+val socket = device.createRfcommSocketToServiceRecord(ITANTRA_UUID).apply { connect() }</code></pre>
+
+  <h2>7.3 Bluetooth Low Energy — GATT</h2>
+
+  <p>BLE is not a stream but a set of addressable characteristics. One characteristic is
+  written by the peer, one is notified by the host. Default MTU is 23 bytes; negotiating
+  247 yields roughly 244 usable, so a typical sentence fits in a single packet.</p>
+
+  <p>Power consumption is roughly a tenth of Bluetooth Classic, which makes BLE the correct
+  standby transport and supports the multi-hour battery claim. It is also natively
+  broadcast, which makes group operation straightforward.</p>
+
+  <h2>7.4 Wi-Fi — Direct or hosted network</h2>
+
+  <p>Two mechanisms produce the same result: an isolated local network between the devices,
+  with no router, no SIM and no internet. Wi-Fi Direct negotiates a group automatically
+  through <code>WifiP2pManager</code>; a hosted network — the ordinary hotspot toggle with
+  mobile data off — achieves the same thing with far greater reliability across
+  manufacturers. Once either exists, transport is plain TCP.</p>
+
+  <div class="callout">
+    <span class="label">Engineering recommendation</span>
+    <p>Prefer the hosted-network path. <code>WifiP2pManager</code> discovery is
+    inconsistent across Samsung, Xiaomi and Realme builds and consumed a substantial
+    fraction of many teams' schedules; the hosted network requires no P2P API at all.
+    Peer discovery is then a single UDP broadcast on the subnet.</p>
+  </div>
+
+  <h2>7.5 Serial — the deployment path</h2>
+
+  <p>The fourth implementation sends identical frames over Bluetooth SPP to a radio module.
+  The phone is unchanged; only what sits at the far end of the Bluetooth connection differs.
+  This is the configuration the problem statement describes when it refers to a
+  “Wi-Fi/Bluetooth connected embedded device”.</p>
+
+  <div class="diagram">   DEMONSTRATION
+   Phone A ────── Bluetooth ──────► Phone B                       30 m
+
+   DEPLOYMENT
+   Phone A ──BT──► LoRa node ═══ 865.5 MHz ═══► LoRa node ──BT──► Phone B
+                                                                  2 – 15 km</div>
+
+  <h2>7.6 Comparison</h2>
+
+  <table>
+    <thead><tr><th style="width:20%">Property</th><th>BT Classic</th><th>BLE</th><th>Wi-Fi</th><th>LoRa serial</th></tr></thead>
+    <tbody>
+      <tr><td>Range</td><td>10–30 m</td><td>10–50 m</td><td>50–150 m</td><td>2–15 km</td></tr>
+      <tr><td>Usable rate</td><td>~200 kbps</td><td>5–20 kbps</td><td>&gt;10 Mbps</td><td>0.3–5 kbps</td></tr>
+      <tr><td>Power</td><td>Medium</td><td>Very low</td><td>High</td><td>Low</td></tr>
+      <tr><td>Model</td><td>Byte stream</td><td>Packets</td><td>Byte stream</td><td>Packets</td></tr>
+      <tr><td>Native broadcast</td><td>No</td><td>Yes</td><td>Multicast</td><td>Yes</td></tr>
+      <tr><td>Audio fallback viable</td><td>Marginal</td><td>No</td><td>Yes</td><td>No</td></tr>
+      <tr><td>Role</td><td class="hl">Default</td><td class="hl">Standby</td><td class="hl">Range &amp; fallback</td><td class="hl">Deployment</td></tr>
+    </tbody>
+  </table>
+
+  <h2>7.7 Framing over a stream</h2>
+
+  <p>RFCOMM and TCP preserve byte order but not message boundaries. Writing 45 bytes and
+  then 38 may be read as 20 bytes and then 63. Every frame therefore carries an explicit
+  length, and every read loops until the declared number of bytes has arrived.</p>
+
+  <pre><code>fun InputStream.readFully(buf: ByteArray) {
+    var off = 0
+    while (off &lt; buf.size) {
+        val n = read(buf, off, buf.size - off)
+        if (n &lt; 0) throw EOFException()
+        off += n
+    }
+}</code></pre>
+
+  <p>Omitting this loop produces a system that works on a desk and fails under load. It is
+  the single most common defect in student implementations of this class of project.</p>
+</div>
+
+
+<!-- ============================================================
+     08 — WIRE PROTOCOL
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part II · Section 08</span>
+  <h1>The wire<br><b>protocol</b></h1>
+  <p class="dek">Twelve bytes of header buy addressing, channels, priority, relay,
+  integrity and authentication. The payload is what remains.</p>
+
+  <h2>8.1 Frame layout</h2>
+
+  <table class="bytemap">
+    <tr>
+      <td class="off">0</td><td class="off">1</td><td class="off">2–3</td><td class="off">4</td>
+      <td class="off">5–6</td><td class="off">7</td><td class="off">8</td><td class="off">9</td>
+      <td class="off">10</td><td class="off">11 …</td><td class="off">n–2</td>
+    </tr>
+    <tr>
+      <td class="hdr">MAGIC<br>VER</td>
+      <td class="hdr">TYPE<br>LANG</td>
+      <td class="hdr">SEQ</td>
+      <td class="hdr">FLAGS</td>
+      <td class="hdr">LEN</td>
+      <td class="hdr">SRC</td>
+      <td class="hdr">DST</td>
+      <td class="hdr">GRP</td>
+      <td class="hdr">TTL</td>
+      <td class="pay">PAYLOAD</td>
+      <td class="tail">CRC16</td>
+    </tr>
+  </table>
+  <figcaption>Figure 8.1 — Frame layout. Header 11 bytes, trailer 2 bytes.</figcaption>
+
+  <table>
+    <thead><tr><th style="width:14%">Field</th><th style="width:8%" class="n">Bytes</th><th>Definition</th></tr></thead>
+    <tbody>
+      <tr><td>MAGIC / VER</td><td class="n">1</td><td>High nibble <code>0xA</code> for resynchronisation after corruption; low nibble protocol version</td></tr>
+      <tr><td>TYPE / LANG</td><td class="n">1</td><td>High nibble: TEXT, ALERT, ACK, PTT_CTL, HEARTBEAT, TEMPLATE, AUDIO_FALLBACK. Low nibble: language index 0–9</td></tr>
+      <tr><td>SEQ</td><td class="n">2</td><td>Per-sender sequence number; drives acknowledgement, duplicate suppression and the replay window</td></tr>
+      <tr><td>FLAGS</td><td class="n">1</td><td>FINAL, PARTIAL, ENCRYPTED, FRAGMENT, plus two bits of recogniser confidence</td></tr>
+      <tr><td>LEN</td><td class="n">2</td><td>Payload length; the basis of stream framing</td></tr>
+      <tr><td>SRC</td><td class="n">1</td><td>Sender node identifier</td></tr>
+      <tr><td>DST</td><td class="n">1</td><td>Destination node, or <code>0xFF</code> for broadcast</td></tr>
+      <tr><td>GRP</td><td class="n">1</td><td>Channel identifier — the equivalent of a walkie-talkie channel</td></tr>
+      <tr><td>TTL</td><td class="n">1</td><td>Remaining relay hops; decremented on forward, dropped at zero</td></tr>
+      <tr><td>PAYLOAD</td><td class="n">n</td><td>Packed text, template identifier, coordinates, or control data — encrypted when the flag is set</td></tr>
+      <tr><td>CRC16</td><td class="n">2</td><td>CCITT over header and payload</td></tr>
+    </tbody>
+  </table>
+
+  <h2>8.2 Addressing — how the message reaches the right listener</h2>
+
+  <p>Radio does not route; it broadcasts. Every device within range receives every
+  transmission, and selection happens at the receiver. This is how aviation, military and
+  amateur radio have always worked, and iTantra reproduces it in software.</p>
+
+  <pre><code>fun accept(f: Frame): Boolean = when {
+    f.grp != myGroup            -&gt; false      // different channel — ignore silently
+    f.dst == BROADCAST          -&gt; true       // addressed to all units
+    f.dst == myNode             -&gt; true       // addressed to me
+    else                        -&gt; false      // someone else's traffic
+}</code></pre>
+
+  <p>Three bytes therefore deliver broadcast operation, private one-to-one messages, and
+  independent channels sharing the same physical medium.</p>
+
+  <h3>Relay</h3>
+  <p>Where a device cannot reach its destination directly, intermediate devices forward
+  the frame and decrement TTL. A seen-set of recent source and sequence pairs suppresses
+  duplicates; without it, three mutually visible devices generate an unbounded broadcast
+  storm.</p>
+
+  <pre><code>if (f.dst != myNode &amp;&amp; f.ttl &gt; 0 &amp;&amp; seen.add(f.src to f.seq))
+    link.send(f.copy(ttl = f.ttl - 1))</code></pre>
+
+  <h2>8.3 Security</h2>
+
+  <p>Address filtering is a convention, not a control — any device can set any destination
+  byte. In a system whose purpose is to raise alarms, the ability to inject a fraudulent
+  maximum-volume evacuation order is a weapon. Three measures are mandatory.</p>
+
+  <table>
+    <thead><tr><th style="width:22%">Measure</th><th style="width:26%">Prevents</th><th>Implementation</th></tr></thead>
+    <tbody>
+      <tr><td>AES-256-GCM per group</td><td>Eavesdropping and forgery</td><td>Pre-shared key distributed at provisioning. A device outside the group receives the radio signal, fails the authentication tag, and discards the frame without ever learning its contents. Encryption is the real address.</td></tr>
+      <tr><td>Sliding replay window</td><td>Capture and retransmission</td><td>A 64-entry window per sender; a sequence number already seen, or older than the window, is rejected. Without this, a recorded alert can be replayed indefinitely.</td></tr>
+      <tr><td>Bound sender identity</td><td>Impersonation</td><td>The source identifier is inside the authenticated region, so it cannot be altered without invalidating the tag.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>8.4 Reliability</h2>
+
+  <table>
+    <thead><tr><th style="width:22%">Mechanism</th><th style="width:16%">Applies to</th><th>Behaviour</th></tr></thead>
+    <tbody>
+      <tr><td>CRC-16</td><td>All frames</td><td>Corrupt frames are discarded, never spoken. A garbled instruction is more dangerous than a missing one.</td></tr>
+      <tr><td>Acknowledge and retry</td><td>ALERT only</td><td>Up to three retries at 300 ms. Ordinary conversation is fire-and-forget — retransmitting stale speech is worse than losing it.</td></tr>
+      <tr><td>Heartbeat</td><td>Link</td><td>Every 2 s, so the interface can distinguish a quiet channel from a dead one.</td></tr>
+      <tr><td>Store and forward</td><td>All</td><td>Frames queue in a local database when the peer is unreachable and flush on reconnection, with pending, sent and delivered states surfaced in the UI.</td></tr>
+      <tr><td>Reconnection</td><td>Link</td><td>Exponential backoff with jitter; the service restores the socket without user action.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>8.5 Payload budget</h2>
+
+  <table>
+    <thead><tr><th style="width:32%">Frame</th><th class="n" style="width:14%">Header</th><th class="n" style="width:14%">Payload</th><th class="n" style="width:14%">Total</th><th class="n">On 300 bps LoRa</th></tr></thead>
+    <tbody>
+      <tr><td>Template alert with coordinates</td><td class="n">13 B</td><td class="n">9 B</td><td class="n">22 B</td><td class="n">0.6 s</td></tr>
+      <tr><td>Template alert</td><td class="n">13 B</td><td class="n">1 B</td><td class="n">14 B</td><td class="n">0.4 s</td></tr>
+      <tr><td>Packed Hindi sentence</td><td class="n">13 B</td><td class="n">32 B</td><td class="n">45 B</td><td class="n">1.2 s</td></tr>
+      <tr><td>Plain UTF-8 sentence</td><td class="n">13 B</td><td class="n">99 B</td><td class="n">112 B</td><td class="n">3.0 s</td></tr>
+      <tr><td>Equivalent Opus audio</td><td class="n">—</td><td class="n">2 250 B</td><td class="n">2 250 B</td><td class="n">60 s</td></tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ============================================================
+     09 — APPLICATION
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part II · Section 09</span>
+  <h1>The<br><b>application</b></h1>
+  <p class="dek">The justification for this project is that it serves people who cannot
+  type. An interface that assumes literacy would refute its own premise.</p>
+
+  <h2>9.1 Two modes</h2>
+
+  <table>
+    <thead><tr><th style="width:20%">Aspect</th><th style="width:38%">Push-to-talk — walkie-talkie</th><th>Released — telephone</th></tr></thead>
+    <tbody>
+      <tr><td>Duplex</td><td>Half. One speaker holds the channel.</td><td>Full. Both directions stream continuously.</td></tr>
+      <tr><td>Capture</td><td>Live only while the key is held</td><td>Always live, gated by VAD</td></tr>
+      <tr><td>Endpoint</td><td>Key release, 150 ms confirmation</td><td>400 ms trailing silence</td></tr>
+      <tr><td>Speaker</td><td>Muted while transmitting</td><td>Active, with barge-in ducking</td></tr>
+      <tr><td>Floor control</td><td>PTT_CTL frames announce and release the floor; a busy indicator prevents collisions</td><td>Not applicable</td></tr>
+      <tr><td>Power</td><td>Lowest — no idle inference</td><td>Higher — continuous VAD</td></tr>
+    </tbody>
+  </table>
+
+  <p>The transmit control is bound both to a large on-screen target and to the volume-down
+  hardware key, because operators wear gloves and rarely look at the screen. Releasing the
+  key is an explicit end-of-utterance signal, which is why push-to-talk mode records lower
+  latency than telephone mode.</p>
+
+  <h2>9.2 Alert delivery</h2>
+
+  <p>The requirement is that alerts are “announced at highest volume, non-interruptible”.
+  On Android this is a specific and verifiable sequence.</p>
+
+  <table>
+    <thead><tr><th style="width:32%">Step</th><th>Mechanism</th></tr></thead>
+    <tbody>
+      <tr><td>Route away from media</td><td><code>AudioAttributes.USAGE_ALARM</code> with <code>CONTENT_TYPE_SONIFICATION</code> — bypasses media volume and, when configured, Do Not Disturb</td></tr>
+      <tr><td>Force volume</td><td><code>setStreamVolume(STREAM_ALARM, max, 0)</code> before playback; the prior level is restored afterwards</td></tr>
+      <tr><td>Hold focus</td><td>Request <code>AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE</code> and deliberately ignore loss callbacks for alert priority — this is the non-interruptible requirement</td></tr>
+      <tr><td>Wake the device</td><td><code>PARTIAL_WAKE_LOCK</code> plus a full-screen-intent notification so delivery succeeds on a locked screen</td></tr>
+      <tr><td>Reinforce</td><td>Vibration pattern, high-contrast full-screen visual, message repeated twice</td></tr>
+      <tr><td>Guarantee arrival</td><td>ALERT frames pre-empt the transmit queue and are acknowledged and retried</td></tr>
+    </tbody>
+  </table>
+
+  <h2>9.3 Interface</h2>
+
+  <figure>
+  <div class="ui-mock" id="fig91">
+    <div class="um-bar">
+      <span class="um-ch">RESCUE-A</span>
+      <span class="um-mid">6 units</span>
+      <span class="um-ok">● LINK OK</span>
+    </div>
+    <div class="um-body">
+      <div class="um-row">
+        <div class="um-sel">ALL UNITS &nbsp;▾</div>
+        <div class="um-lang">हिन्दी &nbsp;▾</div>
+      </div>
+      <div class="um-ptt">PUSH&nbsp;&nbsp;TO&nbsp;&nbsp;TALK</div>
+      <div class="um-row">
+        <div class="um-btn dark">ALERT</div>
+        <div class="um-btn">POSITION</div>
+      </div>
+      <div class="um-log">
+        <div><span class="who">Ravi</span><span class="msg">हमें तुरंत मदद चाहिए</span><span class="t">2 s</span></div>
+        <div><span class="who">Base</span><span class="msg">टीम भेज रहे हैं</span><span class="t">8 s</span></div>
+      </div>
+      <div class="um-hud">
+        STT 210 ms &nbsp;·&nbsp; LINK 40 ms &nbsp;·&nbsp; TTS 180 ms<br>
+        TOTAL 780 ms &nbsp;·&nbsp; RTF 0.22 &nbsp;·&nbsp; CPU 1.8 %
+      </div>
+    </div>
+  </div>
+  <figcaption>Figure 9.1 — Operating screen. The instrumentation strip is permanent, not a debug view.</figcaption>
+  </figure>
+
+  <h3>Inclusive design rules</h3>
+  <ul class="clean">
+    <li>The transmit target occupies at least a third of the screen and is reachable
+    one-handed with gloves.</li>
+    <li>Every state change is confirmed by haptics and by a spoken cue, never by a text
+    dialog alone.</li>
+    <li>Icons and colour carry primary meaning; text is a secondary channel.</li>
+    <li>Full operation with the screen off, via the hardware key.</li>
+    <li>High-contrast monochrome palette legible in direct sunlight.</li>
+    <li>Recognised text is displayed alongside the spoken output, so a literate operator
+    can verify what the machine heard — without requiring literacy to use the system.</li>
+  </ul>
+
+  <h2>9.4 Provisioning</h2>
+
+  <p>Users are not asked to enter identifiers. One device creates the group and generates
+  a random channel identifier, an AES key and node assignments; it displays a QR code.
+  Joining devices scan it, receive the key, and claim the next free node identifier.
+  Display names are local. Pairing is the most common point of failure in live
+  demonstrations, and reducing it to a scan removes that risk.</p>
+
+  <h2>9.5 Language packs</h2>
+
+  <p>Shipping ten languages in the installer would produce a package of roughly seven
+  hundred megabytes and forfeit the efficiency criterion. Instead assets are modular.</p>
+
+  <table>
+    <thead><tr><th style="width:34%">Component</th><th class="n" style="width:18%">Size</th><th>Delivery</th></tr></thead>
+    <tbody>
+      <tr><td>Base application, runtime, VAD</td><td class="n">~ 25 MB</td><td>Installer</td></tr>
+      <tr><td>Hindi and English packs</td><td class="n">~ 120 MB</td><td>Installer — usable immediately</td></tr>
+      <tr><td>Each additional language</td><td class="n">~ 60 MB</td><td>On demand, once, at setup; verified by checksum</td></tr>
+      <tr><td>Template and gazetteer tables</td><td class="n">&lt; 1 MB</td><td>Installer, all languages</td></tr>
+    </tbody>
+  </table>
+
+  <p>A pack is a manifest entry plus four files — acoustic model, token table, synthesis
+  voice, normalisation rules. Adding a language requires no code change. Downloads occur
+  once during setup; runtime operation is unconditionally offline.</p>
+</div>
+
+
+<!-- ============================================================
+     10 — METRICS
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part III · Section 10</span>
+  <h1>Metrics and<br><b>evaluation</b></h1>
+  <p class="dek">Eighty per cent of the assessment is measurable. This section defines what
+  we measure, how, and what result we consider a pass.</p>
+
+  <h2>10.1 Efficiency — 20 per cent</h2>
+
+  <table>
+    <thead><tr><th style="width:34%">Quantity</th><th class="n" style="width:18%">Target</th><th>Method</th></tr></thead>
+    <tbody>
+      <tr><td>Installer size</td><td class="n">&lt; 30 MB</td><td>arm64-v8a split, App Bundle, no bundled weights beyond the base pack</td></tr>
+      <tr><td>Per-language footprint</td><td class="n">&lt; 70 MB</td><td>int8 quantised acoustic model and voice</td></tr>
+      <tr><td>Resident memory, one language</td><td class="n">&lt; 350 MB</td><td>Android Studio memory profiler under sustained load</td></tr>
+      <tr><td>Idle CPU, listening</td><td class="n">&lt; 2 %</td><td>Perfetto trace over ten minutes of silence with VAD active</td></tr>
+      <tr><td>Active CPU, recognising</td><td class="n">&lt; 35 %</td><td>Perfetto, single core, during continuous speech</td></tr>
+      <tr><td>Standby endurance</td><td class="n">&gt; 8 h</td><td>Batterystats, BLE transport, screen off, listening</td></tr>
+      <tr><td>Cold start to ready</td><td class="n">&lt; 2 s</td><td>Instrumented service start; models preloaded thereafter</td></tr>
+    </tbody>
+  </table>
+
+  <h2>10.2 Accuracy — 40 per cent</h2>
+
+  <h3>Recognition</h3>
+  <p>Word error rate is measured per language on held-out benchmark data, not on
+  self-recorded samples. Evaluation sets: AI4Bharat IndicSUPERB and Kathbath for Indic
+  coverage, IndicVoices for spontaneous rather than read speech, and FLEURS for figures
+  comparable with published literature.</p>
+
+  <p>Crucially, error rate is reported <strong>at four signal-to-noise ratios</strong>.
+  Clean-room figures are not representative of a flood embankment, and a jury may test in
+  a noisy hall. Noise is mixed from a standard set — crowd, wind, engine, siren.</p>
+
+  <table>
+    <thead><tr><th style="width:26%">Condition</th><th class="n" style="width:18%">Target WER</th><th>Comment</th></tr></thead>
+    <tbody>
+      <tr><td>Clean, read speech</td><td class="n">&lt; 12 %</td><td>Reference figure</td></tr>
+      <tr><td>+20 dB SNR</td><td class="n">&lt; 15 %</td><td>Quiet room, realistic</td></tr>
+      <tr><td>+10 dB SNR</td><td class="n">&lt; 22 %</td><td>Vehicle, crowd</td></tr>
+      <tr><td>+5 dB SNR</td><td class="n">&lt; 32 %</td><td>Adverse; template fallback engages</td></tr>
+      <tr class="emph"><td>Critical vocabulary, biased</td><td class="n">&lt; 6 %</td><td>The figure that actually matters operationally</td></tr>
+    </tbody>
+  </table>
+
+  <p>The final row is the important one. Overall word error rate is a poor proxy for
+  usefulness; what matters is whether <em>मदद</em>, <em>आग</em>, sector numbers and callsigns
+  survive. Reporting critical-term error separately, with and without contextual biasing,
+  demonstrates a level of evaluation rigour that general WER alone does not.</p>
+
+  <h3>Synthesis</h3>
+  <table>
+    <thead><tr><th style="width:26%">Measure</th><th class="n" style="width:18%">Target</th><th>Method</th></tr></thead>
+    <tbody>
+      <tr><td>Mean opinion score</td><td class="n">&gt; 3.8 / 5</td><td>Blind listening panel, minimum fifteen native speakers per language</td></tr>
+      <tr><td>Intelligibility</td><td class="n">&gt; 95 %</td><td>Transcription accuracy of synthesised output by native listeners</td></tr>
+      <tr><td>Normalisation correctness</td><td class="n">100 %</td><td>Fixed regression suite of numbers, units, times and callsigns per language</td></tr>
+    </tbody>
+  </table>
+
+  <h2>10.3 Latency — 20 per cent</h2>
+
+  <table>
+    <thead><tr><th style="width:38%">Stage</th><th class="n" style="width:16%">Budget</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>Capture and buffering</td><td class="n">20–40 ms</td><td>20 ms hop size</td></tr>
+      <tr><td>Endpoint silence window</td><td class="n">150–400 ms</td><td>Largest term; a design choice, not compute. 150 ms in PTT mode.</td></tr>
+      <tr><td>Final decode after endpoint</td><td class="n">100–250 ms</td><td>Scales with utterance length</td></tr>
+      <tr><td>Framing, encryption, transmit</td><td class="n">20–60 ms</td><td>Bluetooth; sub-millisecond of that is the payload itself</td></tr>
+      <tr><td>Normalisation</td><td class="n">&lt; 10 ms</td><td>Rule-based</td></tr>
+      <tr><td>First synthesis chunk</td><td class="n">150–250 ms</td><td>Chunked; not full-sentence synthesis</td></tr>
+      <tr><td>Output pipeline</td><td class="n">30–80 ms</td><td>AudioTrack; Oboe if this proves material</td></tr>
+      <tr class="emph"><td>End to end, PTT mode</td><td class="n">500–800 ms</td><td>The figure the jury will time</td></tr>
+      <tr class="emph"><td>End to end, phone mode</td><td class="n">750–1100 ms</td><td>Includes the silence window</td></tr>
+      <tr><td>Real-time factor, ASR</td><td class="n">&lt; 0.30</td><td>Sustained, after thermal soak</td></tr>
+      <tr><td>Real-time factor, TTS</td><td class="n">&lt; 0.25</td><td>Sustained</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <span class="label">Sustained, not peak</span>
+    <p>Entry-tier handsets throttle after roughly ten minutes of continuous inference, and
+    real-time factor can double. All latency figures are to be taken after a thirty-minute
+    soak, not from a cold device. Reporting sustained rather than peak numbers is both
+    more honest and more defensible under questioning.</p>
+  </div>
+
+  <h2>10.4 Instrumentation</h2>
+
+  <p>Every stage boundary emits a timestamp; the application maintains a rolling histogram
+  and can export a complete run as CSV. The operating screen displays the current figures
+  permanently. The <code>bench</code> module runs the full evaluation offline and emits the
+  scorecard below.</p>
+
+  <table>
+    <thead><tr><th style="width:22%">Artefact</th><th>Contents</th></tr></thead>
+    <tbody>
+      <tr><td>scorecard.csv</td><td>Per language: WER at four SNRs, critical-term error, TTS MOS, model sizes, RTF</td></tr>
+      <tr><td>latency.csv</td><td>Per utterance: every stage boundary, transport, payload size, end-to-end delta</td></tr>
+      <tr><td>resource.csv</td><td>Sampled CPU, resident memory, battery drain, thermal state</td></tr>
+    </tbody>
+  </table>
+
+  <p>Producing these three files automatically converts the presentation from a set of
+  claims into a set of results.</p>
+</div>
+
+
+<!-- ============================================================
+     11 — RISKS
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part III · Section 11</span>
+  <h1>Issues, risks and<br><b>mitigations</b></h1>
+  <p class="dek">Twenty identified failure modes, each with a designed response. Severity
+  reflects impact on the assessed criteria, not merely on the software.</p>
+
+  <h2>11.1 Technical risks</h2>
+
+  <table>
+    <thead><tr><th style="width:6%">ID</th><th style="width:24%">Risk</th><th style="width:9%" class="c">Severity</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td class="risk-id">T-01</td><td>Word error rate collapses in real acoustic noise, destroying the largest single mark</td><td class="c"><span class="sev hi">High</span></td><td>RNNoise or DTLN pre-processing at roughly 200 KB; adaptive gain; 80 Hz high-pass; platform NoiseSuppressor. Evaluate and report at four SNRs rather than clean only. Template fallback engages when confidence drops.</td></tr>
+      <tr><td class="risk-id">T-02</td><td>Digits, callsigns and place names misrecognised — precisely the tokens that carry operational meaning</td><td class="c"><span class="sev hi">High</span></td><td>Contextual biasing with a domain lexicon and deployment gazetteer; digits read and confirmed on screen before transmission; separate critical-term error metric tracked throughout.</td></tr>
+      <tr><td class="risk-id">T-03</td><td>Thermal throttling doubles real-time factor during a long demonstration</td><td class="c"><span class="sev hi">High</span></td><td>Thirty-minute soak testing from week four; report sustained figures; reduce thread count under thermal pressure; BLE standby to lower baseline temperature.</td></tr>
+      <tr><td class="risk-id">T-04</td><td>Total asset size defeats the efficiency criterion</td><td class="c"><span class="sev md">Med</span></td><td>int8 quantisation throughout; on-demand language packs; ABI splitting; a 25 MB installer with two languages resident.</td></tr>
+      <tr><td class="risk-id">T-05</td><td>No adequate open model exists for Odia</td><td class="c"><span class="sev md">Med</span></td><td>Identified as the expected gap. Fallbacks in order: MMS, then a Coqui VITS voice trained on IIT Madras IndicTTS data. Assign in week four, not week seven.</td></tr>
+      <tr><td class="risk-id">T-06</td><td>Code-mixed Hindi and English speech is mis-decoded</td><td class="c"><span class="sev md">Med</span></td><td>English retained in the biasing lexicon; acknowledged openly as a limitation with a stated roadmap rather than concealed. Honest scoping is defensible; a broken demonstration is not.</td></tr>
+      <tr><td class="risk-id">T-07</td><td>NeMo to ONNX export of IndicConformer fails or degrades accuracy</td><td class="c"><span class="sev md">Med</span></td><td>Vosk models integrated in week one keep the schedule intact regardless. Export is attempted in week four with three weeks of slack behind it.</td></tr>
+      <tr><td class="risk-id">T-08</td><td>Stream framing defect — partial reads corrupt frames under load</td><td class="c"><span class="sev md">Med</span></td><td>Mandatory readFully loop; CRC on every frame; magic-byte resynchronisation; fuzz testing of the decoder with truncated and interleaved input.</td></tr>
+      <tr><td class="risk-id">T-09</td><td>Wi-Fi Direct discovery unreliable across manufacturers</td><td class="c"><span class="sev md">Med</span></td><td>Hosted-network path adopted as primary Wi-Fi mechanism; WifiP2pManager treated as optional. Bluetooth remains the default transport regardless.</td></tr>
+      <tr><td class="risk-id">T-10</td><td>Broadcast storm when three or more devices relay</td><td class="c"><span class="sev lo">Low</span></td><td>TTL decrement plus a bounded seen-set of source and sequence pairs; verified with a four-device soak.</td></tr>
+      <tr><td class="risk-id">T-11</td><td>Cold-start model load stalls the first transmission</td><td class="c"><span class="sev lo">Low</span></td><td>Models loaded at foreground-service start and held resident; the transmit control is disabled until ready, with a visible ready indicator.</td></tr>
+      <tr><td class="risk-id">T-12</td><td>Microphone unavailable — an incoming call or another application holds it</td><td class="c"><span class="sev lo">Low</span></td><td>Audio focus and recording-configuration callbacks; explicit degraded state surfaced in the UI; automatic recovery on release.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>11.2 Security and safety risks</h2>
+
+  <table>
+    <thead><tr><th style="width:6%">ID</th><th style="width:24%">Risk</th><th style="width:9%" class="c">Severity</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td class="risk-id">S-01</td><td>Fraudulent alert injected by an unauthorised transmitter, played at maximum volume</td><td class="c"><span class="sev hi">High</span></td><td>AES-256-GCM with a per-group pre-shared key; the sender identifier lies inside the authenticated region; frames failing authentication are discarded silently.</td></tr>
+      <tr><td class="risk-id">S-02</td><td>Recorded alert replayed later</td><td class="c"><span class="sev hi">High</span></td><td>64-entry sliding replay window per sender; sequence numbers outside the window rejected.</td></tr>
+      <tr><td class="risk-id">S-03</td><td>Recognition error inverts meaning — “do not evacuate” becomes “now evacuate”</td><td class="c"><span class="sev hi">High</span></td><td>Confidence transmitted with every frame; recognised text displayed to the sender before transmission; explicit confirmation required for alert-class messages; negation terms added to the biasing lexicon.</td></tr>
+      <tr><td class="risk-id">S-04</td><td>Key material exposed on a captured device</td><td class="c"><span class="sev md">Med</span></td><td>Android Keystore storage; group re-keying supported; a device can be removed from a group by rotating the key at the next provisioning.</td></tr>
+      <tr><td class="risk-id">S-05</td><td>Two operators transmit simultaneously on a half-duplex channel, garbling both</td><td class="c"><span class="sev md">Med</span></td><td>PTT_CTL floor announcement, channel-busy indicator, randomised backoff before retry.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>11.3 Programme risks</h2>
+
+  <table>
+    <thead><tr><th style="width:6%">ID</th><th style="width:24%">Risk</th><th style="width:9%" class="c">Severity</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td class="risk-id">P-01</td><td>Effort consumed by model work, leaving the end-to-end loop unproven late in the schedule</td><td class="c"><span class="sev hi">High</span></td><td>The loop closes in week three using the weakest acceptable models. Model quality is an upgrade path, never a prerequisite. This is the single most important scheduling decision in the plan.</td></tr>
+      <tr><td class="risk-id">P-02</td><td>Development on flagship hardware conceals performance failures</td><td class="c"><span class="sev hi">High</span></td><td>An entry-tier target handset is acquired in week one and every benchmark is taken on it.</td></tr>
+      <tr><td class="risk-id">P-03</td><td>Live pairing fails on stage</td><td class="c"><span class="sev md">Med</span></td><td>QR provisioning; devices pre-paired before the session; a rehearsed recovery path; the demonstration script fixed by week eight.</td></tr>
+      <tr><td class="risk-id">P-04</td><td>Licence incompatibility discovered late</td><td class="c"><span class="sev lo">Low</span></td><td>LICENSES.md maintained from week one; GPL and non-commercial components flagged on entry, not on discovery.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ============================================================
+     12 — OPEN SOURCE INVENTORY
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part III · Section 12</span>
+  <h1>Open-source<br><b>inventory</b></h1>
+  <p class="dek">Every component, its licence, and its role. The submission rules prohibit
+  proprietary voice SDKs; this table is the evidence of compliance.</p>
+
+  <h2>12.1 Runtime and inference</h2>
+  <table>
+    <thead><tr><th style="width:30%">Component</th><th style="width:16%">Licence</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr class="emph"><td>k2-fsa / sherpa-onnx</td><td>Apache-2.0</td><td>Principal dependency. Recognition, synthesis, VAD and endpointing in one library, with an Android archive and Kotlin bindings.</td></tr>
+      <tr><td>microsoft / onnxruntime</td><td>MIT</td><td>Inference engine beneath sherpa-onnx; XNNPACK acceleration on ARM.</td></tr>
+      <tr><td>google-ai-edge / LiteRT</td><td>Apache-2.0</td><td>Named in the problem statement; evaluated as an alternative backend.</td></tr>
+      <tr><td>pytorch / executorch</td><td>BSD-3</td><td>Named in the problem statement; evaluated.</td></tr>
+      <tr><td>ggml-org / whisper.cpp</td><td>MIT</td><td>Accuracy baseline for comparison.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>12.2 Recognition models</h2>
+  <table>
+    <thead><tr><th style="width:30%">Component</th><th style="width:16%">Licence</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr class="emph"><td>AI4Bharat IndicConformer</td><td>Permissive</td><td>Production acoustic models, all ten languages.</td></tr>
+      <tr><td>alphacep / vosk-api</td><td>Apache-2.0</td><td>Week-one prototype; schedule insurance.</td></tr>
+      <tr><td>NVIDIA / NeMo</td><td>Apache-2.0</td><td>ONNX export tooling and fine-tuning recipes.</td></tr>
+      <tr><td>k2-fsa / icefall</td><td>Apache-2.0</td><td>Streaming Zipformer training recipes, if fine-tuning is undertaken.</td></tr>
+      <tr><td>Meta MMS</td><td>CC-BY-NC <strong>⚠</strong></td><td>Coverage gap-filler. Non-commercial — disclosed, and excluded from any deployability claim.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>12.3 Synthesis</h2>
+  <table>
+    <thead><tr><th style="width:30%">Component</th><th style="width:16%">Licence</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr class="emph"><td>rhasspy / piper &amp; piper-voices</td><td>MIT</td><td>Primary synthesis voices; already ONNX.</td></tr>
+      <tr><td>espeak-ng</td><td>GPL-3.0 <strong>⚠</strong></td><td>Phonemisation. Copyleft — disclosed.</td></tr>
+      <tr><td>idiap / coqui-ai-TTS</td><td>MPL-2.0</td><td>Training path for languages without an adequate voice.</td></tr>
+      <tr><td>AI4Bharat Indic-TTS</td><td>Permissive</td><td>Higher-naturalness Indic voices.</td></tr>
+      <tr><td>shivammehta25 / Matcha-TTS</td><td>MIT</td><td>Alternative architecture; benchmarked against Piper.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>12.4 Detection, transport and utilities</h2>
+  <table>
+    <thead><tr><th style="width:30%">Component</th><th style="width:16%">Licence</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td>snakers4 / silero-vad</td><td>MIT</td><td>Tier-1 voice activity detection.</td></tr>
+      <tr><td>WebRTC VAD</td><td>BSD-3</td><td>Reference for the tier-0 energy gate.</td></tr>
+      <tr><td>xiph / rnnoise</td><td>BSD-3</td><td>Noise suppression ahead of recognition.</td></tr>
+      <tr><td>google / oboe</td><td>Apache-2.0</td><td>Low-latency audio path, if AudioTrack proves insufficient.</td></tr>
+      <tr><td>facebook / zstd</td><td>BSD-3</td><td>Dictionary compression above script packing.</td></tr>
+      <tr><td colspan="3" style="padding-top:3mm"><em>Transport uses only the Android platform Bluetooth and socket APIs. No third-party connectivity SDK is used, and Google Nearby Connections is deliberately excluded.</em></td></tr>
+    </tbody>
+  </table>
+
+  <h2>12.5 Reference designs studied</h2>
+  <table>
+    <thead><tr><th style="width:30%">Project</th><th style="width:16%">Licence</th><th>What it informs</th></tr></thead>
+    <tbody>
+      <tr><td>meshtastic / firmware &amp; Android</td><td>GPL-3.0</td><td>The closest existing system: text messaging over LoRa with an Android client across Bluetooth. Informs framing, addressing, relay and duplicate suppression.</td></tr>
+      <tr><td>Briar</td><td>GPL-3.0</td><td>Robust Bluetooth and Wi-Fi transport on Android: discovery, reconnection, degraded states.</td></tr>
+      <tr><td>ge0rg / aprsdroid</td><td>GPL-3.0</td><td>Android to amateur radio over Bluetooth serial — the deployment path in production use.</td></tr>
+      <tr><td>android / connectivity-samples</td><td>Apache-2.0</td><td>Platform boilerplate for RFCOMM and Wi-Fi Direct.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>12.6 Evaluation data</h2>
+  <table>
+    <thead><tr><th style="width:30%">Dataset</th><th style="width:16%">Source</th><th>Use</th></tr></thead>
+    <tbody>
+      <tr><td>IndicSUPERB / Kathbath</td><td>AI4Bharat</td><td>Primary word-error-rate benchmark across all ten languages.</td></tr>
+      <tr><td>IndicVoices</td><td>AI4Bharat</td><td>Spontaneous rather than read speech — the realistic condition.</td></tr>
+      <tr><td>Vaani</td><td>Google &amp; IISc</td><td>District-level accent coverage; supports the inclusivity claim.</td></tr>
+      <tr><td>FLEURS</td><td>Google</td><td>Figures comparable with published results.</td></tr>
+      <tr><td>Common Voice</td><td>Mozilla</td><td>Supplementary validation.</td></tr>
+      <tr><td>IndicTTS database</td><td>IIT Madras</td><td>Voice training data where a gap exists.</td></tr>
+      <tr><td>LIMMITS / SYSPIN</td><td>IISc</td><td>Multi-speaker Indic synthesis corpora.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <span class="label">Compliance statement</span>
+    <p>No proprietary, closed-source or commercial voice-activation SDK is used anywhere in
+    the system. Every model executes on the device. No network request is made at runtime.
+    Two components carry restrictive licences — espeak-ng under GPL-3.0 and Meta MMS under
+    CC-BY-NC — and both are disclosed here rather than left to be discovered.</p>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     13 — ROADMAP
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part IV · Section 13</span>
+  <h1>Roadmap and<br><b>team</b></h1>
+  <p class="dek">Eight weeks. The governing rule is that the end-to-end loop closes before
+  any effort is spent on model quality.</p>
+
+  <h2>13.1 Schedule</h2>
+
+  <table>
+    <thead><tr><th style="width:8%">Week</th><th style="width:26%">Objective</th><th>Deliverable</th></tr></thead>
+    <tbody>
+      <tr><td class="hl">1</td><td>Capture and recognise</td><td>Skeleton application; AudioRecord into Silero VAD into Vosk Hindi; recognised text on screen. Entry-tier target handset acquired. Licence register opened.</td></tr>
+      <tr><td class="hl">2</td><td>Transport</td><td>Link interface, RFCOMM implementation, frame codec with CRC, unit-tested decoder. Typed text traverses two phones. Independent of any model.</td></tr>
+      <tr class="emph"><td class="hl">3</td><td>Close the loop</td><td>Piper synthesis on the receiving device. <strong>Speech in, speech out, end to end.</strong> Baseline latency measured and recorded. The project is now de-risked.</td></tr>
+      <tr><td class="hl">4</td><td>Real models</td><td>IndicConformer exported and quantised; five languages integrated; WER harness operational; Odia gap assessed and assigned.</td></tr>
+      <tr><td class="hl">5</td><td>Modes and alerts</td><td>Push-to-talk with hardware key, half and full duplex, alert path with alarm-stream routing, wake lock and lock-screen delivery.</td></tr>
+      <tr><td class="hl">6</td><td>Latency and reach</td><td>Chunked synthesis, stabilised partials, adaptive endpointing. BLE and Wi-Fi transports. Encryption, replay window and relay. Thermal soak begins.</td></tr>
+      <tr><td class="hl">7</td><td>Coverage and hardening</td><td>Remaining languages; template tables; normalisation suites; noise pre-processing; field testing at range and under noise; four-device relay soak.</td></tr>
+      <tr><td class="hl">8</td><td>Evidence and rehearsal</td><td>Scorecard generation, latency HUD, documentation, LoRa bench demonstration if hardware permits, demonstration rehearsed to a fixed script.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>13.2 Allocation</h2>
+
+  <table>
+    <thead><tr><th style="width:22%">Role</th><th style="width:26%">Owns</th><th>Principal risks carried</th></tr></thead>
+    <tbody>
+      <tr><td>Models — recognition</td><td>core-asr, export, quantisation, biasing</td><td>T-02, T-05, T-07</td></tr>
+      <tr><td>Models — synthesis</td><td>core-tts, normalisation, voice selection</td><td>T-05</td></tr>
+      <tr><td>Audio engine</td><td>core-audio, VAD tiers, endpointing, noise</td><td>T-01, T-12</td></tr>
+      <tr><td>Transport</td><td>core-link, core-proto, security, relay</td><td>T-08, T-09, T-10, S-01, S-02</td></tr>
+      <tr><td>Application</td><td>UI, PTT, alerts, provisioning, packs</td><td>S-05, P-03</td></tr>
+      <tr><td>Evaluation</td><td>bench, datasets, scorecard, documentation</td><td>T-03, P-02</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <span class="label">The scheduling rule that matters</span>
+    <p>Week three is the hinge. A working loop with mediocre models can be improved
+    incrementally under any amount of time pressure. Excellent models with no loop cannot
+    be demonstrated at all. Every competing team that fails will fail by inverting this
+    order.</p>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     14 — DEMO
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part IV · Section 14</span>
+  <h1>The<br><b>demonstration</b></h1>
+  <p class="dek">Seven minutes, rehearsed to a fixed sequence. Each step answers a question
+  the jury is already holding.</p>
+
+  <table>
+    <thead><tr><th style="width:6%" class="n">#</th><th style="width:30%">Action</th><th>Question it answers</th></tr></thead>
+    <tbody>
+      <tr><td class="n">1</td><td>Both handsets on the table, aeroplane mode visibly enabled, Bluetooth only.</td><td><em>Is this really offline?</em> Settled in three seconds, before any claim is made.</td></tr>
+      <tr><td class="n">2</td><td>Hold transmit; speak a Tamil sentence. The second handset speaks it in Tamil.</td><td><em>Does the core loop work?</em></td></tr>
+      <tr><td class="n">3</td><td>Display the byte counter: transmitted 45 bytes, equivalent audio 96 000 bytes, ratio 2 133&times;.</td><td><em>What have you actually achieved?</em> The compression figure, measured live rather than asserted.</td></tr>
+      <tr><td class="n">4</td><td>Point to the permanent latency strip: STT 210 ms, link 40 ms, TTS 180 ms, total 780 ms.</td><td><em>How fast is it?</em> Instrumentation on screen, not on a slide.</td></tr>
+      <tr><td class="n">5</td><td>Lock the second handset and set it to silent. Send an alert. It wakes and announces at full volume.</td><td><em>Does the alert requirement work as specified?</em></td></tr>
+      <tr><td class="n">6</td><td>Release push-to-talk. Hold an ordinary two-way conversation with no button.</td><td><em>Does telephone mode work?</em></td></tr>
+      <tr><td class="n">7</td><td>Switch the receiving handset to Hindi. Send a template alert in Tamil; it is announced in Hindi.</td><td><em>What else does the architecture give you?</em> Cross-language operation with no translation model.</td></tr>
+      <tr><td class="n">8</td><td>If hardware permits: disable Bluetooth between the handsets; route through the LoRa pair across the room.</td><td><em>Does this work on a real radio link?</em> The strongest single moment available.</td></tr>
+      <tr><td class="n">9</td><td>Close on the scorecard: application size, memory, idle CPU, WER per language at four SNRs, RTF, latency distribution — all measured on an entry-tier handset.</td><td><em>Can you prove any of it?</em></td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <span class="label">Rehearsal discipline</span>
+    <p>Pairing is the most common cause of demonstration failure. Devices are paired before
+    the session begins, the QR path is the fallback, and a third pre-configured handset is
+    kept ready. The script is fixed in week eight and not improvised.</p>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     15 — WHY THIS WINS
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Part IV · Section 15</span>
+  <h1>Why this<br><b>wins</b></h1>
+  <p class="dek">Many teams will demonstrate speech crossing a Bluetooth link. Differentiation
+  comes from four things that are difficult to assemble in the final week and
+  straightforward if planned from the first.</p>
+
+  <h2>The four differentiators</h2>
+
+  <table>
+    <thead><tr><th style="width:6%" class="n">#</th><th style="width:26%">Differentiator</th><th>Why it separates us</th></tr></thead>
+    <tbody>
+      <tr><td class="n">1</td><td class="hl">The compression argument, derived and measured</td><td>Most submissions will show a working pipeline. Few will present the bandwidth table demonstrating that audio <em>cannot</em> cross a LoRa or satellite link while iTantra can. That table is the reason an ISRO panel wrote this problem statement, and answering it directly is the strongest available position.</td></tr>
+      <tr><td class="n">2</td><td class="hl">A real radio hop</td><td>Two handsets in aeroplane mode with Bluetooth disabled between them, communicating through an ESP32 and LoRa pair. Approximately fifteen hundred rupees of hardware and two hundred lines of firmware convert a phone-to-phone demonstration into a deployable system.</td></tr>
+      <tr><td class="n">3</td><td class="hl">Evidence rather than claims</td><td>Word error rate per language at four signal-to-noise ratios, critical-term error with and without biasing, sustained real-time factor after thermal soak, idle CPU from a Perfetto trace, latency distribution from the instrumented application — all taken on an entry-tier handset. The rubric allocates eighty per cent to measurable properties; supplying measurements is simply answering the question asked.</td></tr>
+      <tr><td class="n">4</td><td class="hl">Template codes yielding free cross-language operation</td><td>One byte per common message, spoken in whichever of the ten languages the receiver has selected. It compresses further than any competing approach and delivers translation with no translation model — an architectural consequence rather than an added feature.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Positioning</h2>
+
+  <p>iTantra is not a speech-recognition demonstration with a Bluetooth link attached. It is
+  a communications system that happens to use speech models as its codec. That framing is
+  accurate, it matches the problem statement's own language — <em>neural transceiver radio
+  access for low bitrate links</em> — and it is the framing under which the design decisions
+  in this document are coherent rather than arbitrary.</p>
+
+  <div class="quote">
+    <p>Speech goes in one end. Speech comes out the other.<br>
+    In between, it is small enough to cross a link<br>
+    that could never carry a voice.</p>
+    <div class="attr">iTantra</div>
+  </div>
+
+  <h2>What a successful outcome looks like</h2>
+
+  <ul class="clean">
+    <li>Two handsets, aeroplane mode, ten languages, sub-second end-to-end delivery.</li>
+    <li>An installer under thirty megabytes with two languages resident and eight available on demand.</li>
+    <li>Idle CPU below two per cent, verified by trace rather than asserted.</li>
+    <li>Word error rate reported per language and per noise condition, with critical-term
+    accuracy separated out.</li>
+    <li>Alerts that wake a locked, silenced handset and announce at full volume.</li>
+    <li>The same bytes crossing a real radio link, demonstrated live.</li>
+  </ul>
+</div>
+
+
+<!-- ============================================================
+     APPENDIX A
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Appendix A</span>
+  <h1>Frame<br><b>specification</b></h1>
+
+  <h2>A.1 Message types</h2>
+  <table class="t-mono">
+    <thead><tr><th style="width:14%">Code</th><th style="width:26%">Type</th><th>Semantics</th></tr></thead>
+    <tbody>
+      <tr><td>0x1</td><td>TEXT</td><td>Recognised speech, packed or plain. Fire and forget.</td></tr>
+      <tr><td>0x2</td><td>ALERT</td><td>Priority traffic. Pre-empts the queue, acknowledged and retried, announced on the alarm stream.</td></tr>
+      <tr><td>0x3</td><td>ACK</td><td>Acknowledges a sequence number. Payload is the acknowledged value.</td></tr>
+      <tr><td>0x4</td><td>PTT_CTL</td><td>Floor seize and release. Drives the channel-busy indicator.</td></tr>
+      <tr><td>0x5</td><td>HEARTBEAT</td><td>Liveness, every two seconds. Carries link metrics.</td></tr>
+      <tr><td>0x6</td><td>TEMPLATE</td><td>Single-byte message identifier from the shared table.</td></tr>
+      <tr><td>0x7</td><td>POSITION</td><td>Eight-byte packed latitude and longitude.</td></tr>
+      <tr><td>0x8</td><td>AUDIO_FB</td><td>Opus fallback when recogniser confidence is below threshold. Wi-Fi transport only.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>A.2 Language indices</h2>
+  <table class="t-mono">
+    <thead><tr><th style="width:10%">Idx</th><th style="width:22%">Language</th><th style="width:18%">Script</th><th>Unicode block base</th></tr></thead>
+    <tbody>
+      <tr><td>0</td><td>English</td><td>Latin</td><td>U+0041</td></tr>
+      <tr><td>1</td><td>Hindi</td><td>Devanagari</td><td>U+0900</td></tr>
+      <tr><td>2</td><td>Bengali</td><td>Bengali</td><td>U+0980</td></tr>
+      <tr><td>3</td><td>Marathi</td><td>Devanagari</td><td>U+0900</td></tr>
+      <tr><td>4</td><td>Telugu</td><td>Telugu</td><td>U+0C00</td></tr>
+      <tr><td>5</td><td>Tamil</td><td>Tamil</td><td>U+0B80</td></tr>
+      <tr><td>6</td><td>Gujarati</td><td>Gujarati</td><td>U+0A80</td></tr>
+      <tr><td>7</td><td>Kannada</td><td>Kannada</td><td>U+0C80</td></tr>
+      <tr><td>8</td><td>Malayalam</td><td>Malayalam</td><td>U+0D00</td></tr>
+      <tr><td>9</td><td>Odia</td><td>Odia</td><td>U+0B00</td></tr>
+    </tbody>
+  </table>
+
+  <p>Each Indic block spans 128 code points, of which roughly seventy occur in ordinary
+  running text. Subtracting the block base yields a single-byte representation directly,
+  which is the mechanism behind Level 2 compression.</p>
+
+  <h2>A.3 Flag bits</h2>
+  <table class="t-mono">
+    <thead><tr><th style="width:10%">Bit</th><th style="width:24%">Name</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>7</td><td>FINAL</td><td>Complete utterance; safe to synthesise</td></tr>
+      <tr><td>6</td><td>PARTIAL</td><td>Stabilised prefix; receiver may begin early synthesis</td></tr>
+      <tr><td>5</td><td>ENCRYPTED</td><td>Payload is AES-GCM protected</td></tr>
+      <tr><td>4</td><td>FRAGMENT</td><td>More fragments follow — BLE and LoRa only</td></tr>
+      <tr><td>3</td><td>PACKED</td><td>Payload uses single-byte script packing</td></tr>
+      <tr><td>2</td><td>reserved</td><td>—</td></tr>
+      <tr><td>1–0</td><td>CONFIDENCE</td><td>0 low, 1 medium, 2 high, 3 template-matched</td></tr>
+    </tbody>
+  </table>
+
+  <h2>A.4 Reserved node identifiers</h2>
+  <table class="t-mono">
+    <thead><tr><th style="width:14%">Value</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>0x00</td><td>Unassigned — a device that has not completed provisioning</td></tr>
+      <tr><td>0x01</td><td>Group creator, conventionally the base station</td></tr>
+      <tr><td>0x02–0xFD</td><td>Assigned nodes</td></tr>
+      <tr><td>0xFE</td><td>Reserved for gateway or relay hardware</td></tr>
+      <tr><td>0xFF</td><td>Broadcast — all units on the channel</td></tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ============================================================
+     APPENDIX B
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Appendix B</span>
+  <h1>Reference<br><b>implementation</b></h1>
+  <p class="dek">The core paths, in the form they will take in the codebase.</p>
+
+  <h2>B.1 Recognition</h2>
+  <pre><code>// constructed once, at foreground-service start
+val recognizer = OnlineRecognizer(
+    assetManager = assets,
+    config = OnlineRecognizerConfig(
+        featConfig  = FeatureConfig(sampleRate = 16000, featureDim = 80),
+        modelConfig = OnlineModelConfig(
+            transducer = OnlineTransducerModelConfig(
+                encoder = "models/hi/encoder.int8.onnx",
+                decoder = "models/hi/decoder.onnx",
+                joiner  = "models/hi/joiner.onnx"
+            ),
+            tokens     = "models/hi/tokens.txt",
+            numThreads = 2,
+            provider   = "cpu"
+        ),
+        enableEndpoint = true,
+        endpointConfig = EndpointConfig(),
+        decodingMethod = "modified_beam_search",
+        hotwordsFile   = "models/hi/alert-lexicon.txt",
+        hotwordsScore  = 1.5f
+    )
+)
+
+// per 100 ms of captured audio
+stream.acceptWaveform(samples, 16000)
+while (recognizer.isReady(stream)) recognizer.decode(stream)
+
+val text = recognizer.getResult(stream).text
+if (recognizer.isEndpoint(stream)) {
+    link.send(Frame.encode(text, lang = HI, dst = BROADCAST))
+    recognizer.reset(stream)
+}</code></pre>
+
+  <h2>B.2 Synthesis with streaming playout</h2>
+  <pre><code>val tts = OfflineTts(assets, OfflineTtsConfig(
+    model = OfflineTtsModelConfig(
+        vits = OfflineTtsVitsModelConfig(
+            model   = "models/hi/hi_IN-voice.onnx",
+            tokens  = "models/hi/tokens.txt",
+            dataDir = "espeak-ng-data"
+        ),
+        numThreads = 2
+    )
+))
+
+// clause-level chunking: playback starts on the first chunk
+normalise(received, lang).splitClauses().forEach { chunk -&gt;
+    val audio = tts.generate(chunk, sid = speakerFor(frame.src), speed = 1.0f)
+    track.write(audio.samples, 0, audio.samples.size, WRITE_BLOCKING)
+}</code></pre>
+
+  <h2>B.3 Frame encoding</h2>
+  <pre><code>fun encode(text: String, lang: Int, dst: Int): ByteArray {
+    val template = TemplateTable.match(text)          // Level 3
+    val body = when {
+        template != null -&gt; byteArrayOf(template.id)
+        else             -&gt; ScriptPacker.pack(text, lang)   // Level 2
+    }
+    val payload = if (encrypted) aesGcm.seal(body, seq) else body
+
+    return buildFrame {
+        u8(MAGIC_V1)
+        u8((if (template != null) TYPE_TEMPLATE else TYPE_TEXT) shl 4 or lang)
+        u16(seq++)
+        u8(flags)
+        u16(payload.size)
+        u8(myNode); u8(dst); u8(myGroup); u8(DEFAULT_TTL)
+        bytes(payload)
+        u16(crc16(soFar()))
+    }
+}</code></pre>
+
+  <h2>B.4 Receive path</h2>
+  <pre><code>link.incoming.collect { raw -&gt;
+    val f = Frame.decode(raw) ?: return@collect          // CRC failure
+    if (!accept(f)) return@collect                       // not addressed to us
+    if (!replayWindow.admit(f.src, f.seq)) return@collect // replay
+    relayIfNeeded(f)
+
+    val text = when (f.type) {
+        TYPE_TEMPLATE -&gt; TemplateTable.render(f.payload[0], myLanguage)
+        else          -&gt; ScriptPacker.unpack(f.payload, f.lang)
+    }
+
+    if (f.type == TYPE_ALERT) alertPlayer.announce(text, f.lang)
+    else                      ttsPlayer.speak(text, f.lang)
+}</code></pre>
+
+  <h2>B.5 Stream framing</h2>
+  <pre><code>fun InputStream.readFully(buf: ByteArray) {
+    var off = 0
+    while (off &lt; buf.size) {
+        val n = read(buf, off, buf.size - off)
+        if (n &lt; 0) throw EOFException()
+        off += n
+    }
+}</code></pre>
+</div>
+
+
+<!-- ============================================================
+     APPENDIX C
+     ============================================================ -->
+<div class="sec-open">
+  <span class="sec-num">Appendix C</span>
+  <h1><b>Glossary</b></h1>
+
+  <table>
+    <thead><tr><th style="width:24%">Term</th><th>Definition</th></tr></thead>
+    <tbody>
+      <tr><td class="hl">ASR / STT</td><td>Automatic speech recognition — converting audio into text.</td></tr>
+      <tr><td class="hl">TTS</td><td>Text to speech — converting text into an audio waveform.</td></tr>
+      <tr><td class="hl">VAD</td><td>Voice activity detection — deciding whether a short window of audio contains human speech.</td></tr>
+      <tr><td class="hl">Endpointing</td><td>Deciding that an utterance has finished, so that a final result can be emitted.</td></tr>
+      <tr><td class="hl">WER</td><td>Word error rate — insertions plus deletions plus substitutions, divided by reference word count. Lower is better.</td></tr>
+      <tr><td class="hl">RTF</td><td>Real-time factor — processing time divided by audio duration. Below 1.0 is faster than real time.</td></tr>
+      <tr><td class="hl">Mel spectrogram</td><td>A time-by-frequency representation of audio on a perceptually spaced frequency scale; the standard input to acoustic models.</td></tr>
+      <tr><td class="hl">Conformer</td><td>An acoustic model architecture combining convolution for local acoustic detail with self-attention for long-range context.</td></tr>
+      <tr><td class="hl">Transducer / CTC</td><td>Decoding schemes that map a sequence of frame predictions onto a shorter sequence of output tokens.</td></tr>
+      <tr><td class="hl">VITS</td><td>A synthesis architecture generating waveforms directly from text in a single pass, including duration modelling.</td></tr>
+      <tr><td class="hl">Quantisation</td><td>Re-encoding model weights at lower precision — typically 8-bit integer — for smaller size and faster inference.</td></tr>
+      <tr><td class="hl">ONNX</td><td>An open interchange format for neural networks, executable by ONNX Runtime on ARM.</td></tr>
+      <tr><td class="hl">Contextual biasing</td><td>Boosting decoding scores for a supplied phrase list, improving recognition of known domain vocabulary without retraining.</td></tr>
+      <tr><td class="hl">RFCOMM / SPP</td><td>The Bluetooth serial port profile — a virtual serial cable, and the same interface a radio module presents.</td></tr>
+      <tr><td class="hl">GATT</td><td>The Bluetooth Low Energy attribute protocol; data is exchanged through named characteristics rather than a stream.</td></tr>
+      <tr><td class="hl">MTU</td><td>Maximum transmission unit — the largest payload a single packet can carry.</td></tr>
+      <tr><td class="hl">LoRa</td><td>A long-range, low-bitrate radio modulation operating licence-free in India at 865–867 MHz.</td></tr>
+      <tr><td class="hl">TTL</td><td>Time to live — a hop counter that bounds how far a relayed frame may travel.</td></tr>
+      <tr><td class="hl">Replay window</td><td>A record of recently accepted sequence numbers, preventing a captured frame from being retransmitted by an attacker.</td></tr>
+      <tr><td class="hl">Half / full duplex</td><td>Half duplex permits one direction at a time — the walkie-talkie mode. Full duplex permits both simultaneously — the telephone mode.</td></tr>
+      <tr><td class="hl">Barge-in</td><td>Detecting that the local user has begun speaking while output is playing, and ducking or halting that output.</td></tr>
+      <tr><td class="hl">SNR</td><td>Signal-to-noise ratio in decibels; the standard way of specifying how adverse an acoustic test condition is.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="endmark">iTantra · Problem Statement 26173 · Smart India Hackathon 2026 · End of document</div>
+</div>
+
+</body>
+</html>
