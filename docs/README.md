@@ -27,6 +27,7 @@ Resolved divergences are listed at the bottom of this page.
 | [MODELS.md](MODELS.md) | Language pack format, manifest schema, export and quantisation pipeline, storage lifecycle |
 | [UX.md](UX.md) | Screens, the two modes, alert delivery sequence, pairing, inclusive design rules |
 | [WIREFRAMES.md](WIREFRAMES.md) | All nine screens at low fidelity, with the layout system, state variants, banners and navigation map |
+| [iTantra Screens.html](iTantra%20Screens.html) | **The rendered UI/UX canvas** — the same seventeen screens drawn properly, self-contained, openable in a browser. Look at the interface here; build it from `WIREFRAMES.md` |
 
 ### Verification
 

@@ -4,6 +4,21 @@ Every screen in the application, at low fidelity. These are layout and hierarchy
 decisions, not visual design — the palette is high-contrast monochrome
 ([UX.md §4](UX.md#4-inclusive-design-rules) rule 5) and there is no branding to place.
 
+> ## Rendered canvas
+>
+> **[`iTantra Screens.html`](iTantra%20Screens.html)** is the same seventeen screens drawn
+> properly — a self-contained Claude Design canvas, openable in any browser, no build step
+> and no network. Use it to *look at* the interface; use this document to *build* it.
+>
+> The canvas numbers the screens **01–17**. This document numbers its sections 1–20, with
+> §1 the layout system and §19–20 the navigation map and build order, so **canvas `NN` is
+> section `NN + 1` here**. Screen content is identical; where the two ever disagree, this
+> document wins and the canvas is regenerated.
+>
+> The canvas shows `Redmi A3` on the metrics screen. That is an illustrative device name,
+> not a decision — the real target handset is still to be acquired and recorded in
+> [SETUP.md §2](SETUP.md#2-target-hardware) (risk P-02).
+
 **Reference viewport:** 360 × 800 dp, the entry-tier target handset in portrait. Each box
 below is that viewport. Annotations to the right of a box give sizes and the rule each
 element satisfies.
@@ -145,7 +160,7 @@ The main screen. This is the one the jury looks at for six of the seven minutes.
 
 ```
  ┌──────────────────────────────────────────────┐
- │  ☰   RESCUE-A        6 units      ● LINK OK  │   A · 56 dp
+ │  ☰   BASE · node 01   6 units     ● LINK OK  │   A · 56 dp
  ├──────────────────────────────────────────────┤
  │  PTT  ·  ALL UNITS      [▾ हिन्दी         ]   │   B · 48 dp
  ├──────────────────────────────────────────────┤
@@ -183,7 +198,7 @@ the display off (rule 4).
 
 ```
  ┌──────────────────────────────────────────────┐
- │  ☰   RESCUE-A        6 units      ● LINK OK  │
+ │  ☰   BASE · node 01   6 units     ● LINK OK  │
  ├──────────────────────────────────────────────┤
  │  PTT  ·  ALL UNITS      [▾ हिन्दी         ]   │
  ├──────────────────────────────────────────────┤
@@ -219,7 +234,7 @@ The confidence dots `●●●○` are the two `CONFIDENCE` bits from
 
 ```
  ┌──────────────────────────────────────────────┐
- │  ☰   RESCUE-A        6 units      ● LINK OK  │
+ │  ☰   BASE · node 01   6 units     ● LINK OK  │
  ├──────────────────────────────────────────────┤
  │  PTT  ·  ALL UNITS      [▾ हिन्दी         ]   │
  ├──────────────────────────────────────────────┤
@@ -253,7 +268,7 @@ else to stop talking.
 
 ```
  ┌──────────────────────────────────────────────┐
- │  ☰   RESCUE-A        6 units      ● LINK OK  │
+ │  ☰   BASE · node 01   6 units     ● LINK OK  │
  ├──────────────────────────────────────────────┤
  │  PTT  ·  ALL UNITS      [▾ हिन्दी         ]   │
  ├──────────────────────────────────────────────┤
@@ -287,7 +302,7 @@ Released push-to-talk. The primary action becomes a state display rather than a 
 
 ```
  ┌──────────────────────────────────────────────┐
- │  ☰   RESCUE-A        6 units      ● LINK OK  │
+ │  ☰   BASE · node 01   6 units     ● LINK OK  │
  ├──────────────────────────────────────────────┤
  │  PHONE  ·  ALL UNITS    [▾ हिन्दी         ]   │   mode + language
  ├──────────────────────────────────────────────┤
@@ -377,13 +392,13 @@ message type that can cause physical harm if it is wrong.
  ├──────────────────────────────────────────────┤
  │  ☐  Attach my position                       │
  ├──────────────────────────────────────────────┤
- │  Template alert = 22 B · reaches every unit  │
+ │  Template alert = 21 B · reaches every unit  │
  │  in its own language                         │
  └──────────────────────────────────────────────┘
 ```
 
 The six template buttons are the fastest path and the smallest frame — one byte of payload,
-22 B on the wire authenticated. They are also the **cross-language** path: a template sent
+21 B on the wire authenticated. They are also the **cross-language** path: a template sent
 here is announced in whatever language each receiver has selected
 ([PROTOCOL.md §5.1](PROTOCOL.md#51-cross-language-delivery)).
 
@@ -453,7 +468,7 @@ pocket can do.
  │  ┌────────────────────────────────────┐      │
  │  │ MEDICAL ASSISTANCE NEEDED       ⟲  │      │
  │  └────────────────────────────────────┘      │
- │  22 B template · ✓✓ · sent in தமிழ்           │
+ │  21 B template · ✓✓ · sent in தமிழ்           │
  │                                              │
  │  ○ queued   position secure          pending │   store & forward
  └──────────────────────────────────────────────┘
@@ -547,7 +562,7 @@ warning disappears.
  │  ‹   SETTINGS                                │
  ├──────────────────────────────────────────────┤
  │  UNITS                                       │
- │  RESCUE-A · node 01 · 6 units            ›   │
+ │  This unit — Base · node 01              ›   │
  │  Add a unit — show QR                    ›   │
  │  Rotate shared key                       ›   │   re-provision
  ├──────────────────────────────────────────────┤

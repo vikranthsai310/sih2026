@@ -54,6 +54,7 @@ verified.
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | R1–R11, the four constraints, and the traceability matrix |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Modules, threads, lifecycle, signal path |
 | [docs/SETUP.md](docs/SETUP.md) | Get a development environment running |
+| [docs/iTantra Screens.html](docs/iTantra%20Screens.html) | The rendered UI/UX — all seventeen screens, openable in a browser |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Eight weeks, with an acceptance gate per week |
 
 ## Repository layout

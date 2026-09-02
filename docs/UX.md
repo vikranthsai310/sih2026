@@ -6,13 +6,15 @@ sentence.
 
 > This document specifies interaction — modes, policy, rules. Every screen is drawn at low
 > fidelity in [WIREFRAMES.md](WIREFRAMES.md), including the state variants (transmitting,
-> floor busy, receiving, degraded) that a static list of screens cannot show.
+> floor busy, receiving, degraded) that a static list of screens cannot show, and rendered
+> properly in [`iTantra Screens.html`](iTantra%20Screens.html) — open it in a browser to
+> see the interface rather than read it.
 
 ## 1. The operating screen
 
 ```
  ┌──────────────────────────────────────────────┐
- │  RESCUE-A            6 units      ● LINK OK  │
+ │  BASE · node 01      6 units      ● LINK OK  │
  ├──────────────────────────────────────────────┤
  │   PTT · ALL UNITS                 हिन्दी  ▾   │
  ├──────────────────────────────────────────────┤
