@@ -1,0 +1,163 @@
+# Interface and interaction
+
+The justification for this project is that it serves people who cannot type. **An interface
+that assumes literacy would refute its own premise.** Every rule below descends from that
+sentence.
+
+## 1. The operating screen
+
+```
+ ┌──────────────────────────────────────────────┐
+ │  RESCUE-A            6 units      ● LINK OK  │
+ ├──────────────────────────────────────────────┤
+ │   ALL UNITS  ▾                    हिन्दी  ▾   │
+ ├──────────────────────────────────────────────┤
+ │                                              │
+ │                                              │
+ │              P U S H   T O   T A L K         │
+ │                                              │
+ │                  (≥ ⅓ of screen)             │
+ │                                              │
+ ├──────────────────────────────────────────────┤
+ │      ALERT      │        POSITION            │
+ ├──────────────────────────────────────────────┤
+ │  Ravi     हमें तुरंत मदद चाहिए          2 s  │
+ │  Base     टीम भेज रहे हैं                8 s  │
+ ├──────────────────────────────────────────────┤
+ │  STT 210 ms  ·  LINK 40 ms  ·  TTS 180 ms    │
+ │  TOTAL 780 ms  ·  RTF 0.22  ·  CPU 1.8 %     │
+ └──────────────────────────────────────────────┘
+```
+
+**The instrumentation strip is permanent, not a debug view.** It is the single most
+persuasive element on the screen in front of a jury scoring 20 % on latency, and hiding it
+behind a developer toggle wastes it.
+
+## 2. The two modes
+
+| Aspect | Push-to-talk — walkie-talkie | Released — telephone |
+| --- | --- | --- |
+| Duplex | Half. One speaker holds the channel | Full. Both directions stream continuously |
+| Capture | Live only while the key is held | Always live, gated by VAD |
+| Endpoint | Key release, 150 ms confirmation | 400 ms trailing silence |
+| Speaker | Muted while transmitting | Active, with barge-in ducking |
+| Floor control | `PTT_CTL` frames announce and release the floor; a busy indicator prevents collisions | Not applicable |
+| Power | Lowest — no idle inference | Higher — continuous VAD |
+| Latency | 500–800 ms | 750–1100 ms |
+
+The transmit control is bound both to a large on-screen target **and to the volume-down
+hardware key**, because operators wear gloves and rarely look at the screen. Releasing the
+key is an explicit end-of-utterance signal, which is why push-to-talk mode records lower
+latency than telephone mode — worth demonstrating live rather than explaining.
+
+### Floor states
+
+| State | Indicator | Behaviour |
+| --- | --- | --- |
+| Free | Neutral | Transmit permitted |
+| Held by me | Transmit control lit, haptic on seize | Speaker muted |
+| Held by peer | Busy, peer's name shown | Transmit blocked; a press produces a short haptic refusal, never a dialog |
+| Contended | Both seized within the collision window | Randomised backoff, both told to retry (risk S-05) |
+
+## 3. Alert delivery
+
+The requirement (R8) is that alerts are "announced at highest volume, non-interruptible".
+On Android this is a specific and verifiable sequence, and it is the whole of it — each
+step exists because omitting it produces a silent alert in some real configuration.
+
+| Step | Mechanism | Why |
+| --- | --- | --- |
+| 1. Route away from media | `AudioAttributes.USAGE_ALARM` with `CONTENT_TYPE_SONIFICATION` | Bypasses media volume and, when configured, Do Not Disturb |
+| 2. Force volume | `setStreamVolume(STREAM_ALARM, max, 0)` before playback; the prior level is restored afterwards | A silenced handset must still announce |
+| 3. Hold focus | `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE`, and **deliberately ignore loss callbacks** | This is the non-interruptible requirement, precisely |
+| 4. Wake the device | `PARTIAL_WAKE_LOCK` plus a full-screen-intent notification | Delivery must succeed on a locked screen |
+| 5. Reinforce | Vibration pattern, high-contrast full-screen visual, message repeated twice | Redundant channels for a noisy environment and a hearing-impaired operator |
+| 6. Guarantee arrival | `ALERT` frames pre-empt the transmit queue and are acknowledged and retried | See [PROTOCOL.md §12](PROTOCOL.md#12-reliability) |
+
+**Restoring the prior volume in step 2 is mandatory** and easy to forget. Leaving a
+handset permanently at maximum alarm volume after one alert is a defect that will be found
+during a demonstration.
+
+### Sending an alert
+
+Alert-class messages require **explicit confirmation** of the recognised text before
+transmission (risk S-03). The confirmation is a single large button showing the recognised
+text and speaking it aloud — so it works for a non-literate operator — with a cancel target
+of equal size. This is the one place where the system deliberately adds latency, and the
+reason is that an alert is the only message type that can cause physical harm if it is
+wrong.
+
+## 4. Inclusive design rules
+
+Normative. A review may reject a change for violating any of these.
+
+1. The transmit target occupies **at least a third of the screen** and is reachable
+   one-handed with gloves.
+2. Every state change is confirmed by **haptics and a spoken cue**, never by a text dialog
+   alone.
+3. **Icons and colour carry primary meaning; text is a secondary channel.** Any screen
+   whose meaning collapses when the text is removed has failed this rule.
+4. **Full operation with the screen off**, via the hardware key.
+5. **High-contrast monochrome palette**, legible in direct sunlight. Colour is used only
+   for state (link, alert, floor), never as the sole carrier of information.
+6. Recognised text is displayed alongside the spoken output, so a **literate** operator can
+   verify what the machine heard — without requiring literacy to use the system.
+7. Minimum touch target 64 dp; the transmit control far exceeds it.
+8. No screen requires more than **two taps** from the operating screen. Settings may be
+   deeper; nothing operational may be.
+9. Text scales to 200 % without truncation or overlap.
+10. Every control has a content description, and the whole operating screen is navigable by
+    TalkBack.
+
+Rule 3 is the one that gets violated. "Add a label" is the reflex fix for an unclear
+control; the correct fix is a clearer icon plus the label.
+
+## 5. Provisioning
+
+Users are not asked to enter identifiers.
+
+```
+ CREATOR                                JOINER
+ ───────                                ──────
+ Create group                           Scan QR
+   ├ random group ID                      ├ receives key, group, profile
+   ├ random AES-256 key                   ├ claims next free node ID
+   ├ template profile + digest            ├ key → Keystore
+   └ shows QR (FLAG_SECURE, 120 s)        └ display name entered locally
+```
+
+Display names are local to each device. Pairing is the most common point of failure in live
+demonstrations, and reducing it to a scan removes that risk (risk P-03). Security
+properties of the QR path are in [SECURITY.md §5](SECURITY.md#5-provisioning).
+
+## 6. Screens
+
+| Screen | Contents | Depth from operating screen |
+| --- | --- | --- |
+| Operating | The screen in §1 | — |
+| Roster | Units in the group: name, node ID, battery, link quality, last heard | 1 tap |
+| Message log | Last 24 h of sent and received text with delivery state, replayable as audio | 1 tap |
+| Channel | Group selector, PTT/phone mode toggle, transport selector | 1 tap |
+| Language | Ten languages, showing which packs are installed | 1 tap |
+| Settings | Packs and storage, provisioning, alert test, metrics export, about and licences | 2 taps |
+| Provisioning | QR display or scan | 2 taps |
+| Metrics | Latency histogram, resource graph, CSV export | 2 taps |
+
+The **alert test** control in settings sends an alert to your own device. It exists so that
+step 5 of the demonstration can be rehearsed without a second operator, and so that a user
+can verify alert delivery works on their specific handset — vendor audio policy varies
+enough that this is a real concern, not a convenience.
+
+## 7. States the interface must show
+
+A system that silently stops working is worse than one that says it has stopped.
+
+| State | Presentation |
+| --- | --- |
+| `INITIALISING` | Transmit disabled, "loading models" with progress, never a blank screen |
+| `READY` | Transmit enabled, link indicator green |
+| `DEGRADED` | Amber banner with a **reason string**: mic unavailable, link down, thermal throttling, storage full |
+| `UNSECURED` | Permanent red banner whenever any configured group is unauthenticated. No silent path |
+| `TEMPLATE MISMATCH` | Persistent warning naming the peer; template sending disabled |
+| Floor held by peer | Busy indicator with the peer's name |
+| Low confidence | Recognised text shown with a caution marker before transmission |
