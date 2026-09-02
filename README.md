@@ -56,6 +56,7 @@ verified.
 | [docs/SETUP.md](docs/SETUP.md) | Get a development environment running |
 | [docs/iTantra Screens.html](docs/iTantra%20Screens.html) | The rendered UI/UX — all seventeen screens, openable in a browser |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Eight weeks, with an acceptance gate per week |
+| [docs/TODO.md](docs/TODO.md) | **Start here to build.** Every task, in order, with a testable done-condition |
 
 ## Repository layout
 

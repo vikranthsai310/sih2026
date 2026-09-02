@@ -3,6 +3,10 @@
 Eight weeks. The governing rule is that the end-to-end loop closes before any effort is
 spent on model quality.
 
+This document is the **shape** of the eight weeks. [TODO.md](TODO.md) is the
+**task-by-task breakdown** — 207 items with owners, dependencies and a testable
+done-condition each. Work from that; review against this.
+
 > **Idea submission (20 September 2026) is owned outside this plan.** Slide content is
 > written and ready in [IDEA_SUBMISSION.md](IDEA_SUBMISSION.md) for whoever is handling it;
 > the engineering track below does not block on it and is not blocked by it. Tracked as

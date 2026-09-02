@@ -43,6 +43,7 @@ Resolved divergences are listed at the bottom of this page.
 | --- | --- |
 | [SETUP.md](SETUP.md) | Development environment, toolchain versions, model acquisition, first build |
 | [ROADMAP.md](ROADMAP.md) | Eight weeks with an acceptance gate per week, and the ordering rule that governs all of it |
+| [TODO.md](TODO.md) | **Every task, in order, with owners, dependencies and a testable done-condition.** The list that turns the specification into a system |
 | [RISKS.md](RISKS.md) | The risk register — twenty-nine numbered risks, owners, triggers, mitigations, status |
 | [DEMO.md](DEMO.md) | The nine-step demonstration runbook, equipment list, failure recovery |
 | [IDEA_SUBMISSION.md](IDEA_SUBMISSION.md) | Slide-by-slide content for the official SIH idea-submission template |
