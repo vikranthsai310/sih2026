@@ -1,996 +1,1325 @@
 <title>iTantra Project Report</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400;1,700&display=swap">
 <style>
+/* ============================================================
+   JNTUH / VBIT project report format
+   Times New Roman 12 pt · 1.5 line spacing · justified
+   A4 · left margin 1.25in, other margins 1in
+   ============================================================ */
 :root{
-  --paper:#F4F6F3;
-  --sheet:#FFFFFF;
-  --ink:#131A15;
-  --ink-2:#454F48;
-  --ink-3:#6C7770;
-  --green:#17773C;
-  --green-soft:#E4EFE7;
-  --blue:#1B3C7A;
-  --blue-soft:#E3E9F3;
-  --amber:#8A5A0C;
-  --amber-soft:#F5EBD9;
-  --rule:#D3DAD1;
-  --rule-2:#E7EBE6;
-  --shadow:0 1px 2px rgba(19,26,21,.05), 0 8px 24px -12px rgba(19,26,21,.18);
+  --ink:#000000;
+  --paper:#FFFFFF;
+  --rule:#000000;
+  --soft:#555555;
+  --band:#F0F0F0;
+  --vbit-green:#17773C;
+  --vbit-blue:#1B3C7A;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
-    --paper:#0C100D;
-    --sheet:#121713;
-    --ink:#E4EAE1;
-    --ink-2:#A7B1A9;
-    --ink-3:#7C867E;
-    --green:#57C482;
-    --green-soft:#17301F;
-    --blue:#83AAEC;
-    --blue-soft:#16223A;
-    --amber:#D8A24B;
-    --amber-soft:#2E2413;
-    --rule:#28312A;
-    --rule-2:#1C231E;
-    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+    --ink:#E8E8E4;--paper:#15171A;--rule:#8A8F8A;--soft:#A9AEA9;--band:#22262A;
+    --vbit-green:#5FC98B;--vbit-blue:#8FB2EE;
   }
 }
 :root[data-theme="dark"]{
-  --paper:#0C100D;
-  --sheet:#121713;
-  --ink:#E4EAE1;
-  --ink-2:#A7B1A9;
-  --ink-3:#7C867E;
-  --green:#57C482;
-  --green-soft:#17301F;
-  --blue:#83AAEC;
-  --blue-soft:#16223A;
-  --amber:#D8A24B;
-  --amber-soft:#2E2413;
-  --rule:#28312A;
-  --rule-2:#1C231E;
-  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+  --ink:#E8E8E4;--paper:#15171A;--rule:#8A8F8A;--soft:#A9AEA9;--band:#22262A;
+  --vbit-green:#5FC98B;--vbit-blue:#8FB2EE;
 }
 
 *{box-sizing:border-box}
+html{background:var(--band)}
 body{
-  background:var(--paper);
+  background:var(--band);
   color:var(--ink);
-  font-family:"Source Sans 3","Segoe UI",system-ui,sans-serif;
-  font-size:16.5px;
-  line-height:1.62;
+  font-family:"Times New Roman",Tinos,Times,serif;
+  font-size:12pt;
+  line-height:1.5;
   margin:0;
-  padding:28px 20px 72px;
-  -webkit-font-smoothing:antialiased;
+  padding:24px 12px 60px;
 }
-.doc{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:26px}
-
-/* ---- sheet ---- */
-.sheet{
-  background:var(--sheet);
-  border:1px solid var(--rule);
-  border-radius:2px;
-  box-shadow:var(--shadow);
-  padding:56px 60px 44px;
+.page{
+  background:var(--paper);
+  width:210mm;
+  min-height:297mm;
+  margin:0 auto 22px;
+  padding:25.4mm 25.4mm 25.4mm 31.75mm;   /* 1in / 1in / 1in / 1.25in */
   position:relative;
+  box-shadow:0 2px 14px rgba(0,0,0,.14);
 }
-.sheet--cover{padding:0;overflow:hidden}
-.runhead{
-  display:flex;align-items:center;justify-content:space-between;gap:16px;
-  border-bottom:1px solid var(--rule-2);
-  padding-bottom:12px;margin-bottom:36px;
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
-}
-.runhead b{color:var(--green);font-weight:600}
-.folio{
-  position:absolute;right:60px;bottom:20px;
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:11px;color:var(--ink-3);letter-spacing:.06em;
+.pgno{
+  position:absolute;left:0;right:0;bottom:12mm;
+  text-align:center;font-size:11pt;color:var(--ink);
 }
 
-/* ---- type ---- */
-h1,h2,h3,h4{font-family:Spectral,Georgia,serif;text-wrap:balance;margin:0}
-h2{font-size:29px;line-height:1.2;font-weight:600;letter-spacing:-.011em}
-h3{font-size:19px;line-height:1.3;font-weight:600;margin-top:32px}
-h4{font-size:15.5px;font-weight:600;margin-top:24px;color:var(--ink-2)}
-p{margin:0 0 15px;max-width:66ch}
-.secno{
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:11px;letter-spacing:.16em;color:var(--green);
-  display:block;margin-bottom:9px;font-weight:600;
+/* ---------- headings ---------- */
+h1,h2,h3,h4{font-family:inherit;margin:0;font-weight:700}
+.chapno{
+  text-align:center;font-size:14pt;font-weight:700;
+  letter-spacing:.08em;margin:0 0 6pt;
 }
-.lede{font-size:18.5px;line-height:1.55;color:var(--ink-2);max-width:60ch;margin-bottom:26px;font-family:Spectral,Georgia,serif}
-.small{font-size:14px;color:var(--ink-2)}
-strong{font-weight:600}
-em{font-style:italic;color:var(--ink-2)}
-code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.88em}
-code{background:var(--rule-2);padding:.1em .35em;border-radius:2px}
-a{color:var(--green)}
-ul{margin:0 0 15px;padding-left:20px;max-width:64ch}
-li{margin-bottom:7px}
-hr{border:0;border-top:1px solid var(--rule-2);margin:34px 0}
-
-/* ---- cover ---- */
-.cover-band{
-  background:var(--sheet);
-  padding:44px 60px 32px;
-  border-bottom:3px solid var(--green);
-  display:flex;justify-content:center;
+.chaptitle{
+  text-align:center;font-size:16pt;font-weight:700;text-transform:uppercase;
+  letter-spacing:.03em;margin:0 0 18pt;padding-bottom:8pt;
+  border-bottom:1.5pt solid var(--rule);
 }
-.cover-band img{width:100%;max-width:430px;height:auto;display:block}
-.cover-body{padding:52px 60px 56px}
-.cover-eyebrow{
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:11.5px;letter-spacing:.19em;text-transform:uppercase;
-  color:var(--ink-3);margin-bottom:26px;
-}
-.cover-title{
-  font-family:Spectral,Georgia,serif;font-size:70px;line-height:.94;
-  font-weight:700;letter-spacing:-.028em;margin:0 0 14px;color:var(--green);
-}
-.cover-sub{
-  font-family:Spectral,Georgia,serif;font-size:22px;line-height:1.32;
-  font-weight:400;color:var(--ink);max-width:26ch;margin:0 0 28px;
-}
-.cover-thesis{
-  border-left:2px solid var(--green);padding-left:18px;margin:0 0 40px;
-  max-width:52ch;color:var(--ink-2);font-size:16px;
-}
-.cover-meta{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));
-  gap:0;border-top:1px solid var(--rule);
-}
-.cover-meta div{
-  padding:15px 18px 15px 0;border-bottom:1px solid var(--rule-2);
-}
-.cover-meta dt{
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:10px;letter-spacing:.13em;text-transform:uppercase;
-  color:var(--ink-3);margin-bottom:5px;
-}
-.cover-meta dd{margin:0;font-size:15px;font-weight:600}
-
-/* ---- key figures ---- */
-.figures{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-  gap:1px;background:var(--rule);border:1px solid var(--rule);margin:0 0 30px;
-}
-.fig{background:var(--sheet);padding:18px 18px 16px}
-.fig-n{
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:27px;font-weight:500;color:var(--green);
-  letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1;
-}
-.fig-l{
-  font-size:12px;color:var(--ink-3);margin-top:5px;
-  letter-spacing:.05em;text-transform:uppercase;
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
+h3{font-size:14pt;margin:16pt 0 7pt}
+h4{font-size:12pt;margin:12pt 0 5pt;font-style:italic;font-weight:700}
+.fmtitle{
+  text-align:center;font-size:15pt;font-weight:700;text-transform:uppercase;
+  letter-spacing:.06em;margin:0 0 20pt;
 }
 
-/* ---- tables ---- */
-.tw{overflow-x:auto;margin:0 0 20px;-webkit-overflow-scrolling:touch}
-table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:460px}
-th{
-  text-align:left;font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--ink-3);font-weight:600;
-  border-bottom:1.5px solid var(--ink-3);padding:0 14px 8px 0;vertical-align:bottom;
+/* ---------- body text: full measure, justified ---------- */
+p{
+  margin:0 0 10pt;
+  text-align:justify;
+  text-justify:inter-word;
+  hyphens:auto;
 }
-td{padding:9px 14px 9px 0;border-bottom:1px solid var(--rule-2);vertical-align:top}
-tr:last-child td{border-bottom:none}
-td.num,th.num{text-align:right;font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;padding-right:0}
-.tag{
-  display:inline-block;font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:10.5px;letter-spacing:.06em;padding:2px 7px;border-radius:2px;
-  font-weight:600;white-space:nowrap;
-}
-.tag--g{background:var(--green-soft);color:var(--green)}
-.tag--b{background:var(--blue-soft);color:var(--blue)}
-.tag--a{background:var(--amber-soft);color:var(--amber)}
+ul,ol{margin:0 0 10pt;padding-left:22pt;text-align:justify}
+li{margin-bottom:4pt}
+b,strong{font-weight:700}
+i,em{font-style:italic}
+.center{text-align:center}
+.mono{font-family:"Courier New",monospace;font-size:10.5pt}
+code{font-family:"Courier New",monospace;font-size:10.5pt}
 
-/* ---- callout ---- */
-.note{
-  border-left:2px solid var(--blue);background:var(--blue-soft);
-  padding:16px 20px;margin:0 0 22px;font-size:15px;color:var(--ink);
+/* ---------- title page ---------- */
+.tp-logo{display:block;width:118mm;margin:0 auto 6mm}
+.tp-rule{border:0;border-top:2pt solid var(--vbit-green);margin:0 0 7mm}
+.tp-kicker{text-align:center;font-size:12.5pt;line-height:1.45;margin-bottom:8mm}
+.tp-title{
+  text-align:center;font-size:26pt;font-weight:700;line-height:1.2;
+  margin:0 0 4mm;letter-spacing:.01em;
 }
-.note--warn{border-left-color:var(--amber);background:var(--amber-soft)}
-.note p{margin:0;max-width:62ch}
-.note p+p{margin-top:9px}
-.note-h{
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
-  font-weight:600;margin-bottom:7px;color:var(--blue);
+.tp-sub{text-align:center;font-size:13pt;font-style:italic;line-height:1.4;margin:0 0 9mm}
+.tp-degree{text-align:center;font-size:12.5pt;line-height:1.6;margin:0 0 9mm}
+.tp-degree b{font-size:13pt}
+.tp-people{
+  display:table;width:100%;margin:0 0 9mm;font-size:12pt;
 }
-.note--warn .note-h{color:var(--amber)}
+.tp-people>div{display:table-cell;width:50%;vertical-align:top}
+.tp-people .r{text-align:right}
+.tp-people u{display:block;text-decoration:none;font-weight:700;margin-bottom:4pt;font-size:12.5pt}
+.tp-dept{text-align:center;font-size:12.5pt;line-height:1.55;margin-top:4mm}
+.tp-dept b{font-size:13.5pt}
 
-/* ---- drawings ---- */
-.plate{margin:0 0 12px;overflow-x:auto}
-.plate svg{display:block;min-width:520px;width:100%;height:auto}
-figcaption{
-  font-size:12.5px;color:var(--ink-3);border-top:1px solid var(--rule-2);
-  padding-top:8px;margin-bottom:26px;max-width:66ch;
+/* ---------- certificate / declaration ---------- */
+.sig{
+  display:table;width:100%;margin-top:26mm;font-size:12pt;
 }
-figcaption b{color:var(--ink-2);font-weight:600}
+.sig>div{display:table-cell;width:50%;vertical-align:bottom}
+.sig .r{text-align:right}
+.sig b{display:block}
+.blank{display:inline-block;min-width:52mm;border-bottom:1pt solid var(--ink)}
 
-/* frame ruler */
-.frame{display:flex;gap:2px;min-width:600px;margin-bottom:6px}
-.fcell{
-  flex:1 1 0;background:var(--green-soft);border-top:2px solid var(--green);
-  padding:9px 4px;text-align:center;
-  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;font-weight:600;
-  color:var(--green);
+/* ---------- contents ---------- */
+.toc{width:100%;border-collapse:collapse;font-size:12pt}
+.toc td{padding:3.5pt 0;vertical-align:top}
+.toc td.n{width:17mm}
+.toc td.p{width:14mm;text-align:right}
+.toc tr.ch td{font-weight:700;padding-top:8pt}
+.toc td.dots{
+  border-bottom:1px dotted var(--soft);
 }
-.fcell.w2{flex:2 1 0}
-.fcell.pl{background:var(--blue-soft);border-top-color:var(--blue);color:var(--blue);flex:5 1 0}
-.fcell.crc{background:var(--amber-soft);border-top-color:var(--amber);color:var(--amber);flex:2 1 0}
-.fcell span{display:block;font-size:9.5px;font-weight:400;color:var(--ink-3);margin-top:3px}
 
-/* pipeline */
-.pipe{
-  display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin:0 0 20px;
-  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;
+/* ---------- tables ---------- */
+table.t{
+  border-collapse:collapse;width:100%;font-size:11pt;margin:0 0 6pt;
 }
-.pipe i{font-style:normal;padding:6px 10px;border:1px solid var(--rule);border-radius:2px;background:var(--sheet)}
-.pipe u{text-decoration:none;color:var(--ink-3)}
-.pipe i.hi{border-color:var(--green);color:var(--green);font-weight:600}
+table.t th,table.t td{border:0.75pt solid var(--rule);padding:4pt 6pt;vertical-align:top}
+table.t th{font-weight:700;text-align:left;background:var(--band)}
+table.t td.n{text-align:right;white-space:nowrap}
+.cap{
+  text-align:center;font-size:11pt;font-style:italic;margin:0 0 14pt;
+}
+.cap b{font-style:normal;font-weight:700}
+.tw{overflow-x:auto}
 
-/* two-col */
-.cols{display:grid;grid-template-columns:1fr 1fr;gap:34px}
-.cols p,.cols ul{max-width:none}
-@media (max-width:760px){
-  body{padding:14px 10px 48px;font-size:16px}
-  .sheet{padding:34px 22px 40px}
-  .cover-band,.cover-body{padding-left:24px;padding-right:24px}
-  .cover-title{font-size:46px}
-  .folio{right:22px}
-  .cols{grid-template-columns:1fr;gap:0}
+/* ---------- figures ---------- */
+figure{margin:10pt 0 0;text-align:center}
+figure svg{max-width:100%;height:auto;display:block;margin:0 auto}
+.blk{
+  font-family:"Courier New",monospace;font-size:9pt;line-height:1.32;
+  white-space:pre;display:inline-block;text-align:left;
+  border:0.75pt solid var(--rule);padding:8pt 10pt;
+}
+.tw-c{overflow-x:auto;text-align:center}
+
+@media (max-width:820px){
+  body{padding:10px 6px 40px}
+  .page{width:auto;min-height:0;padding:20px 16px}
 }
 @media print{
-  /* Force the light palette: a PDF is printed, and a dark OS must not leak into it. */
-  :root,:root[data-theme="dark"],:root:not([data-theme="light"]){
-    --paper:#FFFFFF;--sheet:#FFFFFF;--ink:#131A15;--ink-2:#454F48;--ink-3:#6C7770;
-    --green:#17773C;--green-soft:#E4EFE7;--blue:#1B3C7A;--blue-soft:#E3E9F3;
-    --amber:#8A5A0C;--amber-soft:#F5EBD9;--rule:#D3DAD1;--rule-2:#E7EBE6;--shadow:none;
+  html,body{background:#fff;padding:0;margin:0}
+  :root{--ink:#000;--paper:#fff;--rule:#000;--soft:#555;--band:#EFEFEF}
+  @page{size:A4;margin:25.4mm 25.4mm 25.4mm 31.75mm}
+  .page{
+    width:auto;min-height:0;margin:0;padding:0;box-shadow:none;
+    break-after:page;
   }
-  @page{size:A4;margin:0}
-  html,body{background:#fff}
-  body{padding:0;font-size:8.2pt;line-height:1.4}
-  .doc{display:block;max-width:none;gap:0}   /* flex items do not paginate reliably */
-  .sheet{
-    box-shadow:none;border:none;border-radius:0;
-    padding:8mm 13mm 7mm;min-height:258mm;
-    break-after:page;break-inside:avoid;
-  }
-  .sheet:last-child{break-after:auto}
-  .sheet--cover{padding:0;display:flex;flex-direction:column;justify-content:center}
-  .cover-band{padding:0 13mm 20px;border-bottom-width:2.5px}
-  .cover-body{padding:26px 13mm 0}
-  .cover-title{font-size:54pt}
-  .cover-sub{font-size:14pt}
-  .cover-meta div{padding:9px 14px 9px 0}
-  .folio{right:13mm;bottom:5mm}
-  .runhead{padding-bottom:7px;margin-bottom:18px;font-size:7.4pt}
-  h2{font-size:17pt}
-  h3{font-size:11.4pt;margin-top:14px}
-  h4{font-size:9.8pt;margin-top:12px}
-  .secno{font-size:7.6pt;margin-bottom:5px}
-  .lede{font-size:10.6pt;line-height:1.42;margin-bottom:13px}
-  p{margin-bottom:8px}
-  ul{margin-bottom:9px}li{margin-bottom:4px}
-  hr{margin:11px 0}
-  table{font-size:7.5pt;min-width:0}
-  th{padding-bottom:5px;font-size:7.2pt}
-  td{padding:5px 10px 5px 0}
-  .tw{margin-bottom:11px}
-  .tw,.plate{overflow:visible}
-  .plate{margin-bottom:7px}
-  .plate svg,.frame{min-width:0}
-  .figures{margin-bottom:15px}
-  .fig{padding:11px 12px 10px}
-  .fig-n{font-size:16pt}
-  .fig-l{font-size:6.8pt;margin-top:3px}
-  .note{padding:11px 14px;margin-bottom:12px;font-size:8.8pt}
-  .note-h{font-size:7.4pt;margin-bottom:4px}
-  figcaption{font-size:7.8pt;padding-top:6px;margin-bottom:14px}
-  /* grid and flex containers do not fragment across printed pages; floats do */
-  .cols{display:block;overflow:hidden}
-  .cols>div{float:left;width:48.5%}
-  .cols>div+div{float:right}
-  .figures{display:block;overflow:hidden;border-left:none}
-  .figures .fig{float:left;width:20%;border-left:1px solid var(--rule)}
-  .pipe{font-size:8.2pt;gap:5px;margin-bottom:12px}
-  .pipe i{padding:4px 7px}
-  .fcell{padding:6px 3px;font-size:8pt}
-  .fcell span{font-size:6.8pt;margin-top:2px}
-  .small{font-size:8.4pt}
-  .refs{column-count:2;column-gap:24px;font-size:7.3pt}
-  .refs li{margin-bottom:3px;line-height:1.32;break-inside:avoid}
-  /* Never split an element that reads as one object. */
-  table,figure,.note,.figures,.frame,.pipe,tr{break-inside:avoid}
-  h2,h3,h4{break-after:avoid}
-  a{text-decoration:none}
+  .page:last-child{break-after:auto}
+  .pgno{display:none}                    /* @page counters used instead */
+  table.t,figure,.blk{break-inside:avoid}
+  h3,h4,.chaptitle{break-after:avoid}
 }
 </style>
 
-<div class="doc">
+<!-- ══════════════ i · TITLE PAGE ══════════════ -->
+<div class="page">
+  <img class="tp-logo" src="data:image/png;base64,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" alt="Vignana Bharathi Institute of Technology">
+  <hr class="tp-rule">
 
-<!-- ============ COVER ============ -->
-<section class="sheet sheet--cover">
-  <div class="cover-band">
-    <img src="data:image/png;base64,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" alt="Vignana Bharathi Institute of Technology">
-  </div>
-  <div class="cover-body">
-    <div class="cover-eyebrow">Smart India Hackathon 2026 &middot; Problem Statement SIH26173</div>
-    <h1 class="cover-title">iTantra</h1>
-    <p class="cover-sub">Indian Multilingual TTS &amp; STT Aided Neural Transceiver — Radio Access for Low Bitrate Links</p>
-    <div class="cover-thesis">
-      Speech goes in one end. Speech comes out the other. In between it becomes forty-four
-      bytes — small enough to cross a radio link that could never carry a voice.
-    </div>
-    <dl class="cover-meta">
-      <div><dt>Organisation</dt><dd>ISRO</dd></div>
-      <div><dt>Department</dt><dd>Department of Space</dd></div>
-      <div><dt>Category</dt><dd>Software</dd></div>
-      <div><dt>Theme</dt><dd>Smart Automation</dd></div>
-      <div><dt>Institute</dt><dd>Vignana Bharathi Institute of Technology</dd></div>
-      <div><dt>Team ID</dt><dd class="mono">—</dd></div>
-      <div><dt>Team name</dt><dd class="mono">—</dd></div>
-      <div><dt>Report revision</dt><dd>1.0</dd></div>
-    </dl>
-  </div>
-</section>
+  <p class="tp-kicker">
+    A Project Report<br>
+    submitted in partial fulfilment of the requirements for the award of the degree of
+  </p>
 
-<!-- ============ 1 ============ -->
-<section class="sheet">
-  <div class="runhead"><span>iTantra &middot; <b>PS 26173</b></span><span>Abstract</span></div>
-  <span class="secno">SECTION 01</span>
-  <h2>Abstract</h2>
-  <p class="lede">A disaster radio link carries a few hundred bits per second. Human speech,
-  as audio, needs several thousand. iTantra closes that gap by transmitting meaning instead
-  of waveform.</p>
+  <p class="tp-degree"><b>BACHELOR OF TECHNOLOGY</b><br>in<br><b>COMPUTER SCIENCE AND ENGINEERING</b></p>
 
-  <p>In alert and distress scenarios, voice is the only interface that includes everyone —
-  literate or not, gloved or not, in any of ten Indian scripts. But the links that survive
-  when infrastructure fails, LoRa and HF and narrowband satellite, cannot carry a voice
-  call. This is not an engineering gap awaiting a better codec; it is a bound. Audio codecs
-  compress the shape of a pressure wave, and a waveform detailed enough to be understood
-  has an irreducible size.</p>
+  <p class="tp-kicker">on</p>
 
-  <p>iTantra removes the waveform from the link entirely. An Android application recognises
-  speech on the sending handset, transmits the resulting text as a few dozen bytes, and
-  re-synthesises speech on the receiving handset. Both operators only ever speak and listen;
-  neither reads nor types. Ten Indian languages run entirely on-device, with no cloud, no
-  SIM, no network permission and no proprietary SDK.</p>
+  <h1 class="tp-title">iTantra</h1>
+  <p class="tp-sub">Indian Multilingual TTS &amp; STT Aided Neural Transceiver —<br>
+  Radio Access for Low Bitrate Links</p>
 
-  <div class="figures">
-    <div class="fig"><div class="fig-n">2 182&times;</div><div class="fig-l">Compression</div></div>
-    <div class="fig"><div class="fig-n">44 B</div><div class="fig-l">Per sentence</div></div>
-    <div class="fig"><div class="fig-n">&lt;1 s</div><div class="fig-l">End to end</div></div>
-    <div class="fig"><div class="fig-n">10</div><div class="fig-l">Languages</div></div>
-    <div class="fig"><div class="fig-n">0</div><div class="fig-l">Network calls</div></div>
-  </div>
+  <p class="center" style="font-size:12pt;margin-bottom:9mm">
+    Smart India Hackathon 2026 &middot; Problem Statement <b>SIH26173</b><br>
+    Indian Space Research Organisation, Department of Space
+  </p>
 
-  <div class="note note--warn">
-    <div class="note-h">Status of the figures in this report</div>
-    <p>The system is fully specified and not yet implemented. Every performance number in
-    this document is a <strong>design target</strong> derived from published characteristics
-    of the selected models and from the frame arithmetic in Section 04 — not a measurement.
-    Section 07 defines exactly how each will be measured, on which device, and under what
-    conditions, before any of them is reported as a result.</p>
-  </div>
-  <div class="folio">01</div>
-</section>
-
-<!-- ============ 2 ============ -->
-<section class="sheet">
-  <div class="runhead"><span>iTantra &middot; <b>PS 26173</b></span><span>The bandwidth bound</span></div>
-  <span class="secno">SECTION 02</span>
-  <h2>The problem, to scale</h2>
-  <p class="lede">Three numbers decide the whole project, and they are far enough apart that
-  a linear axis cannot show them together.</p>
-
-  <p>To reproduce a voice with enough fidelity that words remain distinguishable, a
-  microphone samples air pressure sixteen thousand times a second at sixteen bits — a
-  quarter of a million bits for every second of speech. Opus, the best open-source speech
-  codec available, carries an intelligible voice at around six thousand bits per second.
-  A narrowband disaster link offers roughly three hundred.</p>
-
-  <figure class="plate">
-  <svg viewBox="0 0 800 250" role="img" aria-label="Logarithmic comparison of raw speech, Opus and link capacity">
-    <line x1="60" y1="196" x2="760" y2="196" stroke="var(--rule)" stroke-width="1"/>
-    <g font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--ink-3)" text-anchor="middle">
-      <line x1="60"  y1="196" x2="60"  y2="202" stroke="var(--rule)"/><text x="60"  y="216">100</text>
-      <line x1="235" y1="196" x2="235" y2="202" stroke="var(--rule)"/><text x="235" y="216">1 k</text>
-      <line x1="410" y1="196" x2="410" y2="202" stroke="var(--rule)"/><text x="410" y="216">10 k</text>
-      <line x1="585" y1="196" x2="585" y2="202" stroke="var(--rule)"/><text x="585" y="216">100 k</text>
-      <line x1="760" y1="196" x2="760" y2="202" stroke="var(--rule)"/><text x="760" y="216">1 M</text>
-      <text x="410" y="238" fill="var(--ink-3)" letter-spacing="1.4">BITS PER SECOND &middot; LOGARITHMIC</text>
-    </g>
-
-    <rect x="60" y="34"  width="596" height="30" fill="var(--blue-soft)"/>
-    <rect x="60" y="34"  width="596" height="30" fill="none" stroke="var(--blue)" stroke-width="1"/>
-    <rect x="60" y="82"  width="311" height="30" fill="var(--blue-soft)"/>
-    <rect x="60" y="82"  width="311" height="30" fill="none" stroke="var(--blue)" stroke-width="1"/>
-    <rect x="60" y="130" width="84"  height="30" fill="var(--green-soft)"/>
-    <rect x="60" y="130" width="84"  height="30" fill="none" stroke="var(--green)" stroke-width="1.5"/>
-
-    <line x1="144" y1="24" x2="144" y2="186" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="4 3"/>
-
-    <g font-family="IBM Plex Mono, monospace" font-size="11.5" font-weight="500">
-      <text x="666" y="54"  fill="var(--ink)">256 000</text>
-      <text x="381" y="102" fill="var(--ink)">6 000</text>
-      <text x="154" y="150" fill="var(--green)">300</text>
-    </g>
-    <g font-family="Source Sans 3, sans-serif" font-size="11.5" fill="var(--ink-3)">
-      <text x="666" y="68"  >raw PCM speech</text>
-      <text x="381" y="116" >Opus, practical floor</text>
-      <text x="154" y="164" fill="var(--green)">the link that works</text>
-      <text x="150" y="20"  fill="var(--green)" font-size="10.5" letter-spacing="1">CEILING</text>
-    </g>
-
-    <rect x="60" y="130" width="84" height="30" fill="none" stroke="var(--green)" stroke-width="1.5"/>
-  </svg>
-  </figure>
-  <figcaption><b>Figure 2.1</b> — Both audio representations sit far to the right of the
-  link ceiling. The gap between Opus and the link is a factor of twenty, and it cannot be
-  closed by a cleverer codec: it is a property of what a waveform is.</figcaption>
-
-  <h3>Why the interface must still be voice</h3>
-  <p>If the payload is text, why not let people type it? Because the problem statement's own
-  justification is inclusion. In a disaster the person holding critical information may be a
-  fisherman, a farmer or a village elder; a soldier at altitude in gloves; a rescuer on a
-  rope. Speaking a sentence takes three seconds. Typing it in Devanagari, in the dark, with
-  cold hands, takes forty — if it happens at all.</p>
-  <p><strong>So the interface is voice, because voice is inclusive. The transmission is
-  text, because text fits. iTantra is the machine between the two.</strong></p>
-  <div class="folio">02</div>
-</section>
-
-<!-- ============ 3 ============ -->
-<section class="sheet">
-  <div class="runhead"><span>iTantra &middot; <b>PS 26173</b></span><span>Compression</span></div>
-  <span class="secno">SECTION 03</span>
-  <h2>Compressing meaning, not waveform</h2>
-  <p class="lede">The system degrades gracefully through three levels, choosing the most
-  aggressive one the situation allows.</p>
-
-  <div class="tw">
-  <table>
-    <thead><tr><th>Level</th><th>Mechanism</th><th class="num">3 s Hindi sentence</th><th class="num">On a 300 bps link</th></tr></thead>
-    <tbody>
-      <tr><td><span class="tag tag--b">—</span></td><td>Raw PCM, 16 kHz 16-bit mono</td><td class="num">96 000 B</td><td class="num">43 min</td></tr>
-      <tr><td><span class="tag tag--b">—</span></td><td>Opus at 6 kbps</td><td class="num">2 250 B</td><td class="num">60 s</td></tr>
-      <tr><td><span class="tag tag--g">L1</span></td><td>Semantic transcoding — speech to UTF-8 text</td><td class="num">99 B</td><td class="num">2.6 s</td></tr>
-      <tr><td><span class="tag tag--g">L2</span></td><td>Script packing — one byte per Indic codepoint</td><td class="num">32 B</td><td class="num">1.2 s</td></tr>
-      <tr><td><span class="tag tag--g">L3</span></td><td>Template code — one byte per canned sentence</td><td class="num">1 B</td><td class="num">0.3 s</td></tr>
-    </tbody>
-  </table>
-  </div>
-
-  <h3>Level 1 · Semantic transcoding</h3>
-  <p>Speech becomes text. This is where the enormous ratio comes from — roughly 770 to 1
-  before any further work. Everything below is refinement.</p>
-
-  <h3>Level 2 · Script packing</h3>
-  <p>UTF-8 spends three bytes per character on Devanagari, Tamil, Kannada and the rest,
-  because it must be able to represent every script at once. But the frame header already
-  declares the language, so the receiver knows which 128-codepoint Unicode block applies.
-  Subtracting the block base yields a single byte per character. The transformation is
-  lossless, table-driven, costs microseconds, and is available only because we control both
-  endpoints.</p>
-  <p>Real messages are not pure Indic script: they carry Latin digits, punctuation, and the
-  zero-width joiners that shape conjuncts. An escape sequence — <code>0x1B</code> followed
-  by a 24-bit codepoint — covers anything outside the declared block, at four bytes for a
-  character that would otherwise be silently lost.</p>
-
-  <h3>Level 3 · Template codes</h3>
-  <p>In an emergency, vocabulary is small and predictable. A shared table maps common
-  operational sentences to single-byte identifiers. After recognition the text is
-  fuzzy-matched against that table; on a confident match the system sends the identifier and
-  the receiver renders the full sentence.</p>
-
-  <div class="note">
-    <div class="note-h">A consequence worth noticing</div>
-    <p>Because every handset holds the template table in all ten languages, a template-coded
-    message is spoken in whichever language the <em>receiver</em> has selected. A Hindi
-    speaker's alert reaches a Tamil speaker in Tamil — with no translation model, no extra
-    download and no extra latency. <strong>Cross-language operation falls out of the
-    compression scheme.</strong> It applies to template traffic only, and the report claims
-    nothing wider.</p>
-  </div>
-
-  <h3>What is discarded, and what compensates</h3>
-  <div class="tw">
-  <table>
-    <thead><tr><th>Lost</th><th>Compensation</th></tr></thead>
-    <tbody>
-      <tr><td>Speaker identity</td><td>Sender byte in the header, display name in the interface, and a distinct synthesis voice per node</td></tr>
-      <tr><td>Emotion and urgency</td><td>Explicit priority type; alert traffic routed to the alarm stream with a faster, harder delivery profile</td></tr>
-      <tr><td>Background audio</td><td>Accepted. Out of scope, and arguably desirable given the budget</td></tr>
-      <tr><td>Recognition errors</td><td>Confidence on the wire, recognised text shown before sending, domain vocabulary biasing, confirmation required for alerts</td></tr>
-    </tbody>
-  </table>
-  </div>
-  <div class="folio">03</div>
-</section>
-
-<!-- ============ 4 ============ -->
-<section class="sheet">
-  <div class="runhead"><span>iTantra &middot; <b>PS 26173</b></span><span>Architecture</span></div>
-  <span class="secno">SECTION 04</span>
-  <h2>System architecture</h2>
-  <p class="lede">Every device runs the complete system. Role is a runtime mode, not a build
-  variant — one APK, installed on both handsets.</p>
-
-  <div class="pipe">
-    <i class="hi">MIC</i><u>&rarr;</u><i>VAD &times;3</i><u>&rarr;</u><i>Conformer ASR</i><u>&rarr;</u><i>endpoint</i><u>&rarr;</u><i>pack / template</i><u>&rarr;</u><i class="hi">FRAME</i>
-  </div>
-  <div class="pipe">
-    <i class="hi">FRAME</i><u>&rarr;</u><i>CRC &middot; AEAD</i><u>&rarr;</u><i>unpack</i><u>&rarr;</u><i>normalise</i><u>&rarr;</u><i>phonemise</i><u>&rarr;</u><i>VITS</i><u>&rarr;</u><i class="hi">SPEAKER</i>
-  </div>
-
-  <h3>Modules</h3>
-  <div class="tw">
-  <table>
-    <thead><tr><th>Module</th><th>Responsibility</th></tr></thead>
-    <tbody>
-      <tr><td class="mono">app</td><td>Compose interface, push-to-talk, alert delivery, provisioning, latency strip, foreground service</td></tr>
-      <tr><td class="mono">core-audio</td><td>Capture and playback, ring buffers, alert audio policy, focus handling</td></tr>
-      <tr><td class="mono">core-asr</td><td>Three-tier detection, endpointing, recognition, contextual biasing, confidence</td></tr>
-      <tr><td class="mono">core-tts</td><td>Normalisation, phonemisation, chunked synthesis, streaming playout</td></tr>
-      <tr><td class="mono">core-link</td><td>One <code>Link</code> interface, four transport implementations</td></tr>
-      <tr><td class="mono">core-proto</td><td>Frame codec, CRC, AEAD, script packing, template tables, replay window</td></tr>
-      <tr><td class="mono">core-models</td><td>Language pack manifest, checksum verification, storage lifecycle</td></tr>
-      <tr><td class="mono">bench</td><td>Word error rate harness, latency logger, noise mixing, scorecard export</td></tr>
-    </tbody>
-  </table>
-  </div>
-
-  <div class="note">
-    <div class="note-h">The boundary that matters</div>
-    <p><code>core-proto</code> carries no Android dependency at all. The highest-risk code in
-    the project — the frame codec — is therefore unit-tested and fuzzed on a laptop in
-    seconds rather than on a handset in minutes, and the entire transport layer can be built
-    and proven before a single model exists.</p>
-  </div>
-
-  <h3>Threading</h3>
-  <p>Audio work never touches the interface thread and the recogniser never blocks capture.
-  Four threads with bounded queues between them: capture at urgent-audio priority, which
-  must not allocate; inference; link; and synthesis. The engine lives in a foreground
-  service, because the normal operating state for a radio is screen-off.</p>
-
-  <div class="tw">
-  <table>
-    <thead><tr><th>Thread</th><th>Duty</th><th>Constraint</th></tr></thead>
-    <tbody>
-      <tr><td>Capture</td><td>20 ms blocks, energy gate, VAD</td><td>Zero allocation, no logging</td></tr>
-      <tr><td>Inference</td><td>Encoder and decoder, partial and final hypotheses</td><td>May lag transiently; the queue absorbs it</td></tr>
-      <tr><td>Link</td><td>Blocking socket I/O, framing, retries, heartbeat</td><td>The only place blocking I/O is expected</td></tr>
-      <tr><td>Synthesis</td><td>Chunked generation feeding <code>AudioTrack</code></td><td>Must stay ahead of the playback clock</td></tr>
-    </tbody>
-  </table>
-  </div>
-  <div class="folio">04</div>
-</section>
-
-<!-- ============ 5 ============ -->
-<section class="sheet">
-  <div class="runhead"><span>iTantra &middot; <b>PS 26173</b></span><span>Wire protocol</span></div>
-  <span class="secno">SECTION 05</span>
-  <h2>The wire protocol</h2>
-  <p class="lede">Ten bytes of header and two of trailer buy channels, priority, relay,
-  integrity and authentication. The payload is what remains.</p>
-
-  <figure class="plate">
-    <div class="frame">
-      <div class="fcell">MAGIC<span>0</span></div>
-      <div class="fcell">TYPE<span>1</span></div>
-      <div class="fcell w2">SEQ<span>2–3</span></div>
-      <div class="fcell">FLAGS<span>4</span></div>
-      <div class="fcell w2">LEN<span>5–6</span></div>
-      <div class="fcell">SRC<span>7</span></div>
-      <div class="fcell">KEYID<span>8</span></div>
-      <div class="fcell">TTL<span>9</span></div>
-      <div class="fcell pl">PAYLOAD<span>10 … n-3</span></div>
-      <div class="fcell crc">CRC16<span>n-2, n-1</span></div>
-    </div>
-  </figure>
-  <figcaption><b>Figure 5.1</b> — Frame layout. Big-endian throughout. There is no
-  destination field: every frame reaches every unit holding the key, exactly as a
-  walkie-talkie does. Selection is by key, not by address.</figcaption>
-
-  <h3>Frame budget</h3>
-  <div class="tw">
-  <table>
-    <thead><tr><th>Frame</th><th class="num">Header</th><th class="num">Payload</th><th class="num">Tag</th><th class="num">Total</th><th class="num">300 bps</th></tr></thead>
-    <tbody>
-      <tr><td>Template alert, unauthenticated</td><td class="num">12</td><td class="num">1</td><td class="num">—</td><td class="num"><strong>13 B</strong></td><td class="num">0.3 s</td></tr>
-      <tr><td>Template alert with coordinates</td><td class="num">12</td><td class="num">9</td><td class="num">8</td><td class="num">29 B</td><td class="num">0.8 s</td></tr>
-      <tr><td>Packed Hindi sentence</td><td class="num">12</td><td class="num">32</td><td class="num">—</td><td class="num"><strong>44 B</strong></td><td class="num">1.2 s</td></tr>
-      <tr><td>Packed sentence, authenticated (LoRa)</td><td class="num">12</td><td class="num">32</td><td class="num">8</td><td class="num">52 B</td><td class="num">1.4 s</td></tr>
-      <tr><td>Packed sentence, authenticated (Bluetooth)</td><td class="num">12</td><td class="num">32</td><td class="num">16</td><td class="num">60 B</td><td class="num">1.6 s</td></tr>
-      <tr><td>Equivalent Opus audio</td><td class="num">—</td><td class="num">2 250</td><td class="num">—</td><td class="num">2 250 B</td><td class="num">60 s</td></tr>
-    </tbody>
-  </table>
-  </div>
-
-  <div class="note note--warn">
-    <div class="note-h">Reporting the honest ratio</div>
-    <p>2 182&times; is the unauthenticated frame against raw PCM. In any deployment worth
-    defending the payload is sealed, and the figure is <strong>1 600&times;</strong>.
-    Against the Opus floor — the comparison a technical reviewer will actually ask for — it
-    is <strong>43&times;</strong>. All four ratios are carried in the evaluation scorecard
-    rather than only the largest.</p>
-  </div>
-
-  <h3>Integrity and authenticity</h3>
-  <p>The problem statement asks for none of this. It is included because the system wakes a
-  locked, silenced handset and announces at maximum volume on command; a device with that
-  capability and no authentication is a liability rather than a deployable system.</p>
-  <ul>
-    <li><strong>AES-256-GCM</strong> with a pre-shared key held by every paired unit. The
-    entire header is associated data, so the sender identity cannot be altered without
-    invalidating the tag.</li>
-    <li><strong>Derived nonce</strong> — <code>EPOCH ‖ SRC ‖ SEQ</code>, never transmitted,
-    saving twelve bytes per frame.</li>
-    <li><strong>Sliding replay window</strong>, 64 entries per sender, so a recorded alert
-    cannot be replayed.</li>
-    <li><strong>Optical key transfer only.</strong> The key crosses by QR code and never
-    touches the radio medium, which is what makes a pre-shared key meaningfully pre-shared.</li>
-  </ul>
-  <div class="folio">05</div>
-</section>
-
-<!-- ============ 6 ============ -->
-<section class="sheet">
-  <div class="runhead"><span>iTantra &middot; <b>PS 26173</b></span><span>Speech engines</span></div>
-  <span class="secno">SECTION 06</span>
-  <h2>Recognition and synthesis</h2>
-
-  <h3>Three-tier detection</h3>
-  <p>Running the acoustic model continuously would exhaust the battery in about two hours and
-  fail the efficiency criterion outright. Detection is tiered, so the expensive stage runs
-  only when the cheap stages agree that a human is speaking.</p>
-
-  <div class="tw">
-  <table>
-    <thead><tr><th>Tier</th><th>Mechanism</th><th class="num">Cost / 20 ms</th><th>Purpose</th></tr></thead>
-    <tbody>
-      <tr><td class="mono">0</td><td>Energy gate against an adaptive noise floor</td><td class="num">~3 &micro;s</td><td>Rejects silence — most of elapsed time</td></tr>
-      <tr><td class="mono">1</td><td>Silero VAD, 1.8 MB</td><td class="num">~300 &micro;s</td><td>Separates speech from wind, engines, doors</td></tr>
-      <tr><td class="mono">2</td><td>Conformer acoustic model</td><td class="num">~4 ms</td><td>Recognition. Runs only when tier 1 agrees</td></tr>
-    </tbody>
-  </table>
-  </div>
-
-  <div class="cols">
+  <div class="tp-people">
     <div>
-      <h4>Endpointing</h4>
-      <p class="small">The problem statement asks for activation "after detecting pauses and
-      stoppages". A state machine finalises on 400 ms of trailing silence in phone mode, or
-      150 ms after key release in push-to-talk. A 250 ms leading pad is retained so the first
-      phoneme is never clipped, and utterances are bounded at 8 s so one speaker cannot
-      monopolise a half-duplex channel.</p>
-      <p class="small">The silence window is the single largest latency term — and it is a
-      design choice, not a computational cost. Push-to-talk is measurably faster precisely
-      because releasing the key replaces it.</p>
+      <u>Submitted by</u>
+      <span class="blank"></span><br><span class="blank"></span><br>
+      <span class="blank"></span><br><span class="blank"></span><br>
+      <span class="blank"></span><br><span class="blank"></span>
     </div>
+    <div class="r">
+      <u>Under the guidance of</u>
+      <span class="blank"></span><br>
+      <span style="font-size:11.5pt">Assistant Professor</span><br>
+      <span style="font-size:11.5pt">Department of CSE</span>
+    </div>
+  </div>
+
+  <p class="tp-dept">
+    <b>DEPARTMENT OF COMPUTER SCIENCE AND ENGINEERING</b><br>
+    VIGNANA BHARATHI INSTITUTE OF TECHNOLOGY<br>
+    <span style="font-size:11.5pt">(A UGC Autonomous Institution, Approved by AICTE,<br>
+    Accredited by NBA &amp; NAAC A Grade, Affiliated to JNTUH)</span><br>
+    Aushapur (V), Ghatkesar (M), Medchal–Malkajgiri (D), Hyderabad – 501 301<br>
+    <b>2026 – 2027</b>
+  </p>
+  <div class="pgno">i</div>
+</div>
+
+<!-- ══════════════ ii · CERTIFICATE ══════════════ -->
+<div class="page">
+  <h2 class="fmtitle">Certificate</h2>
+  <p>This is to certify that the project report entitled <b>“iTantra — Indian Multilingual
+  TTS &amp; STT Aided Neural Transceiver: Radio Access for Low Bitrate Links”</b> is a
+  bonafide record of the work carried out by</p>
+
+  <p class="center" style="line-height:2.2">
+    <span class="blank"></span> &nbsp;&nbsp; <span class="blank"></span><br>
+    <span class="blank"></span> &nbsp;&nbsp; <span class="blank"></span><br>
+    <span class="blank"></span> &nbsp;&nbsp; <span class="blank"></span>
+  </p>
+
+  <p>in partial fulfilment of the requirements for the award of the degree of
+  <b>Bachelor of Technology in Computer Science and Engineering</b> from Vignana Bharathi
+  Institute of Technology, Hyderabad, an autonomous institution affiliated to Jawaharlal
+  Nehru Technological University Hyderabad, during the academic year 2026–2027.</p>
+
+  <p>The work presented in this report was carried out under our supervision and guidance.
+  The results embodied in this report have not been submitted to any other university or
+  institution for the award of any degree or diploma.</p>
+
+  <p>The project addresses Problem Statement <b>SIH26173</b>, issued by the Indian Space
+  Research Organisation, Department of Space, for the Smart India Hackathon 2026.</p>
+
+  <div class="sig">
     <div>
-      <h4>Contextual biasing</h4>
-      <p class="small">Decoding scores are boosted for a supplied phrase list. In a distress
-      context the critical vocabulary is small and known in advance: मदद, घायल, आग, निकासी,
-      unit callsigns, sector numbers, place names.</p>
-      <p class="small">This measurably reduces error on precisely the words whose
-      misrecognition would be most costly, and requires no retraining. Negation terms are
-      weighted heavily, because a recognition error that turns "do not evacuate" into "now
-      evacuate" inverts meaning and is the most dangerous failure the system can produce.</p>
+      <span class="blank"></span>
+      <b style="margin-top:5pt">Internal Guide</b>
+      Assistant Professor<br>Department of CSE
+    </div>
+    <div class="r">
+      <span class="blank"></span>
+      <b style="margin-top:5pt">Head of the Department</b>
+      Department of CSE
     </div>
   </div>
 
-  <h3>Quantisation</h3>
-  <p>Models are trained in 32-bit floating point, which is unnecessary for inference. Dynamic
-  quantisation rewrites the weights as 8-bit integers, exploiting the fact that ARM cores
-  execute integer arithmetic considerably faster than float.</p>
-
-  <div class="tw">
-  <table>
-    <thead><tr><th>Precision</th><th class="num">Size</th><th class="num">Relative speed</th><th class="num">WER impact</th><th>Verdict</th></tr></thead>
-    <tbody>
-      <tr><td>float32, as trained</td><td class="num">~120 MB</td><td class="num">1.0&times;</td><td class="num">baseline</td><td>Unshippable</td></tr>
-      <tr><td>float16</td><td class="num">~60 MB</td><td class="num">1.3&times;</td><td class="num">&asymp; 0</td><td>Intermediate</td></tr>
-      <tr><td><strong>int8 dynamic</strong></td><td class="num"><strong>~32 MB</strong></td><td class="num"><strong>2.5&times;</strong></td><td class="num"><strong>+1 % rel.</strong></td><td><span class="tag tag--g">Shipped</span></td></tr>
-    </tbody>
-  </table>
+  <div class="sig" style="margin-top:22mm">
+    <div>
+      <span class="blank"></span>
+      <b style="margin-top:5pt">Internal Examiner</b>
+    </div>
+    <div class="r">
+      <span class="blank"></span>
+      <b style="margin-top:5pt">External Examiner</b>
+    </div>
   </div>
-  <p class="small">Four times smaller and two and a half times faster for roughly one per
-  cent relative degradation. This single transformation is what makes on-device speech
-  viable on an entry-tier handset.</p>
+  <div class="pgno">ii</div>
+</div>
 
-  <h3>Synthesis</h3>
-  <p>Two of the four synthesis stages are ordinary software engineering rather than machine
-  learning, and they account for most of the perceived quality. <strong>Text
-  normalisation</strong> decides that <code>112</code> is dialled digit-wise while
-  <code>5 km</code> is a quantity — a rule, not a model, and the difference between a
-  synthesiser that sounds professional and one that sounds broken. <strong>Chunked
-  playout</strong> splits the sentence at clause boundaries and begins playing the first
-  chunk while later ones are still generating, cutting time-to-first-audio from roughly
-  700 ms to 180 ms for the same total work.</p>
-  <div class="folio">06</div>
-</section>
+<!-- ══════════════ iii · DECLARATION ══════════════ -->
+<div class="page">
+  <h2 class="fmtitle">Declaration</h2>
+  <p>We hereby declare that the project report entitled <b>“iTantra — Indian Multilingual
+  TTS &amp; STT Aided Neural Transceiver: Radio Access for Low Bitrate Links”</b>, submitted
+  to the Department of Computer Science and Engineering, Vignana Bharathi Institute of
+  Technology, Hyderabad, in partial fulfilment of the requirements for the award of the
+  degree of Bachelor of Technology, is a record of original work carried out by us.</p>
 
-<!-- ============ 7 ============ -->
-<section class="sheet">
-  <div class="runhead"><span>iTantra &middot; <b>PS 26173</b></span><span>Transport</span></div>
-  <span class="secno">SECTION 07</span>
-  <h2>Transport and deployment</h2>
-  <p class="lede">Four physical media, one interface. The application never learns which one
-  is carrying its bytes.</p>
+  <p>The design, the engineering specification and the evaluation methodology presented in
+  this report are our own. Every third-party component used in the system is open source,
+  and each is listed with its licence in Chapter 4 and Chapter 9. Two components carrying
+  restrictive licences — espeak-ng under GPL-3.0 and Meta MMS under CC-BY-NC — are disclosed
+  explicitly rather than left to be discovered.</p>
 
-  <div class="tw">
-  <table>
-    <thead><tr><th>Property</th><th>BT Classic</th><th>BLE</th><th>Wi-Fi</th><th>LoRa serial</th></tr></thead>
-    <tbody>
-      <tr><td>Range</td><td>10–30 m</td><td>10–50 m</td><td>50–150 m</td><td><strong>2–15 km</strong></td></tr>
-      <tr><td>Usable rate</td><td>~200 kbps</td><td>5–20 kbps</td><td>&gt;10 Mbps</td><td>0.3–5 kbps</td></tr>
-      <tr><td>Power</td><td>Medium</td><td>Very low</td><td>High</td><td>Low</td></tr>
-      <tr><td>Carries a voice call</td><td>Marginally</td><td>No</td><td>Yes</td><td>No</td></tr>
-      <tr><td>Carries an iTantra sentence</td><td>Yes</td><td>Yes</td><td>Yes</td><td><strong>Yes</strong></td></tr>
-      <tr><td>Role</td><td><span class="tag tag--g">Default</span></td><td><span class="tag tag--b">Standby</span></td><td><span class="tag tag--b">Reach</span></td><td><span class="tag tag--g">Deployment</span></td></tr>
-    </tbody>
-  </table>
+  <p>We further declare that the performance figures reported in Chapter 8 are stated as
+  <b>design targets</b> and are clearly identified as such, since implementation is in
+  progress at the time of submission. No figure in this report is presented as a measured
+  result unless it has been produced by the evaluation harness described in Chapter 7.</p>
+
+  <p>The work contained in this report has not been submitted to any other university or
+  institution for the award of any degree or diploma.</p>
+
+  <div class="sig" style="margin-top:20mm">
+    <div>
+      Place: Hyderabad<br>
+      Date: <span class="blank" style="min-width:34mm"></span>
+    </div>
+    <div class="r">
+      <b>Signature of the candidates</b>
+      <span class="blank"></span><br>
+      <span class="blank"></span><br>
+      <span class="blank"></span>
+    </div>
   </div>
+  <div class="pgno">iii</div>
+</div>
 
-  <p><strong>Read the last two rows together.</strong> On the link that matters
-  operationally — the one that works when infrastructure does not — audio is impossible and
-  iTantra is comfortable. That gap is the product.</p>
+<!-- ══════════════ iv · ACKNOWLEDGEMENT ══════════════ -->
+<div class="page">
+  <h2 class="fmtitle">Acknowledgement</h2>
+  <p>We express our sincere gratitude to our internal guide, Department of Computer Science
+  and Engineering, for the continuous guidance, technical direction and encouragement
+  offered throughout the course of this project. The clarity of the engineering
+  specification presented in this report owes a great deal to that supervision.</p>
 
-  <h3>The deployment path</h3>
-  <p>Bluetooth RFCOMM is a virtual serial cable, and it is the same profile an ESP32 or a
-  radio modem exposes. <em>The code that talks to another phone is the code that talks to a
-  radio.</em> Approximately ₹1 500 of hardware and two hundred lines of firmware convert a
-  phone-to-phone demonstration into a deployable system.</p>
+  <p>We are thankful to the Head of the Department of Computer Science and Engineering for
+  providing the facilities and the academic environment necessary to carry out this work,
+  and for the encouragement to participate in the Smart India Hackathon.</p>
 
-  <figure class="plate">
-  <svg viewBox="0 0 800 150" role="img" aria-label="Demonstration and deployment topologies">
-    <g font-family="IBM Plex Mono, monospace" font-size="10.5" letter-spacing="1">
-      <text x="0" y="14" fill="var(--ink-3)">DEMONSTRATION</text>
-      <text x="0" y="94" fill="var(--ink-3)">DEPLOYMENT</text>
+  <p>We extend our thanks to the Principal and the Management of Vignana Bharathi Institute
+  of Technology for their constant support and for the infrastructure made available to us.</p>
+
+  <p>We gratefully acknowledge the Indian Space Research Organisation, Department of Space,
+  for framing Problem Statement SIH26173. The problem is unusually well posed: it states its
+  evaluation criteria and their weights explicitly, and that clarity shaped the evaluation
+  methodology described in Chapter 7 of this report.</p>
+
+  <p>We also acknowledge the open-source community whose work this system is built upon — in
+  particular AI4Bharat and IIT Madras for Indian-language speech models and corpora, the
+  k2-fsa project for sherpa-onnx, and the Rhasspy project for the Piper synthesis voices.
+  Without these freely available resources, an entirely offline multilingual speech system
+  would not be achievable within the scope of an undergraduate project.</p>
+
+  <p>Finally, we thank our families and our fellow students for their support and
+  encouragement throughout the duration of this work.</p>
+
+  <div class="sig" style="margin-top:24mm">
+    <div></div>
+    <div class="r">
+      <b>Project team</b>
+      <span class="blank"></span><br>
+      <span class="blank"></span><br>
+      <span class="blank"></span>
+    </div>
+  </div>
+  <div class="pgno">iv</div>
+</div>
+
+<!-- ══════════════ v · ABSTRACT ══════════════ -->
+<div class="page">
+  <h2 class="fmtitle">Abstract</h2>
+  <p>In alert and distress scenarios, transmitting voice is more inclusive than transmitting
+  written text, because it does not require the sender or the receiver to be literate.
+  However, voice is data-intensive. Reproducing intelligible speech requires approximately
+  256 kbps of raw pulse-code modulated audio, and even the most efficient open-source speech
+  codec available, Opus, has a practical intelligibility floor of about 6 kbps. The
+  narrowband radio links that remain usable when terrestrial infrastructure has failed —
+  LoRa, HF data links and narrowband satellite bursts — provide only a few hundred bits per
+  second. Voice communication over such links is therefore not merely difficult; it is
+  bounded away from possibility, because audio codecs compress the waveform and an
+  intelligible waveform has an irreducible size.</p>
+
+  <p>This project presents <b>iTantra</b>, an Android application that resolves this
+  contradiction by removing the waveform from the link entirely. Speech is recognised on the
+  transmitting handset, the resulting text is transmitted as a compact binary frame of a few
+  dozen bytes, and speech is re-synthesised on the receiving handset. Both operators only
+  ever speak and listen; neither reads nor types at any point. The system supports ten Indian
+  languages — Hindi, Gujarati, Marathi, Kannada, Malayalam, Tamil, Telugu, Odia, Bengali and
+  English — and executes entirely on the device, with no cloud service, no SIM, no
+  proprietary software development kit and no network permission declared in the application
+  manifest.</p>
+
+  <p>Compression is achieved in three graceful stages. Semantic transcoding converts speech
+  to text, giving a reduction of approximately 770 to 1. Script packing exploits the fact
+  that the frame header already declares the language, allowing each Indic character to be
+  represented in a single byte instead of the three that UTF-8 requires. Template coding maps
+  common operational sentences to single-byte identifiers, which additionally delivers
+  cross-language operation without any translation model, since each device holds the
+  template table in all ten languages. A three-second Hindi sentence occupying 96 000 bytes
+  as raw audio is transmitted in 44 bytes, a reduction of 2 182 to 1.</p>
+
+  <p>The application is instrumented from the outset. Word error rate is evaluated per
+  language at four signal-to-noise ratios against held-out public benchmark corpora, and a
+  separate critical-term error rate is reported with and without contextual biasing. Latency
+  is measured per pipeline stage inside the shipped application rather than externally, and
+  efficiency is reported as model size, memory footprint and idle CPU usage on an entry-tier
+  handset after a thirty-minute thermal soak.</p>
+
+  <p><b>Keywords:</b> speech recognition, speech synthesis, low-bitrate communication,
+  semantic compression, Indian languages, on-device inference, LoRa, disaster communication.</p>
+  <div class="pgno">v</div>
+</div>
+
+<!-- ══════════════ vi · CONTENTS ══════════════ -->
+<div class="page">
+  <h2 class="fmtitle">Table of Contents</h2>
+  <table class="toc">
+    <tr><td class="n"></td><td class="dots">Certificate</td><td class="p">ii</td></tr>
+    <tr><td class="n"></td><td class="dots">Declaration</td><td class="p">iii</td></tr>
+    <tr><td class="n"></td><td class="dots">Acknowledgement</td><td class="p">iv</td></tr>
+    <tr><td class="n"></td><td class="dots">Abstract</td><td class="p">v</td></tr>
+    <tr><td class="n"></td><td class="dots">List of Figures and Tables</td><td class="p">viii</td></tr>
+
+    <tr class="ch"><td class="n">1</td><td class="dots">INTRODUCTION</td><td class="p">1</td></tr>
+    <tr><td class="n">1.1</td><td class="dots">Overview</td><td class="p">1</td></tr>
+    <tr><td class="n">1.2</td><td class="dots">Problem Statement</td><td class="p">1</td></tr>
+    <tr><td class="n">1.3</td><td class="dots">Objectives</td><td class="p">3</td></tr>
+    <tr><td class="n">1.4</td><td class="dots">Scope and Limitations</td><td class="p">3</td></tr>
+
+    <tr class="ch"><td class="n">2</td><td class="dots">LITERATURE SURVEY</td><td class="p">5</td></tr>
+    <tr><td class="n">2.1</td><td class="dots">Speech Recognition for Indian Languages</td><td class="p">5</td></tr>
+    <tr><td class="n">2.2</td><td class="dots">On-Device Speech Synthesis</td><td class="p">5</td></tr>
+    <tr><td class="n">2.3</td><td class="dots">Messaging over Low-Bitrate Radio</td><td class="p">7</td></tr>
+    <tr><td class="n">2.4</td><td class="dots">Summary of the Gap</td><td class="p">7</td></tr>
+
+    <tr class="ch"><td class="n">3</td><td class="dots">SYSTEM ANALYSIS</td><td class="p">8</td></tr>
+    <tr><td class="n">3.1</td><td class="dots">Existing System</td><td class="p">8</td></tr>
+    <tr><td class="n">3.2</td><td class="dots">Proposed System</td><td class="p">8</td></tr>
+    <tr><td class="n">3.3</td><td class="dots">Advantages of the Proposed System</td><td class="p">10</td></tr>
+    <tr><td class="n">3.4</td><td class="dots">Feasibility Study</td><td class="p">10</td></tr>
+
+    <tr class="ch"><td class="n">4</td><td class="dots">SYSTEM REQUIREMENTS</td><td class="p">12</td></tr>
+    <tr><td class="n">4.1</td><td class="dots">Hardware Requirements</td><td class="p">12</td></tr>
+    <tr><td class="n">4.2</td><td class="dots">Software Requirements</td><td class="p">12</td></tr>
+    <tr><td class="n">4.3</td><td class="dots">Functional Requirements</td><td class="p">14</td></tr>
+    <tr><td class="n">4.4</td><td class="dots">Non-Functional Requirements</td><td class="p">14</td></tr>
+
+    <tr class="ch"><td class="n">5</td><td class="dots">SYSTEM DESIGN</td><td class="p">16</td></tr>
+    <tr><td class="n">5.1</td><td class="dots">System Architecture</td><td class="p">16</td></tr>
+    <tr><td class="n">5.2</td><td class="dots">Module Description</td><td class="p">17</td></tr>
+    <tr><td class="n">5.3</td><td class="dots">Wire Protocol Design</td><td class="p">17</td></tr>
+
+    <tr class="ch"><td class="n">6</td><td class="dots">IMPLEMENTATION</td><td class="p">19</td></tr>
+    <tr><td class="n">6.1</td><td class="dots">Speech Recognition Module</td><td class="p">19</td></tr>
+    <tr><td class="n">6.2</td><td class="dots">Speech Synthesis Module</td><td class="p">20</td></tr>
+    <tr><td class="n">6.3</td><td class="dots">Compression Module</td><td class="p">20</td></tr>
+    <tr><td class="n">6.4</td><td class="dots">Transport Module</td><td class="p">22</td></tr>
+
+    <tr class="ch"><td class="n">7</td><td class="dots">TESTING AND EVALUATION</td><td class="p">24</td></tr>
+    <tr><td class="n">7.1</td><td class="dots">Evaluation Methodology</td><td class="p">24</td></tr>
+    <tr><td class="n">7.2</td><td class="dots">Test Cases</td><td class="p">25</td></tr>
+
+    <tr class="ch"><td class="n">8</td><td class="dots">RESULTS AND DISCUSSION</td><td class="p">26</td></tr>
+    <tr><td class="n">8.1</td><td class="dots">Compression Results</td><td class="p">26</td></tr>
+    <tr><td class="n">8.2</td><td class="dots">Accuracy, Latency and Efficiency Targets</td><td class="p">27</td></tr>
+    <tr><td class="n">8.3</td><td class="dots">Discussion</td><td class="p">28</td></tr>
+
+    <tr class="ch"><td class="n">9</td><td class="dots">CONCLUSION AND FUTURE SCOPE</td><td class="p">29</td></tr>
+    <tr class="ch"><td class="n"></td><td class="dots">REFERENCES</td><td class="p">-1</td></tr>
+  </table>
+  <div class="pgno">vi</div>
+</div>
+
+<!-- ══════════════ vii · LIST OF FIGURES ══════════════ -->
+<div class="page">
+  <h2 class="fmtitle">List of Figures and Tables</h2>
+  <h3>Figures</h3>
+  <table class="toc">
+    <tr><td class="n">1.1</td><td class="dots">Comparison of data rates on a logarithmic scale</td><td class="p">1</td></tr>
+    <tr><td class="n">5.1</td><td class="dots">System architecture and end-to-end signal path</td><td class="p">16</td></tr>
+    <tr><td class="n">5.2</td><td class="dots">Frame format of the iTantra wire protocol</td><td class="p">17</td></tr>
+    <tr><td class="n">6.1</td><td class="dots">Demonstration and deployment topologies</td><td class="p">22</td></tr>
+  </table>
+  <h3>Tables</h3>
+  <table class="toc">
+    <tr><td class="n">3.1</td><td class="dots">Size of a three-second sentence in each representation</td><td class="p">9</td></tr>
+    <tr><td class="n">4.1</td><td class="dots">Hardware requirements</td><td class="p">12</td></tr>
+    <tr><td class="n">4.2</td><td class="dots">Software requirements and licences</td><td class="p">13</td></tr>
+    <tr><td class="n">5.1</td><td class="dots">Module description</td><td class="p">17</td></tr>
+    <tr><td class="n">5.2</td><td class="dots">Frame field description</td><td class="p">18</td></tr>
+    <tr><td class="n">6.1</td><td class="dots">Effect of quantisation on model size and speed</td><td class="p">19</td></tr>
+    <tr><td class="n">6.2</td><td class="dots">Comparison of the four transport implementations</td><td class="p">22</td></tr>
+    <tr><td class="n">7.1</td><td class="dots">Test cases and expected results</td><td class="p">25</td></tr>
+    <tr><td class="n">8.1</td><td class="dots">Frame size and time on a 300 bps link</td><td class="p">26</td></tr>
+    <tr><td class="n">8.2</td><td class="dots">Word error rate targets at four noise levels</td><td class="p">27</td></tr>
+    <tr><td class="n">8.3</td><td class="dots">Latency and efficiency targets</td><td class="p">28</td></tr>
+  </table>
+  <div class="pgno">vii</div>
+</div>
+
+<!-- ══════════════ CHAPTER 1 ══════════════ -->
+<div class="page">
+  <div class="chapno">CHAPTER 1</div>
+  <h2 class="chaptitle">Introduction</h2>
+
+  <h3>1.1 Overview</h3>
+  <p>Communication is the first casualty of a disaster. When mobile towers fail, the
+  equipment that continues to work is the handheld radio set, because it requires no
+  infrastructure at all — only a battery and an antenna. Such radios, however, provide a
+  narrowband data channel of a few hundred bits per second, determined by terrain, power
+  budget and spectrum allocation. A voice call cannot pass through such a channel.</p>
+
+  <p>This is not a limitation that a better codec will eventually remove. Reproducing a human
+  voice with sufficient fidelity for words to remain distinguishable requires sampling air
+  pressure sixteen thousand times per second at sixteen bits, producing approximately 256 000
+  bits for every second of speech. Opus, the most capable open-source speech codec available,
+  reduces this to about 6 000 bits per second at the cost of a thin, robotic timbre; below
+  that rate intelligibility collapses. The gap between that floor and the capacity of a
+  narrowband link remains a factor of twenty, and it is a bound rather than an engineering
+  deficiency, because audio codecs compress the shape of the pressure wave and an
+  intelligible waveform has an irreducible size.</p>
+
+  <figure>
+  <svg viewBox="0 0 620 200" role="img" aria-label="Comparison of data rates on a logarithmic scale">
+    <line x1="58" y1="150" x2="600" y2="150" stroke="var(--ink)" stroke-width="1"/>
+    <g font-family="Times New Roman, serif" font-size="11" fill="var(--ink)" text-anchor="middle">
+      <line x1="58"  y1="150" x2="58"  y2="156" stroke="var(--ink)"/><text x="58"  y="170">100</text>
+      <line x1="193" y1="150" x2="193" y2="156" stroke="var(--ink)"/><text x="193" y="170">1 000</text>
+      <line x1="329" y1="150" x2="329" y2="156" stroke="var(--ink)"/><text x="329" y="170">10 000</text>
+      <line x1="464" y1="150" x2="464" y2="156" stroke="var(--ink)"/><text x="464" y="170">100 000</text>
+      <line x1="600" y1="150" x2="600" y2="156" stroke="var(--ink)"/><text x="600" y="170">1 000 000</text>
+      <text x="329" y="190" font-style="italic">Bits per second (logarithmic scale)</text>
     </g>
-    <g font-family="Source Sans 3, sans-serif" font-size="12" fill="var(--ink)">
-      <rect x="0" y="26" width="108" height="34" fill="var(--green-soft)" stroke="var(--green)"/>
-      <text x="54" y="48" text-anchor="middle" fill="var(--green)">Phone A</text>
-      <line x1="108" y1="43" x2="252" y2="43" stroke="var(--rule)" stroke-width="1.5"/>
-      <text x="180" y="37" text-anchor="middle" font-size="11" fill="var(--ink-3)">Bluetooth · 30 m</text>
-      <rect x="252" y="26" width="108" height="34" fill="var(--green-soft)" stroke="var(--green)"/>
-      <text x="306" y="48" text-anchor="middle" fill="var(--green)">Phone B</text>
-
-      <rect x="0" y="104" width="108" height="34" fill="var(--green-soft)" stroke="var(--green)"/>
-      <text x="54" y="126" text-anchor="middle" fill="var(--green)">Phone A</text>
-      <line x1="108" y1="121" x2="168" y2="121" stroke="var(--rule)" stroke-width="1.5"/>
-      <rect x="168" y="104" width="118" height="34" fill="var(--blue-soft)" stroke="var(--blue)"/>
-      <text x="227" y="126" text-anchor="middle" fill="var(--blue)">LoRa node</text>
-      <line x1="286" y1="118" x2="466" y2="118" stroke="var(--blue)" stroke-width="1.5"/>
-      <line x1="286" y1="124" x2="466" y2="124" stroke="var(--blue)" stroke-width="1.5"/>
-      <text x="376" y="112" text-anchor="middle" font-size="11" fill="var(--blue)">865.5 MHz · 2–15 km</text>
-      <rect x="466" y="104" width="118" height="34" fill="var(--blue-soft)" stroke="var(--blue)"/>
-      <text x="525" y="126" text-anchor="middle" fill="var(--blue)">LoRa node</text>
-      <line x1="584" y1="121" x2="644" y2="121" stroke="var(--rule)" stroke-width="1.5"/>
-      <rect x="644" y="104" width="108" height="34" fill="var(--green-soft)" stroke="var(--green)"/>
-      <text x="698" y="126" text-anchor="middle" fill="var(--green)">Phone B</text>
+    <rect x="58" y="24"  width="404" height="24" fill="none" stroke="var(--ink)" stroke-width="1"/>
+    <rect x="58" y="60"  width="211" height="24" fill="none" stroke="var(--ink)" stroke-width="1"/>
+    <rect x="58" y="96"  width="57"  height="24" fill="var(--vbit-green)" fill-opacity="0.18" stroke="var(--ink)" stroke-width="1.4"/>
+    <line x1="115" y1="16" x2="115" y2="144" stroke="var(--ink)" stroke-width="1" stroke-dasharray="4 3"/>
+    <g font-family="Times New Roman, serif" font-size="11.5" fill="var(--ink)">
+      <text x="470" y="41">256 000 — raw PCM speech</text>
+      <text x="277" y="77">6 000 — Opus practical floor</text>
+      <text x="123" y="113">300 — narrowband radio link</text>
     </g>
   </svg>
   </figure>
-  <figcaption><b>Figure 7.1</b> — The handset software is identical in both topologies. Only
-  what sits at the far end of the Bluetooth connection differs.</figcaption>
-  <div class="folio">07</div>
-</section>
+  <p class="cap"><b>Figure 1.1:</b> Comparison of data rates on a logarithmic scale. Both
+  audio representations lie far to the right of the capacity of the link.</p>
 
-<!-- ============ 8 ============ -->
-<section class="sheet">
-  <div class="runhead"><span>iTantra &middot; <b>PS 26173</b></span><span>Evaluation</span></div>
-  <span class="secno">SECTION 08</span>
-  <h2>Evaluation methodology</h2>
-  <p class="lede">Eighty per cent of the assessment is measurable, so the application is
-  instrumented from the first commit and prints its own scorecard.</p>
+  <h3>1.2 Problem Statement</h3>
+  <p>Problem Statement SIH26173, issued by the Indian Space Research Organisation, requires
+  the development of an Android application containing lightweight and accurate speech-to-text
+  and text-to-speech models for ten Indian languages, executing locally on a low-power device.
+  The speech-to-text module must activate after detecting pauses and stoppages, form complete
+  sentences from the speech detected, and stream the resulting data efficiently through a
+  Wi-Fi or Bluetooth connected embedded device or another handset running the same
+  application. The text-to-speech module must convert received text into intelligible speech
+  played as a voice note, and alert-type messages must be announced at the highest volume in
+  a non-interruptible manner. Two handsets running the same application, one in
+  speech-to-text mode and one in text-to-speech mode, must together behave as a walkie-talkie
+  operated by a push-to-talk control, and as a telephone when that control is disabled.</p>
+  <div class="pgno">1</div>
+</div>
 
-  <p>The stated criteria are <strong>Accuracy 40 %</strong>, <strong>Latency 20 %</strong> and
-  <strong>Efficiency 20 %</strong>. Between them they force a real harness over held-out data
-  under noise, instrumentation shipped inside the application rather than a stopwatch, and
-  quantisation behind a tiered wake-up path.</p>
+<!-- ══════════════ CHAPTER 1 cont ══════════════ -->
+<div class="page">
+  <h3>1.3 Objectives</h3>
+  <p>The objectives of this project are as follows.</p>
+  <ol>
+    <li>To design and implement an Android application that converts speech to text on the
+    transmitting device and text back to speech on the receiving device, so that both users
+    interact with the system only by speaking and listening.</li>
+    <li>To support ten Indian languages with quantised on-device acoustic and synthesis
+    models, each language pack occupying less than seventy megabytes.</li>
+    <li>To define a compact binary wire protocol that transmits a complete spoken sentence in
+    fewer than sixty bytes, so that transmission is feasible over links providing only a few
+    hundred bits per second.</li>
+    <li>To implement voice activity detection and endpointing so that recognition is
+    triggered by natural pauses, and idle processor usage remains below two per cent.</li>
+    <li>To provide a transport abstraction with multiple implementations, including one that
+    is serial in shape so that the same frames may be carried by a long-range radio module.</li>
+    <li>To deliver alert messages at maximum volume in a non-interruptible manner, including
+    on a handset that is locked and silenced.</li>
+    <li>To instrument the application so that accuracy, latency and efficiency are measured
+    and exported rather than asserted.</li>
+  </ol>
 
-  <h3>Measurement conditions</h3>
-  <p>Figures are reportable only from the entry-tier target handset, in a release build,
-  after a <strong>thirty-minute thermal soak</strong>, over at least a hundred utterances,
-  as median and 95th percentile. Entry-tier handsets throttle after about ten minutes of
-  continuous inference and real-time factor can double, so sustained numbers are both more
-  honest and more defensible than peak ones.</p>
+  <h3>1.4 Scope and Limitations</h3>
+  <p>The scope of the project is a symmetric Android application in which every device runs
+  both the recognition and the synthesis halves, and the operating role is a runtime mode
+  rather than a build variant. The system operates entirely offline at run time. Language
+  packs may be fetched once during initial setup, after which no network access occurs.</p>
 
-  <h3>Accuracy — reported at four noise levels</h3>
-  <p>Word error rate is measured on held-out benchmark data — IndicSUPERB, Kathbath,
-  IndicVoices, FLEURS — never on self-recorded samples. Clean-room figures do not represent
-  a flood embankment.</p>
+  <p>The following limitations are stated explicitly rather than concealed. The identity of
+  the speaker is not preserved, since the waveform is discarded; this is compensated by a
+  sender identifier carried in the frame header and a distinct synthesis voice for each node.
+  Prosody and emotional content are likewise not preserved, and are compensated by an explicit
+  priority class for alert traffic. Background audio is discarded entirely, which is accepted
+  as a consequence of the bandwidth budget. Cross-language delivery is available only for
+  template-coded messages, because it is a property of a shared table rather than of a
+  translation model; free-form messages are delivered in the language in which they were
+  spoken. Finally, recognition of code-mixed Hindi and English speech is a known weakness,
+  which is disclosed together with the mitigation adopted.</p>
+  <div class="pgno">2</div>
+</div>
 
-  <div class="tw">
-  <table>
-    <thead><tr><th>Condition</th><th class="num">Target WER</th><th>Comment</th></tr></thead>
-    <tbody>
-      <tr><td>Clean, read speech</td><td class="num">&lt; 12 %</td><td>Reference figure</td></tr>
-      <tr><td>+20 dB SNR</td><td class="num">&lt; 15 %</td><td>Quiet room, realistic</td></tr>
-      <tr><td>+10 dB SNR</td><td class="num">&lt; 22 %</td><td>Vehicle, crowd</td></tr>
-      <tr><td>+5 dB SNR</td><td class="num">&lt; 32 %</td><td>Adverse; template fallback engages</td></tr>
-      <tr><td><strong>Critical vocabulary, biased</strong></td><td class="num"><strong>&lt; 6 %</strong></td><td><strong>The figure that matters operationally</strong></td></tr>
-    </tbody>
-  </table>
-  </div>
-  <p class="small">The last row is the important one: overall word error rate is a poor
-  proxy for usefulness, and what matters is whether मदद, आग, sector numbers and callsigns
-  survive. It is reported with and without biasing in the same table, so the delta is
-  attributable to a deliberate engineering decision.</p>
+<!-- ══════════════ CHAPTER 2 ══════════════ -->
+<div class="page">
+  <div class="chapno">CHAPTER 2</div>
+  <h2 class="chaptitle">Literature Survey</h2>
 
-  <h3>Latency and efficiency targets</h3>
-  <div class="cols">
-    <div>
-      <div class="tw"><table>
-        <thead><tr><th>Latency</th><th class="num">Target</th></tr></thead>
-        <tbody>
-          <tr><td>End to end, push-to-talk</td><td class="num">500–800 ms</td></tr>
-          <tr><td>End to end, phone mode</td><td class="num">750–1100 ms</td></tr>
-          <tr><td>First synthesis chunk</td><td class="num">150–250 ms</td></tr>
-          <tr><td>Real-time factor, ASR</td><td class="num">&lt; 0.30</td></tr>
-          <tr><td>Real-time factor, TTS</td><td class="num">&lt; 0.25</td></tr>
-        </tbody>
-      </table></div>
-    </div>
-    <div>
-      <div class="tw"><table>
-        <thead><tr><th>Efficiency</th><th class="num">Target</th></tr></thead>
-        <tbody>
-          <tr><td>Installer, two languages</td><td class="num">&lt; 30 MB</td></tr>
-          <tr><td>Per additional language</td><td class="num">&lt; 70 MB</td></tr>
-          <tr><td>Resident memory</td><td class="num">&lt; 350 MB</td></tr>
-          <tr><td>Idle CPU while listening</td><td class="num">&lt; 2 %</td></tr>
-          <tr><td>Standby endurance</td><td class="num">&gt; 8 h</td></tr>
-        </tbody>
-      </table></div>
-    </div>
-  </div>
+  <h3>2.1 Speech Recognition for Indian Languages</h3>
+  <p>Automatic speech recognition has progressed from hidden Markov model systems to
+  end-to-end neural architectures. The Conformer architecture proposed by Gulati and others
+  combines convolutional blocks, which capture local acoustic events such as plosive bursts
+  and formant transitions, with self-attention blocks that supply sentence-level context.
+  This combination has become the standard encoder for streaming recognition because it
+  achieves competitive accuracy at a computational cost acceptable on mobile hardware.</p>
 
-  <h3>Output artefacts</h3>
-  <div class="tw">
-  <table>
-    <thead><tr><th>File</th><th>Contents, every row naming its device and build</th></tr></thead>
-    <tbody>
-      <tr><td class="mono">scorecard.csv</td><td>Per language: WER at four SNRs, critical-term error with and without biasing, MOS, model sizes, RTF</td></tr>
-      <tr><td class="mono">latency.csv</td><td>Per utterance: every stage boundary, transport, payload size, end-to-end delta</td></tr>
-      <tr><td class="mono">resource.csv</td><td>Sampled CPU, resident memory, battery drain, thermal state</td></tr>
-    </tbody>
-  </table>
-  </div>
-  <p><strong>These three files convert the submission from a set of claims into a set of
-  results.</strong></p>
-  <div class="folio">08</div>
-</section>
+  <p>For Indian languages, the AI4Bharat initiative at IIT Madras has released the
+  IndicConformer family of acoustic models, trained specifically on Indian language speech,
+  together with the IndicSUPERB, Kathbath and IndicVoices evaluation corpora. These resources
+  are significant for the present work because general multilingual models trained
+  predominantly on European languages perform poorly on Indic phonology and on scripts such
+  as Odia and Kannada. The Vosk toolkit provides smaller streaming models with immediate
+  Android support and lower accuracy, and is therefore useful as a development baseline.
+  OpenAI Whisper offers strong accuracy but is not a streaming architecture and is
+  computationally heavy for entry-tier mobile processors.</p>
 
-<!-- ============ 9 ============ -->
-<section class="sheet">
-  <div class="runhead"><span>iTantra &middot; <b>PS 26173</b></span><span>Risk &amp; compliance</span></div>
-  <span class="secno">SECTION 09</span>
-  <h2>Risk and compliance</h2>
-  <p class="lede">Twenty-nine identified failure modes, each with a designed response and a
-  single owner. Severity reflects impact on the assessed criteria, not merely on the
-  software.</p>
+  <h3>2.2 On-Device Speech Synthesis</h3>
+  <p>Earlier neural synthesis pipelines required two models, one converting text to a
+  spectrogram and a second converting the spectrogram to a waveform, which proved too slow for
+  mobile devices. The VITS architecture described by Kim, Kong and Son performs both
+  operations in a single pass and incorporates a duration predictor, which is the component
+  responsible for natural rhythm and which prevents synthesised speech from sounding
+  metronomic. The Piper project provides VITS voices already exported to the ONNX interchange
+  format, and AI4Bharat provides Indic-TTS voices of higher naturalness for Indian languages.</p>
 
-  <div class="tw">
-  <table>
-    <thead><tr><th>ID</th><th>Risk</th><th>Sev</th><th>Mitigation</th></tr></thead>
-    <tbody>
-      <tr><td class="mono">T-01</td><td>Word error rate collapses in real acoustic noise</td><td><span class="tag tag--a">High</span></td><td>RNNoise pre-processing; evaluate and report at four SNRs rather than clean only</td></tr>
-      <tr><td class="mono">T-02</td><td>Digits and callsigns misrecognised — the tokens that carry meaning</td><td><span class="tag tag--a">High</span></td><td>Contextual biasing; separate critical-term metric tracked throughout</td></tr>
-      <tr><td class="mono">T-03</td><td>Thermal throttling doubles real-time factor mid-demonstration</td><td><span class="tag tag--a">High</span></td><td>Thirty-minute soak testing from week 6; sustained figures reported</td></tr>
-      <tr><td class="mono">T-05</td><td>No adequate open synthesis model exists for Odia</td><td><span class="tag tag--b">Med</span></td><td>Identified as the expected gap; Coqui VITS trained on IIT Madras data</td></tr>
-      <tr><td class="mono">T-08</td><td>Stream framing defect corrupts frames under load</td><td><span class="tag tag--b">Med</span></td><td>Mandatory read loop, CRC, magic-byte resynchronisation, decoder fuzzing</td></tr>
-      <tr><td class="mono">S-01</td><td>Fraudulent alert injected at maximum volume</td><td><span class="tag tag--a">High</span></td><td>AES-256-GCM; the sender identity sits inside the authenticated region</td></tr>
-      <tr><td class="mono">S-03</td><td>Recognition error inverts meaning — "do not evacuate"</td><td><span class="tag tag--a">High</span></td><td>Confidence on the wire; confirmation required for alerts; negations weighted</td></tr>
-      <tr><td class="mono">P-01</td><td>Model work consumes the schedule, loop unproven late</td><td><span class="tag tag--a">High</span></td><td><strong>The loop closes in week 3 on the weakest acceptable models</strong></td></tr>
-      <tr><td class="mono">P-02</td><td>Development on flagship hardware conceals failures</td><td><span class="tag tag--a">High</span></td><td>Entry-tier handset acquired in week 1; every benchmark taken on it</td></tr>
-    </tbody>
-  </table>
-  </div>
+  <p>An observation relevant to this project is that two of the four stages of a synthesis
+  pipeline are conventional software engineering rather than machine learning. Text
+  normalisation, which determines whether a numeral is read as a quantity or dialled
+  digit-wise, and phonemisation, which converts orthography to phoneme sequences, together
+  account for a substantial part of perceived output quality. Indic scripts being largely
+  phonetic makes phonemisation considerably more reliable for the target languages than it
+  would be for English.</p>
+  <div class="pgno">3</div>
+</div>
 
-  <h3>Open-source compliance</h3>
-  <p>The problem statement prohibits proprietary, closed-source and commercial
-  voice-activation SDKs. No such component appears anywhere in the system; every model
-  executes on the device and no network request is made at runtime. The claim is enforced by
-  the platform rather than asserted by us — <strong>the shipped manifest declares no
-  <code>INTERNET</code> permission.</strong></p>
+<!-- ══════════════ CHAPTER 2 cont ══════════════ -->
+<div class="page">
+  <h3>2.3 Messaging over Low-Bitrate Radio</h3>
+  <p>Several open-source systems transmit text over long-range, low-bitrate radio links. The
+  Meshtastic project implements text messaging over LoRa with an Android client connected by
+  Bluetooth, and its firmware informs the design of framing, addressing, relay behaviour and
+  duplicate suppression. The Briar project demonstrates robust Bluetooth and Wi-Fi transport
+  on Android, including discovery, reconnection and the handling of degraded states.
+  APRSdroid connects Android devices to amateur radio equipment over a Bluetooth serial
+  profile, and is a working demonstration of the deployment path adopted in this project.</p>
 
-  <div class="tw">
-  <table>
-    <thead><tr><th>Component</th><th>Licence</th><th>Role</th></tr></thead>
-    <tbody>
-      <tr><td>sherpa-onnx</td><td class="mono">Apache-2.0</td><td>Recognition, synthesis, VAD and endpointing</td></tr>
-      <tr><td>ONNX Runtime</td><td class="mono">MIT</td><td>Inference engine, XNNPACK on ARM</td></tr>
-      <tr><td>AI4Bharat IndicConformer</td><td class="mono">Permissive</td><td>Acoustic models, all ten languages</td></tr>
-      <tr><td>Piper voices</td><td class="mono">MIT</td><td>Primary synthesis voices</td></tr>
-      <tr><td>Silero VAD</td><td class="mono">MIT</td><td>Tier-1 voice activity detection</td></tr>
-      <tr><td>espeak-ng</td><td class="mono">GPL-3.0 &#9888;</td><td>Phonemisation — copyleft, disclosed</td></tr>
-      <tr><td>Meta MMS</td><td class="mono">CC-BY-NC &#9888;</td><td>Gap-filler only — non-commercial, disclosed</td></tr>
-    </tbody>
-  </table>
-  </div>
-  <p class="small">Two components carry restrictive licences. Both are declared here rather
-  than left to be discovered, and any language pack containing a non-commercial model is
-  marked as such in the application itself.</p>
-  <div class="folio">09</div>
-</section>
+  <p>The common characteristic of these systems is that the user types the message and reads
+  the reply. They therefore solve the transport problem while leaving the accessibility
+  problem untouched, which is precisely the gap that Problem Statement SIH26173 identifies.</p>
 
-<!-- ============ 10 ============ -->
-<section class="sheet">
-  <div class="runhead"><span>iTantra &middot; <b>PS 26173</b></span><span>Status &amp; conclusion</span></div>
-  <span class="secno">SECTION 10</span>
-  <h2>Status, plan and conclusion</h2>
+  <h3>2.4 Summary of the Gap</h3>
+  <p>The literature therefore contains mature solutions to each half of the problem, and no
+  solution that joins them. On-device speech recognition and synthesis for Indian languages
+  are available under permissive licences and are computationally feasible on mobile
+  hardware. Long-range text messaging over narrowband radio is likewise a solved problem with
+  several working open-source implementations. What does not exist is a system that places
+  speech interfaces at both ends of such a link so that the operators never read or type,
+  which is what makes the system usable by a person who cannot read.</p>
 
-  <h3>Where the project stands</h3>
-  <p>The system is fully specified — roughly thirty-seven thousand words covering
-  requirements traceability, architecture, a byte-level wire protocol, both speech engines,
-  transport, security, evaluation methodology, a risk register and the complete interface
-  design. Implementation has not begun; the task breakdown contains 207 items across eight
-  weeks.</p>
+  <p>The contribution of this project is therefore not a new speech model or a new radio
+  protocol, but the composition of the two, together with a compression scheme that exploits
+  a property unavailable to general-purpose systems: because both endpoints are controlled
+  and the frame header declares the language, Indic text may be packed into a single-byte
+  alphabet, and common operational sentences may be reduced to single-byte identifiers.</p>
+  <div class="pgno">4</div>
+</div>
 
-  <div class="tw">
-  <table>
-    <thead><tr><th class="num">Week</th><th>Objective</th><th>Gate</th></tr></thead>
-    <tbody>
-      <tr><td class="num">1</td><td>Capture and recognise</td><td>Hindi speech produces text on the target handset, offline</td></tr>
-      <tr><td class="num">2</td><td>Transport</td><td>Typed text crosses two phones; decoder survives fuzzing</td></tr>
-      <tr><td class="num">3</td><td><strong>Close the loop</strong></td><td><strong>Speech in on A, speech out on B</strong></td></tr>
-      <tr><td class="num">4</td><td>Real models</td><td>Five languages; the harness produces a scorecard</td></tr>
-      <tr><td class="num">5</td><td>Modes and alerts</td><td>An alert wakes a locked, silenced handset</td></tr>
-      <tr><td class="num">6</td><td>Latency and reach</td><td>Encryption, four transports, first thermal soak</td></tr>
-      <tr><td class="num">7</td><td>Coverage</td><td>Ten languages; field and relay soaks clean</td></tr>
-      <tr><td class="num">8</td><td>Evidence</td><td>Full scorecard; three clean rehearsals</td></tr>
-    </tbody>
-  </table>
-  </div>
+<!-- ══════════════ CHAPTER 3 ══════════════ -->
+<div class="page">
+  <div class="chapno">CHAPTER 3</div>
+  <h2 class="chaptitle">System Analysis</h2>
 
-  <div class="note">
-    <div class="note-h">The governing rule</div>
-    <p><strong>Week three is the hinge.</strong> A working loop with mediocre models can be
-    improved under any amount of time pressure; excellent models with no loop cannot be
-    demonstrated at all. Model quality is an upgrade path, never a prerequisite.</p>
-  </div>
+  <h3>3.1 Existing System</h3>
+  <p>Existing approaches to voice communication over constrained links fall into two
+  categories, neither of which is satisfactory for the scenario described in the problem
+  statement. The first category consists of audio codecs, of which Opus is representative.
+  These systems preserve the voice of the speaker and require no recognition model, but they
+  cannot operate below approximately six thousand bits per second without losing
+  intelligibility, and are therefore unusable on the links that remain available during a
+  disaster.</p>
 
-  <h3>Conclusion</h3>
-  <p>iTantra is not a speech-recognition demonstration with a Bluetooth link attached. It is
-  a communications system that uses speech models as its codec. That framing matches the
-  problem statement's own language — <em>neural transceiver radio access for low bitrate
-  links</em> — and it is the framing under which every decision in this report is coherent
-  rather than arbitrary.</p>
-  <p>The measure of success is narrow and testable: two handsets in aeroplane mode, ten
-  languages, sub-second delivery, an installer under thirty megabytes, idle CPU below two
-  per cent verified by trace rather than assertion, word error rate reported per language
-  and per noise condition, alerts that wake a locked and silenced handset — and the same
-  bytes crossing a real radio link.</p>
+  <p>The second category consists of text messaging systems over long-range radio, of which
+  Meshtastic is representative. These systems operate comfortably within the available
+  bandwidth, but they require the sender to type the message and the receiver to read it.
+  Both operations exclude a non-literate user, are impractical for an operator wearing gloves
+  or working in darkness, and are slow under stress: speaking a sentence takes approximately
+  three seconds, whereas typing the same sentence in Devanagari on a mobile keyboard takes
+  approximately forty.</p>
 
-  <hr>
+  <h3>3.2 Proposed System</h3>
+  <p>The proposed system removes the waveform from the link. Speech is recognised on the
+  transmitting handset and converted to text; the text is compressed and transmitted as a
+  compact binary frame; and the text is re-synthesised as speech on the receiving handset.
+  The interface presented to both operators is voice, and the representation carried by the
+  link is text. Table 3.1 gives the size of a representative three-second Hindi sentence in
+  each representation.</p>
 
-  <h3>References</h3>
-  <ul class="small refs">
-    <li>Smart India Hackathon 2026, Problem Statement SIH26173, Indian Space Research Organisation, Department of Space.</li>
-    <li>k2-fsa / sherpa-onnx — on-device speech recognition, synthesis and VAD. Apache-2.0.</li>
-    <li>AI4Bharat — IndicConformer, Indic-TTS, IndicSUPERB, Kathbath and IndicVoices corpora. IIT Madras.</li>
-    <li>Rhasspy — Piper neural text-to-speech voices. MIT.</li>
-    <li>Kim, Kong &amp; Son — <em>VITS: Conditional VAE with Adversarial Learning for End-to-End Text-to-Speech</em>, 2021.</li>
-    <li>Gulati et al. — <em>Conformer: Convolution-augmented Transformer for ASR</em>, 2020.</li>
-    <li>NIST SP 800-38D — <em>Galois/Counter Mode and GMAC</em>.</li>
-    <li>LoRa Alliance — IN865 regional parameters, 865–867 MHz.</li>
-    <li>Meshtastic, Briar, APRSdroid — reference designs for framing, relay and Android radio transport.</li>
-  </ul>
-  <div class="folio">10</div>
-</section>
+  <div class="tw"><table class="t">
+    <tr><th>Representation</th><th class="n">Size</th><th class="n">Time on a 300 bps link</th><th>Remark</th></tr>
+    <tr><td>Raw PCM, 16 kHz, 16-bit mono</td><td class="n">96 000 B</td><td class="n">43 min</td><td>Output of the microphone</td></tr>
+    <tr><td>Opus at 16 kbps</td><td class="n">6 000 B</td><td class="n">2.7 min</td><td>Good quality voice call</td></tr>
+    <tr><td>Opus at 6 kbps</td><td class="n">2 250 B</td><td class="n">60 s</td><td>Practical intelligibility floor</td></tr>
+    <tr><td>UTF-8 text</td><td class="n">99 B</td><td class="n">2.6 s</td><td>Output of the recogniser</td></tr>
+    <tr><td>Packed text with frame header</td><td class="n">44 B</td><td class="n">1.2 s</td><td>Single-byte Indic alphabet</td></tr>
+    <tr><td>Template code with frame header</td><td class="n">13 B</td><td class="n">0.3 s</td><td>One byte of payload</td></tr>
+  </table></div>
+  <p class="cap"><b>Table 3.1:</b> Size of a three-second Hindi sentence in each
+  representation, and the time required to transmit it over a 300 bps link.</p>
+  <div class="pgno">5</div>
+</div>
 
+<!-- ══════════════ CHAPTER 3 cont ══════════════ -->
+<div class="page">
+  <h3>3.3 Advantages of the Proposed System</h3>
+  <ol>
+    <li><b>Inclusive by construction.</b> Neither operator reads or types at any point, so
+    the system is usable by a person who cannot read, by an operator wearing gloves, and by
+    an operator who cannot look at the screen.</li>
+    <li><b>Feasible on links that carry no voice.</b> A complete sentence occupies 44 bytes,
+    which is transmitted in 1.2 seconds over a 300 bps link on which a voice call is
+    impossible.</li>
+    <li><b>Entirely offline.</b> All inference is performed on the device. The application
+    declares no internet permission, so the property is enforced by the operating system
+    rather than merely asserted by the developers.</li>
+    <li><b>Cross-language operation without a translation model.</b> Because every device
+    holds the template table in all ten languages, a template-coded alert is announced in
+    whichever language the receiver has selected.</li>
+    <li><b>Deployable on existing hardware.</b> The application runs on low and mid-range
+    handsets. Long-range operation requires approximately ₹1 500 of radio hardware per pair
+    and no change to the handset software.</li>
+  </ol>
+
+  <h3>3.4 Feasibility Study</h3>
+  <h4>3.4.1 Technical feasibility</h4>
+  <p>Every component required by the system exists today, is released under an open-source
+  licence, and executes on ARM processors. Quantised acoustic models occupy approximately
+  thirty-five megabytes per language and synthesis voices approximately twenty-six megabytes,
+  which is within the storage budget of an entry-tier handset. Reference implementations of
+  the transport layer exist in the projects surveyed in Chapter 2. No component of the system
+  requires research; the work is one of composition and engineering.</p>
+
+  <h4>3.4.2 Economic feasibility</h4>
+  <p>The system incurs no running cost. There is no server to operate, no data plan to
+  purchase and no per-message charge. It executes on handsets that users already possess.
+  Long-range deployment requires two radio nodes costing approximately ₹1 500 in total, each
+  consisting of an ESP32 microcontroller and an SX1276 transceiver operating in the
+  licence-free 865–867 MHz band allocated in India.</p>
+
+  <h4>3.4.3 Operational feasibility</h4>
+  <p>The operating model is that of a walkie-talkie, which is already familiar to the
+  intended users. The transmit control occupies at least one third of the screen and is
+  additionally bound to the volume-down hardware key, so that the system may be operated with
+  the screen switched off. Every state change is confirmed by haptic feedback and by a spoken
+  cue rather than by a text dialogue alone.</p>
+  <div class="pgno">6</div>
+</div>
+
+<!-- ══════════════ CHAPTER 4 ══════════════ -->
+<div class="page">
+  <div class="chapno">CHAPTER 4</div>
+  <h2 class="chaptitle">System Requirements</h2>
+
+  <h3>4.1 Hardware Requirements</h3>
+  <div class="tw"><table class="t">
+    <tr><th>Component</th><th>Specification</th><th>Purpose</th></tr>
+    <tr><td>Target handset</td><td>Android 11 or later, 4 GB RAM, entry-tier Snapdragon 4-series or MediaTek Helio G-series processor</td><td>Reference device on which all performance figures are measured</td></tr>
+    <tr><td>Second handset</td><td>Android 8.0 or later</td><td>Completion of the two-device loop</td></tr>
+    <tr><td>Storage</td><td>Approximately 500 MB free</td><td>Application and language packs</td></tr>
+    <tr><td>Radio node (optional)</td><td>2 × ESP32 with SX1276/SX1278 transceiver, 865.5 MHz</td><td>Long-range deployment path</td></tr>
+    <tr><td>Development machine</td><td>8 GB RAM or more, x86-64</td><td>Build, model export and quantisation</td></tr>
+  </table></div>
+  <p class="cap"><b>Table 4.1:</b> Hardware requirements.</p>
+
+  <h3>4.2 Software Requirements</h3>
+  <div class="tw"><table class="t">
+    <tr><th>Component</th><th>Version / Licence</th><th>Role in the system</th></tr>
+    <tr><td>Android SDK</td><td>API 26 minimum, API 35 target</td><td>Application platform</td></tr>
+    <tr><td>Kotlin</td><td>2.0</td><td>Implementation language</td></tr>
+    <tr><td>Jetpack Compose</td><td>Current stable</td><td>User interface</td></tr>
+    <tr><td>sherpa-onnx</td><td>Apache-2.0</td><td>Recognition, synthesis, voice activity detection</td></tr>
+    <tr><td>ONNX Runtime</td><td>MIT</td><td>Inference engine with XNNPACK acceleration on ARM</td></tr>
+    <tr><td>AI4Bharat IndicConformer</td><td>Permissive</td><td>Acoustic models for ten languages</td></tr>
+    <tr><td>Piper voices</td><td>MIT</td><td>Speech synthesis voices</td></tr>
+    <tr><td>Silero VAD</td><td>MIT</td><td>Voice activity detection, 1.8 MB</td></tr>
+    <tr><td>espeak-ng</td><td>GPL-3.0 (disclosed)</td><td>Phonemisation</td></tr>
+    <tr><td>RNNoise</td><td>BSD-3-Clause</td><td>Noise suppression on the recognition path</td></tr>
+  </table></div>
+  <p class="cap"><b>Table 4.2:</b> Software requirements and licences. No proprietary,
+  closed-source or commercial voice-activation software development kit is used.</p>
+  <div class="pgno">7</div>
+</div>
+
+<!-- ══════════════ CHAPTER 4 cont ══════════════ -->
+<div class="page">
+  <h3>4.3 Functional Requirements</h3>
+  <p>The functional requirements are derived directly from the problem statement and are
+  numbered for traceability. Each is verified by the corresponding test case in Chapter 7.</p>
+  <ol>
+    <li>The system shall perform speech recognition and speech synthesis for ten Indian
+    languages using quantised models executing on the device.</li>
+    <li>The system shall activate recognition after detecting pauses and stoppages, and shall
+    emit complete sentences rather than a stream of individual words.</li>
+    <li>The system shall transmit recognised text over a Wi-Fi or Bluetooth connection to an
+    embedded device or to another handset running the same application.</li>
+    <li>The system shall convert received text into intelligible speech and play it as a
+    voice note.</li>
+    <li>The system shall announce alert-class messages at the highest volume in a manner that
+    cannot be interrupted, including when the receiving handset is locked and silenced.</li>
+    <li>The system shall operate as a walkie-talkie under push-to-talk control, and as a
+    telephone when push-to-talk is disabled.</li>
+    <li>The system shall be symmetric: a single application package installed on both
+    handsets, with the operating role selected at run time.</li>
+  </ol>
+
+  <h3>4.4 Non-Functional Requirements</h3>
+  <ol>
+    <li><b>Performance.</b> End-to-end delay from the completion of a spoken sentence on the
+    transmitting handset to the commencement of audio on the receiving handset shall not
+    exceed 800 milliseconds in push-to-talk mode.</li>
+    <li><b>Efficiency.</b> The installation package shall not exceed thirty megabytes with two
+    languages resident; idle processor usage while listening shall not exceed two per cent.</li>
+    <li><b>Reliability.</b> Corrupted frames shall be discarded and never spoken, since a
+    garbled instruction is more dangerous than a missing one.</li>
+    <li><b>Security.</b> Frames shall be authenticated so that an unauthorised transmitter
+    cannot inject an alert. This requirement is self-imposed rather than stated in the problem
+    statement, and is justified in Section 6.4.</li>
+    <li><b>Usability.</b> The system shall be operable without reading. Icons and colour shall
+    carry primary meaning and text shall be a secondary channel.</li>
+    <li><b>Portability.</b> The system shall execute on low and mid-range handsets, and all
+    reported figures shall be measured on such a device rather than on a flagship.</li>
+  </ol>
+  <div class="pgno">8</div>
+</div>
+
+<!-- ══════════════ CHAPTER 5 ══════════════ -->
+<div class="page">
+  <div class="chapno">CHAPTER 5</div>
+  <h2 class="chaptitle">System Design</h2>
+
+  <h3>5.1 System Architecture</h3>
+  <p>Every device executes the complete system. There is no dedicated transmitter and no
+  dedicated receiver; the operating role is a runtime mode. Figure 5.1 shows the end-to-end
+  signal path. The transmitting device captures audio, gates it through three tiers of
+  detection, recognises it, compresses it and frames it. The receiving device verifies and
+  decrypts the frame, expands the payload, normalises the text, converts it to phonemes and
+  synthesises audio.</p>
+
+  <div class="tw-c"><div class="blk">        TRANSMITTING DEVICE                     RECEIVING DEVICE
+
+  Microphone, 16 kHz mono               Link receive and reassemble
+            |                                     |
+  Ring buffer, 20 ms hops               CRC check, decrypt, de-duplicate
+            |                                     |
+  Tier 0  energy gate                   Key identifier filter
+  Tier 1  Silero VAD                              |
+            |  speech                   Unpack script or expand template
+  Feature extraction, 80-dim log-mel              |
+            |                           Text normalisation
+  Conformer encoder                               |
+            |                           Phonemisation (espeak-ng)
+  Transducer decoding with biasing                |
+            |                           VITS synthesis, chunked
+  Endpoint detected                               |
+            |                           AudioTrack streaming playout
+  Template match or script pack                   |
+            |                           ALERT: alarm stream, maximum
+  Frame, encrypt, CRC                   volume, wake lock, repeat
+            |                                     |
+            +------- 13 to 60 bytes --------------+
+        Bluetooth / BLE / Wi-Fi / LoRa serial</div></div>
+  <p class="cap"><b>Figure 5.1:</b> System architecture and end-to-end signal path. Both
+  halves are present on every device.</p>
+
+  <p>Processing is distributed across four threads with bounded queues between them. The
+  capture thread executes at urgent audio priority and performs no memory allocation, since a
+  dropped audio block is a lost utterance. The inference thread drains the recognition queue.
+  The link thread performs blocking input and output. The synthesis thread generates audio
+  chunks ahead of the playback clock. The entire engine executes within a foreground service,
+  because the normal operating state of a radio is with the screen switched off.</p>
+  <div class="pgno">9</div>
+</div>
+
+<!-- ══════════════ CHAPTER 5 cont ══════════════ -->
+<div class="page">
+  <h3>5.2 Module Description</h3>
+  <p>The system is divided into eight modules with enforced dependency rules. The most
+  important boundary is that the protocol module carries no dependency on Android, which
+  allows the highest-risk component of the system — the frame codec — to be unit-tested and
+  fuzz-tested on a desktop computer in seconds rather than on a handset in minutes.</p>
+
+  <div class="tw"><table class="t">
+    <tr><th>Module</th><th>Responsibility</th></tr>
+    <tr><td>app</td><td>User interface, push-to-talk control, alert delivery, provisioning, instrumentation display, foreground service</td></tr>
+    <tr><td>core-audio</td><td>Audio capture and playback, ring buffers, gain control, alert audio policy, audio focus handling</td></tr>
+    <tr><td>core-asr</td><td>Three-tier voice activity detection, endpointing state machine, recognition, contextual biasing, confidence scoring</td></tr>
+    <tr><td>core-tts</td><td>Text normalisation, phonemisation, chunked synthesis, streaming playout scheduler</td></tr>
+    <tr><td>core-link</td><td>Transport interface with four implementations, discovery, reconnection, queueing</td></tr>
+    <tr><td>core-proto</td><td>Frame encoding and decoding, CRC, authenticated encryption, script packing, template tables, replay window</td></tr>
+    <tr><td>core-models</td><td>Language pack manifest, checksum verification, resumable download, storage accounting</td></tr>
+    <tr><td>bench</td><td>Word error rate harness, real-time factor measurement, latency logging, noise mixing, scorecard export</td></tr>
+  </table></div>
+  <p class="cap"><b>Table 5.1:</b> Module description.</p>
+
+  <h3>5.3 Wire Protocol Design</h3>
+  <p>The wire protocol uses a ten-byte header and a two-byte trailer. All multi-byte fields
+  are transmitted most significant byte first. There is no destination field: every frame is
+  received by every device holding the shared key, exactly as a walkie-talkie operates.
+  Selection is performed by cryptographic key rather than by address, since address filtering
+  is a convention that any transmitter may disregard.</p>
+
+  <div class="tw-c"><div class="blk">byte  0      1      2   3     4      5   6     7      8      9     10 ...    n-2 n-1
+    +------+------+---------+------+---------+------+------+------+--------+---------+
+    |MAGIC | TYPE |   SEQ   |FLAGS |   LEN   | SRC  |KEYID | TTL  |PAYLOAD |  CRC16  |
+    | VER  | LANG |         |      |         |      |      |      |        |         |
+    +------+------+---------+------+---------+------+------+------+--------+---------+
+    |&lt;-------------------- header, 10 bytes -------------------&gt;|        |&lt;- 2 B -&gt;|</div></div>
+  <p class="cap"><b>Figure 5.2:</b> Frame format of the iTantra wire protocol.</p>
+
+  <div class="tw"><table class="t">
+    <tr><th>Field</th><th class="n">Bytes</th><th>Description</th></tr>
+    <tr><td>MAGIC / VER</td><td class="n">1</td><td>Sentinel for resynchronisation after corruption, and protocol version</td></tr>
+    <tr><td>TYPE / LANG</td><td class="n">1</td><td>Message type and language index, zero to nine</td></tr>
+    <tr><td>SEQ</td><td class="n">2</td><td>Per-sender sequence number driving acknowledgement and the replay window</td></tr>
+    <tr><td>FLAGS</td><td class="n">1</td><td>Final, partial, encrypted, fragment, packed, template, and two bits of confidence</td></tr>
+    <tr><td>LEN</td><td class="n">2</td><td>Payload length, the basis of framing over a byte stream</td></tr>
+    <tr><td>SRC</td><td class="n">1</td><td>Sender node identifier</td></tr>
+    <tr><td>KEYID</td><td class="n">1</td><td>First byte of the hash of the shared key; a rapid rejection filter</td></tr>
+    <tr><td>TTL</td><td class="n">1</td><td>Remaining relay hops</td></tr>
+    <tr><td>PAYLOAD</td><td class="n">n</td><td>Packed text, template identifier or control data</td></tr>
+    <tr><td>CRC16</td><td class="n">2</td><td>CCITT checksum over the header and payload</td></tr>
+  </table></div>
+  <p class="cap"><b>Table 5.2:</b> Frame field description.</p>
+  <div class="pgno">10</div>
+</div>
+
+<!-- ══════════════ CHAPTER 6 ══════════════ -->
+<div class="page">
+  <div class="chapno">CHAPTER 6</div>
+  <h2 class="chaptitle">Implementation</h2>
+
+  <h3>6.1 Speech Recognition Module</h3>
+  <p>Continuous execution of the acoustic model would exhaust the battery in approximately two
+  hours and would fail the efficiency criterion. Detection is therefore performed in three
+  tiers, so that the expensive stage executes only when the inexpensive stages agree that a
+  human is speaking. Tier zero is an energy gate compared against an adaptive noise floor,
+  costing approximately three microseconds per twenty-millisecond frame, and it rejects
+  silence, which constitutes the overwhelming majority of elapsed time. Tier one is the Silero
+  voice activity detector, costing approximately three hundred microseconds, which
+  distinguishes human speech from door slams, engine noise and wind. Tier two is the Conformer
+  acoustic model itself, costing approximately four milliseconds, and it executes only while
+  tier one reports speech.</p>
+
+  <p>Endpointing is implemented as a state machine. In telephone mode an utterance is
+  finalised after four hundred milliseconds of trailing silence; in push-to-talk mode the
+  release of the key is itself an explicit end-of-utterance signal, and the confirmation
+  window is reduced to one hundred and fifty milliseconds. A leading pad of two hundred and
+  fifty milliseconds is retained from the ring buffer so that the first phoneme is never
+  clipped, and utterances are bounded at eight seconds so that one speaker cannot monopolise
+  a half-duplex channel.</p>
+
+  <p>Recognition accuracy on operationally critical vocabulary is improved by contextual
+  biasing, in which decoding scores are boosted for a supplied list of phrases. In a distress
+  context this vocabulary is small and known in advance, comprising distress terms, unit call
+  signs, sector numbers and local place names. Negation terms are weighted heavily, because a
+  recognition error that converts “do not evacuate” into “now evacuate” inverts the meaning of
+  the message and constitutes the most dangerous failure the system can produce.</p>
+
+  <div class="tw"><table class="t">
+    <tr><th>Precision</th><th class="n">Model size</th><th class="n">Relative speed</th><th class="n">Effect on WER</th><th>Decision</th></tr>
+    <tr><td>float32, as trained</td><td class="n">120 MB</td><td class="n">1.0×</td><td class="n">baseline</td><td>Not shippable</td></tr>
+    <tr><td>float16</td><td class="n">60 MB</td><td class="n">1.3×</td><td class="n">negligible</td><td>Intermediate</td></tr>
+    <tr><td>int8 dynamic</td><td class="n">32 MB</td><td class="n">2.5×</td><td class="n">+1 % relative</td><td>Adopted</td></tr>
+  </table></div>
+  <p class="cap"><b>Table 6.1:</b> Effect of quantisation on model size and inference speed.</p>
+  <div class="pgno">11</div>
+</div>
+
+<!-- ══════════════ CHAPTER 6 cont ══════════════ -->
+<div class="page">
+  <h3>6.2 Speech Synthesis Module</h3>
+  <p>Synthesis proceeds in four stages: text normalisation, phonemisation, waveform generation
+  and streaming playout. Normalisation is performed by a per-language rule file rather than by
+  a model, and it determines whether a run of digits is a quantity to be read as a number or an
+  identifier to be read digit-wise. The numeral 112 is read as three separate digits because it
+  is a number to be dialled, whereas the string “5 km” is read as a quantity followed by an
+  expanded unit. This distinction is a rule rather than a model, and it is the difference
+  between a synthesiser that sounds professional and one that sounds broken.</p>
+
+  <p>Waveform generation uses the VITS architecture, which produces audio directly from
+  phonemes in a single pass at a measured real-time factor of approximately 0.15 on entry-tier
+  ARM hardware. Rather than synthesising the entire sentence and then playing it, which would
+  waste the whole synthesis duration as latency, the sentence is divided at clause boundaries
+  and playback begins as soon as the first chunk is available. The total quantity of synthesis
+  work is unchanged, but the time to first audio falls from approximately seven hundred
+  milliseconds to approximately one hundred and eighty milliseconds.</p>
+
+  <h3>6.3 Compression Module</h3>
+  <p>Compression is applied at three levels, and the system selects the most aggressive level
+  that the situation permits. The first level is semantic transcoding, in which speech becomes
+  text; this alone provides a reduction of approximately 770 to 1. The second level is script
+  packing. UTF-8 encodes Devanagari, Tamil, Kannada and the other Indic scripts using three
+  bytes per character, because UTF-8 must be capable of representing every script
+  simultaneously. Since the frame header already declares the language, the receiver knows
+  which 128-code-point Unicode block applies, and subtracting the block base yields a single
+  byte per character. Characters lying outside the declared block, such as Latin digits,
+  punctuation and the zero-width joiners that control conjunct formation, are carried by an
+  escape sequence so that the transformation remains lossless.</p>
+
+  <p>The third level is template coding. A shared table maps common operational sentences to
+  single-byte identifiers. After recognition the text is matched against this table, and on a
+  confident match the identifier alone is transmitted. Because every device holds the table in
+  all ten languages, the receiver renders the sentence in whichever language it has selected,
+  which provides cross-language operation without any translation model and without additional
+  latency. The table is identified by a digest advertised in the periodic heartbeat, so that
+  two devices holding different tables cannot render different sentences from the same byte.</p>
+  <div class="pgno">12</div>
+</div>
+
+<!-- ══════════════ CHAPTER 6 cont 2 ══════════════ -->
+<div class="page">
+  <h3>6.4 Transport and Security Modules</h3>
+  <p>Four transport implementations satisfy a single interface, so that the application never
+  learns which medium is carrying its bytes. Changing the transport is a setting, and adding a
+  transport requires one additional file. Bluetooth RFCOMM is the default, for two reasons: it
+  provides a reliable ordered byte stream requiring no additional protocol work, and it is the
+  same profile that an ESP32 microcontroller or a radio modem presents. Consequently the code
+  that communicates with another handset is the same code that communicates with a radio.</p>
+
+  <div class="tw"><table class="t">
+    <tr><th>Property</th><th>Bluetooth Classic</th><th>Bluetooth LE</th><th>Wi-Fi</th><th>LoRa serial</th></tr>
+    <tr><td>Range</td><td>10–30 m</td><td>10–50 m</td><td>50–150 m</td><td>2–15 km</td></tr>
+    <tr><td>Usable rate</td><td>200 kbps</td><td>5–20 kbps</td><td>&gt;10 Mbps</td><td>0.3–5 kbps</td></tr>
+    <tr><td>Power consumption</td><td>Medium</td><td>Very low</td><td>High</td><td>Low</td></tr>
+    <tr><td>Carries a voice call</td><td>Marginally</td><td>No</td><td>Yes</td><td>No</td></tr>
+    <tr><td>Carries an iTantra frame</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Role in the system</td><td>Default</td><td>Standby</td><td>Reach</td><td>Deployment</td></tr>
+  </table></div>
+  <p class="cap"><b>Table 6.2:</b> Comparison of the four transport implementations. The final
+  two rows contain the justification for the project: on the link that operates when
+  infrastructure has failed, audio is impossible and iTantra is comfortable.</p>
+
+  <div class="tw-c"><div class="blk">DEMONSTRATION
+   Phone A ------ Bluetooth ------&gt; Phone B                        30 m
+
+DEPLOYMENT
+   Phone A --BT--&gt; LoRa node ==== 865.5 MHz ====&gt; LoRa node --BT--&gt; Phone B
+                                                                 2 - 15 km</div></div>
+  <p class="cap"><b>Figure 6.1:</b> Demonstration and deployment topologies. The handset
+  software is identical in both cases; only the far end of the Bluetooth connection differs.</p>
+
+  <p>Authentication of frames is not required by the problem statement, and is included on the
+  following reasoning. The system is capable of waking a locked and silenced handset and
+  announcing a message at maximum volume on command. If it were to accept unauthenticated
+  input, any transmitter within radio range could inject a fraudulent evacuation order into a
+  disaster area. Frames are therefore protected by AES-256 in Galois/Counter Mode using a
+  pre-shared key held by every paired unit, with the entire header included as associated
+  data so that the sender identifier cannot be altered. A sliding window of sixty-four
+  sequence numbers per sender prevents a recorded alert from being replayed. The key is
+  transferred optically by QR code and never crosses the radio medium.</p>
+  <div class="pgno">13</div>
+</div>
+
+<!-- ══════════════ CHAPTER 7 ══════════════ -->
+<div class="page">
+  <div class="chapno">CHAPTER 7</div>
+  <h2 class="chaptitle">Testing and Evaluation</h2>
+
+  <h3>7.1 Evaluation Methodology</h3>
+  <p>The problem statement allocates eighty per cent of the assessment to three measurable
+  properties: accuracy at forty per cent, latency at twenty per cent and efficiency at twenty
+  per cent. The application is therefore instrumented from the first commit and is capable of
+  exporting its own results, so that the submission consists of measurements rather than
+  claims.</p>
+
+  <p>Figures are reportable only when they have been produced under a fixed set of conditions.
+  Measurements are taken on the entry-tier target handset rather than on a flagship device,
+  from a release build, after a thirty-minute thermal soak, over a minimum of one hundred
+  utterances, and are reported as median and ninety-fifth percentile rather than as a single
+  best case. The requirement for a thermal soak is significant: entry-tier handsets throttle
+  after approximately ten minutes of continuous inference, and the real-time factor may
+  double. Sustained figures are both more honest and more defensible than peak figures.</p>
+
+  <p>Word error rate is evaluated against held-out public benchmark corpora — IndicSUPERB,
+  Kathbath, IndicVoices and FLEURS — rather than against self-recorded samples, since
+  self-recorded evaluation is the most common manner in which an accuracy claim fails under
+  examination. Noise is mixed from a standard set comprising crowd, wind, engine and siren
+  recordings at four signal-to-noise ratios using a fixed random seed, so that results are
+  reproducible.</p>
+
+  <p>In addition to overall word error rate, a separate critical-term error rate is computed
+  over a fixed list of operationally significant words in each language, and is reported both
+  with and without contextual biasing. Overall word error rate is a poor proxy for
+  usefulness; what determines whether a message is actionable is whether the distress terms,
+  sector numbers and call signs survive recognition.</p>
+
+  <p>Three files are produced automatically by the evaluation harness. The scorecard contains,
+  for each language, the word error rate at four noise levels, the critical-term error rate
+  with and without biasing, the mean opinion score for synthesis, the model sizes and the
+  real-time factors. The latency file contains every pipeline stage boundary for every
+  utterance together with the end-to-end delta. The resource file contains sampled processor
+  usage, resident memory, battery drain and thermal state. Every row of every file records the
+  device and the build from which it was produced.</p>
+  <div class="pgno">14</div>
+</div>
+
+<!-- ══════════════ CHAPTER 7 cont ══════════════ -->
+<div class="page">
+  <h3>7.2 Test Cases</h3>
+  <p>Testing is organised by layer. Components that can be tested without a handset are tested
+  without a handset, because a test requiring two paired telephones will not be executed
+  frequently enough to detect regressions. The protocol module in particular carries no
+  Android dependency and its tests execute in milliseconds on a desktop computer.</p>
+
+  <div class="tw"><table class="t">
+    <tr><th class="n">No.</th><th>Test case</th><th>Expected result</th></tr>
+    <tr><td class="n">1</td><td>Encode and decode ten thousand randomly generated frames</td><td>Every frame is recovered exactly</td></tr>
+    <tr><td class="n">2</td><td>Pack and unpack text containing every code point of each Indic block, ASCII and zero-width joiners</td><td>The original string is recovered exactly</td></tr>
+    <tr><td class="n">3</td><td>Supply the decoder with truncated, interleaved and bit-flipped input</td><td>No uncaught exception, no unbounded allocation, correct recovery on the next valid frame</td></tr>
+    <tr><td class="n">4</td><td>Alter any single byte of an authenticated frame</td><td>Verification fails and the frame is discarded</td></tr>
+    <tr><td class="n">5</td><td>Replay a previously accepted frame</td><td>The frame is rejected by the replay window</td></tr>
+    <tr><td class="n">6</td><td>Speak ten Hindi sentences with both handsets in aeroplane mode</td><td>All ten are delivered and intelligible; median delay below 800 ms</td></tr>
+    <tr><td class="n">7</td><td>Send an alert to a handset that is locked, silenced and in Do Not Disturb</td><td>Audio is announced at maximum volume; the prior volume is restored afterwards</td></tr>
+    <tr><td class="n">8</td><td>Send a template alert from a Tamil handset to a Hindi handset</td><td>The correct Hindi sentence is announced</td></tr>
+    <tr><td class="n">9</td><td>Move a handset out of range and return</td><td>Degraded state is displayed; queued frames are delivered in order on reconnection</td></tr>
+    <tr><td class="n">10</td><td>Press push-to-talk simultaneously on two handsets</td><td>Both are informed the channel is busy; backoff resolves the contention</td></tr>
+    <tr><td class="n">11</td><td>Operate continuously for thirty minutes</td><td>Real-time factor at the end is less than twice the initial value</td></tr>
+    <tr><td class="n">12</td><td>Operate four handsets with one outside direct range</td><td>Each message is delivered exactly once; no broadcast storm occurs</td></tr>
+  </table></div>
+  <p class="cap"><b>Table 7.1:</b> Test cases and expected results.</p>
+  <div class="pgno">15</div>
+</div>
+
+<!-- ══════════════ CHAPTER 8 ══════════════ -->
+<div class="page">
+  <div class="chapno">CHAPTER 8</div>
+  <h2 class="chaptitle">Results and Discussion</h2>
+
+  <p><b>Note on the status of these figures.</b> Implementation of the system is in progress
+  at the time of submission. The compression results in Section 8.1 are derived arithmetically
+  from the frame format specified in Section 5.3 and are exact. The accuracy, latency and
+  efficiency figures in Section 8.2 are stated as <b>design targets</b> derived from the
+  published characteristics of the selected models, and are not measurements. Section 7.1
+  defines the conditions under which each will be measured before it is reported as a result.</p>
+
+  <h3>8.1 Compression Results</h3>
+  <p>Table 8.1 gives the size of each frame class and the time required to transmit it over a
+  300 bps link. These values follow directly from the ten-byte header and two-byte trailer
+  specified in Section 5.3.</p>
+
+  <div class="tw"><table class="t">
+    <tr><th>Frame</th><th class="n">Header</th><th class="n">Payload</th><th class="n">Tag</th><th class="n">Total</th><th class="n">At 300 bps</th></tr>
+    <tr><td>Template alert, unauthenticated</td><td class="n">12 B</td><td class="n">1 B</td><td class="n">—</td><td class="n">13 B</td><td class="n">0.3 s</td></tr>
+    <tr><td>Template alert with coordinates</td><td class="n">12 B</td><td class="n">9 B</td><td class="n">8 B</td><td class="n">29 B</td><td class="n">0.8 s</td></tr>
+    <tr><td>Packed Hindi sentence</td><td class="n">12 B</td><td class="n">32 B</td><td class="n">—</td><td class="n">44 B</td><td class="n">1.2 s</td></tr>
+    <tr><td>Packed sentence, authenticated, LoRa</td><td class="n">12 B</td><td class="n">32 B</td><td class="n">8 B</td><td class="n">52 B</td><td class="n">1.4 s</td></tr>
+    <tr><td>Packed sentence, authenticated, Bluetooth</td><td class="n">12 B</td><td class="n">32 B</td><td class="n">16 B</td><td class="n">60 B</td><td class="n">1.6 s</td></tr>
+    <tr><td>Equivalent Opus audio at 6 kbps</td><td class="n">—</td><td class="n">2 250 B</td><td class="n">—</td><td class="n">2 250 B</td><td class="n">60 s</td></tr>
+  </table></div>
+  <p class="cap"><b>Table 8.1:</b> Frame size and time on a 300 bps link.</p>
+
+  <p>The resulting compression ratios are as follows. Against raw pulse-code modulated audio,
+  an unauthenticated packed sentence achieves a reduction of 2 182 to 1, and an authenticated
+  sentence 1 600 to 1. Against Opus operating at its practical floor of six kilobits per
+  second — which is the comparison a technical examiner is most likely to request — the
+  reduction is 43 to 1. A template-coded message achieves 7 385 to 1. All four figures are
+  reported, rather than only the largest, because the ratio against a codec is the honest
+  comparison and the ratio against raw audio is the striking one.</p>
+
+  <h3>8.2 Accuracy, Latency and Efficiency Targets</h3>
+  <div class="tw"><table class="t">
+    <tr><th>Condition</th><th class="n">Target WER</th><th>Remark</th></tr>
+    <tr><td>Clean, read speech</td><td class="n">&lt; 12 %</td><td>Reference figure</td></tr>
+    <tr><td>Signal-to-noise ratio +20 dB</td><td class="n">&lt; 15 %</td><td>Quiet room</td></tr>
+    <tr><td>Signal-to-noise ratio +10 dB</td><td class="n">&lt; 22 %</td><td>Vehicle or crowd</td></tr>
+    <tr><td>Signal-to-noise ratio +5 dB</td><td class="n">&lt; 32 %</td><td>Adverse; template fallback engages</td></tr>
+    <tr><td>Critical vocabulary, with biasing</td><td class="n">&lt; 6 %</td><td>The operationally significant figure</td></tr>
+  </table></div>
+  <p class="cap"><b>Table 8.2:</b> Word error rate targets at four noise levels.</p>
+  <div class="pgno">16</div>
+</div>
+
+<!-- ══════════════ CHAPTER 8 cont ══════════════ -->
+<div class="page">
+  <div class="tw"><table class="t">
+    <tr><th>Latency measure</th><th class="n">Target</th><th>Efficiency measure</th><th class="n">Target</th></tr>
+    <tr><td>End to end, push-to-talk mode</td><td class="n">500–800 ms</td><td>Installer, two languages resident</td><td class="n">&lt; 30 MB</td></tr>
+    <tr><td>End to end, telephone mode</td><td class="n">750–1100 ms</td><td>Each additional language pack</td><td class="n">&lt; 70 MB</td></tr>
+    <tr><td>Final decode after endpoint</td><td class="n">100–250 ms</td><td>Resident memory, one language</td><td class="n">&lt; 350 MB</td></tr>
+    <tr><td>Time to first synthesised audio</td><td class="n">150–250 ms</td><td>Idle processor usage while listening</td><td class="n">&lt; 2 %</td></tr>
+    <tr><td>Real-time factor, recognition</td><td class="n">&lt; 0.30</td><td>Active processor usage</td><td class="n">&lt; 35 %</td></tr>
+    <tr><td>Real-time factor, synthesis</td><td class="n">&lt; 0.25</td><td>Standby endurance, BLE, screen off</td><td class="n">&gt; 8 h</td></tr>
+  </table></div>
+  <p class="cap"><b>Table 8.3:</b> Latency and efficiency targets.</p>
+
+  <h3>8.3 Discussion</h3>
+  <p>The compression figures demonstrate that the central claim of the project holds
+  arithmetically. A complete spoken sentence is transmitted in forty-four bytes, which
+  occupies 1.2 seconds of airtime on a link providing three hundred bits per second. The same
+  sentence encoded as Opus audio at its intelligibility floor would occupy sixty seconds of
+  airtime on the same link, which is operationally useless. The system therefore achieves
+  voice-to-voice communication over links on which voice communication is otherwise
+  impossible, which is precisely the objective of the problem statement.</p>
+
+  <p>The endpoint silence window deserves particular comment, since it is the largest single
+  component of end-to-end latency and it is a design choice rather than a computational cost.
+  In telephone mode the system must wait four hundred milliseconds to be confident that the
+  speaker has finished, whereas in push-to-talk mode the release of the key supplies that
+  information explicitly and the window is reduced to one hundred and fifty milliseconds.
+  Push-to-talk mode is therefore measurably faster, and the difference is reported honestly
+  rather than concealed by quoting only the better figure.</p>
+
+  <p>A limitation that must be acknowledged is that recognition errors are unrecoverable,
+  because the listener has no audio to fall back upon. This is mitigated by transmitting a
+  confidence value with every frame, by displaying the recognised text to the sender before
+  transmission, by requiring explicit confirmation for alert-class messages, and by weighting
+  negation terms in the biasing lexicon. It is not eliminated, and the report does not claim
+  that it is.</p>
+  <div class="pgno">17</div>
+</div>
+
+<!-- ══════════════ CHAPTER 9 ══════════════ -->
+<div class="page">
+  <div class="chapno">CHAPTER 9</div>
+  <h2 class="chaptitle">Conclusion and Future Scope</h2>
+
+  <h3>9.1 Conclusion</h3>
+  <p>This project has presented the design and specification of iTantra, an Android
+  application that provides voice-to-voice communication over radio links whose capacity is
+  insufficient to carry a voice call. The central idea is that the waveform, which constitutes
+  the overwhelming majority of the data in a speech signal, is not the message: it is the
+  carrier in which the message arrived. By recognising speech on the transmitting device and
+  re-synthesising it on the receiving device, the system transmits meaning rather than sound,
+  and a three-second sentence occupying ninety-six thousand bytes as audio is carried in
+  forty-four bytes.</p>
+
+  <p>The system is symmetric, entirely offline, and constructed exclusively from open-source
+  components, with two restrictively licensed dependencies disclosed explicitly. It supports
+  ten Indian languages and is designed for low and mid-range handsets rather than for flagship
+  devices. It is instrumented so that accuracy, latency and efficiency are measured and
+  exported rather than asserted, in accordance with the evaluation criteria stated in the
+  problem statement.</p>
+
+  <p>It should be stated plainly that iTantra is not a speech recognition demonstration with a
+  Bluetooth link attached. It is a communications system that employs speech models as its
+  codec. That framing corresponds to the language of the problem statement itself — a neural
+  transceiver providing radio access for low bitrate links — and it is the framing under which
+  the design decisions presented in this report are coherent rather than arbitrary.</p>
+
+  <h3>9.2 Future Scope</h3>
+  <ol>
+    <li><b>Completion and measurement.</b> The immediate work is the implementation of the
+    specified system and the replacement of every design target in Chapter 8 with a measured
+    result produced by the harness described in Chapter 7.</li>
+    <li><b>Speaker-adaptive synthesis.</b> Transmitting a small speaker embedding, of the
+    order of a few bytes, would allow the receiver to reconstruct an approximation of the
+    original speaker's voice without transmitting any audio.</li>
+    <li><b>Free-form cross-language delivery.</b> Cross-language operation is presently
+    limited to template-coded messages. A compact on-device translation model would extend it
+    to free-form speech, at the cost of additional storage and latency.</li>
+    <li><b>Mesh networking.</b> The present relay mechanism uses a hop counter and a
+    duplicate-suppression set. A routing protocol would improve delivery in larger deployments
+    with many intermediate nodes.</li>
+    <li><b>Satellite integration.</b> Since the frame size is compatible with narrowband
+    satellite burst channels, integration with such a service would extend coverage to regions
+    entirely beyond terrestrial radio range, which is of direct relevance to the sponsoring
+    organisation.</li>
+    <li><b>Extension to further languages.</b> Adding a language requires no change to the
+    application code, only an additional pack containing an acoustic model, a synthesis voice,
+    normalisation rules and a template table.</li>
+  </ol>
+  <div class="pgno">18</div>
+</div>
+
+<!-- ══════════════ REFERENCES ══════════════ -->
+<div class="page">
+  <h2 class="fmtitle">References</h2>
+  <ol style="text-align:justify">
+    <li>Indian Space Research Organisation, Department of Space, “iTantra — Indian
+    Multilingual TTS &amp; STT Aided Neural Transceiver Radio Access for Low Bitrate Links,”
+    Problem Statement SIH26173, Smart India Hackathon 2026.</li>
+
+    <li>A. Gulati, J. Qin, C. Chiu, N. Parmar, Y. Zhang, J. Yu, W. Han, S. Wang, Z. Zhang,
+    Y. Wu and R. Pang, “Conformer: Convolution-augmented Transformer for Speech Recognition,”
+    <i>Proc. Interspeech</i>, 2020, pp. 5036–5040.</li>
+
+    <li>J. Kim, J. Kong and J. Son, “Conditional Variational Autoencoder with Adversarial
+    Learning for End-to-End Text-to-Speech,” <i>Proc. 38th International Conference on Machine
+    Learning (ICML)</i>, 2021, pp. 5530–5540.</li>
+
+    <li>T. Javed, S. Doddapaneni, A. Raman, K. S. Bhogale, G. Ramesh, A. Kunchukuttan,
+    P. Kumar and M. M. Khapra, “Towards Building ASR Systems for the Next Billion Users,”
+    <i>Proc. AAAI Conference on Artificial Intelligence</i>, vol. 36, 2022.</li>
+
+    <li>AI4Bharat, Indian Institute of Technology Madras, “IndicConformer, Indic-TTS,
+    IndicSUPERB, Kathbath and IndicVoices,” accessed 2026. [Online]. Available:
+    https://ai4bharat.iitm.ac.in</li>
+
+    <li>k2-fsa Project, “sherpa-onnx: Real-time speech recognition, synthesis and voice
+    activity detection using ONNX Runtime,” Apache-2.0 Licence. [Online]. Available:
+    https://github.com/k2-fsa/sherpa-onnx</li>
+
+    <li>M. Hansen, “Piper: A fast, local neural text-to-speech system,” Rhasspy Project, MIT
+    Licence. [Online]. Available: https://github.com/rhasspy/piper</li>
+
+    <li>Silero Team, “Silero VAD: Pre-trained enterprise-grade voice activity detector,” MIT
+    Licence. [Online]. Available: https://github.com/snakers4/silero-vad</li>
+
+    <li>J.-M. Valin, “A Hybrid DSP/Deep Learning Approach to Real-Time Full-Band Speech
+    Enhancement,” <i>Proc. IEEE International Workshop on Multimedia Signal Processing</i>,
+    2018.</li>
+
+    <li>J.-M. Valin, K. Vos and T. Terriberry, “Definition of the Opus Audio Codec,”
+    RFC 6716, Internet Engineering Task Force, 2012.</li>
+
+    <li>M. Dworkin, “Recommendation for Block Cipher Modes of Operation: Galois/Counter Mode
+    (GCM) and GMAC,” NIST Special Publication 800-38D, National Institute of Standards and
+    Technology, 2007.</li>
+
+    <li>LoRa Alliance, “LoRaWAN Regional Parameters, IN865-867 Band Plan,” Version 1.0.4,
+    2022.</li>
+
+    <li>Meshtastic Project, “Meshtastic: An open-source, off-grid, decentralised mesh network
+    over LoRa,” GPL-3.0 Licence. [Online]. Available: https://meshtastic.org</li>
+
+    <li>Briar Project, “Briar: Secure messaging over Bluetooth, Wi-Fi and Tor,” GPL-3.0
+    Licence. [Online]. Available: https://briarproject.org</li>
+
+    <li>G. Lukas, “APRSdroid: Amateur radio APRS for Android,” GPL-3.0 Licence. [Online].
+    Available: https://aprsdroid.org</li>
+
+    <li>A. Conneau, M. Ma, S. Khanuja, Y. Zhang, V. Axelrod, S. Dalmia, J. Riesa, C. Rivera
+    and A. Bapna, “FLEURS: Few-shot Learning Evaluation of Universal Representations of
+    Speech,” <i>Proc. IEEE Spoken Language Technology Workshop</i>, 2023.</li>
+  </ol>
+  <div class="pgno">19</div>
 </div>
