@@ -7,10 +7,10 @@ differences.
 
 | Tool | Version | Note |
 | --- | --- | --- |
-| JDK | **17 (Temurin)** | Required by AGP 8.7. **Not 21, and definitely not 25** — a newer JDK on the PATH is the most common first-day build failure. Check with `java -version` before anything else |
+| JDK | **17 — provisioned automatically** | You do **not** need to install it.  applies the foojay resolver, so Gradle downloads a JDK 17 toolchain on first build regardless of what is on your PATH. This is deliberate: six machines with three different JDKs cannot produce comparable benchmark figures, and AGP 8.7 rejects JDK 25 outright |
 | Android Studio | Ladybug or later | |
 | Android Gradle Plugin | 8.7.x | |
-| Gradle | 8.10.x | Wrapper is committed; never run a local `gradle` |
+| Gradle | **8.11.1** | Wrapper is committed; never run a local `gradle` |
 | Kotlin | 2.0.x | |
 | compileSdk / targetSdk | 35 | |
 | minSdk | 26 | See [ARCHITECTURE.md §7](ARCHITECTURE.md#7-technology-decisions) |

@@ -13,12 +13,12 @@ kotlin { jvmToolchain(17) }
 dependencies {
     implementation(libs.kotlin.coroutines.core)
     testImplementation(libs.junit)
-    testImplementation(libs.kotest.property)     // property tests: pack/unpack round trip
+    testImplementation(libs.kotest.property) // property tests: pack/unpack round trip
     testImplementation(libs.kotest.assertions)
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    compilerOptions.allWarningsAsErrors.set(true)   // warnings are errors here only
+    compilerOptions.allWarningsAsErrors.set(true) // warnings are errors here only
 }
 
 tasks.test {

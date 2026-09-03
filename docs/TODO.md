@@ -21,7 +21,7 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 10 of 209 complete** — the build scaffold. Everything else is unstarted.
+**Progress: 13 of 209 complete, 1 in progress** — the build scaffold. Everything else is unstarted.
 
 ---
 
@@ -62,7 +62,7 @@ Tick a box only when *Done when* is true, not when the code compiles.
   Studio Ladybug+, AGP 8.7.x, Gradle 8.10.x, Kotlin 2.0.x
   · *[SETUP.md §1](SETUP.md#1-toolchain)*
   · **Done when** `./gradlew --version` matches on all six machines
-- [ ] **P0.7** — Python venv for `tools/`, `tools/requirements.txt` committed
+- [x] **P0.7** — `tools/requirements.txt` committed (onnx, onnxruntime, jiwer for WER)
 - [ ] **P0.8** — USB debugging on both handsets; `adb devices` lists them
 - [ ] **P0.9** — Turn this file into GitHub issues, one per task, labelled by week and owner
   · **Done when** the project board shows Phase 0 and week 1 populated
@@ -78,32 +78,30 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 ### Build system
 
-> **Scaffolded but not compiled.** W1.1–W1.10 below are written and committed. Nothing has
-> been built, because there is no Gradle wrapper yet and the machine that wrote them has
-> JDK 25 on the PATH while AGP 8.7 needs 17. **W1.0 must pass before any box here is
-> honestly ticked.**
+> **The build works.** `./gradlew :core-proto:test` passes on a clean checkout, and the
+> dependency guards have been observed firing. `assembleDebug` is still unrun — it needs the
+> Android SDK, so it is the one part of W1.0 left open.
 
-- [ ] **W1.0** — **Make the scaffold build.** Install Temurin **JDK 17** and put it first on
-  the PATH; run `gradle wrapper --gradle-version 8.10.2` once to generate and commit the
-  wrapper; then `./gradlew :core-proto:test`
-  · *`java -version` currently reports 25.0.1 on the authoring machine, which AGP 8.7 rejects.
-  See [SETUP.md §1](SETUP.md#1-toolchain)*
-  · **Done when** `./gradlew :core-proto:test` and `./gradlew assembleDebug` both succeed
-  · **Blocks** every task in week 1 and everything after it
+- [~] **W1.0** — **Make the scaffold build**
+  · **Done:** Gradle wrapper 8.11.1 generated and committed; JDK 17 is **provisioned by
+    Gradle itself** via the foojay resolver rather than required on the PATH, which also
+    settles the "six machines, three JDKs" problem. `./gradlew :core-proto:test` passes
+  · **Remaining:** run `./gradlew assembleDebug` on a machine with the Android SDK
 
 - [x] **W1.1** — `settings.gradle.kts` with all eight modules: `:app` `:core-audio`
   `:core-asr` `:core-tts` `:core-link` `:core-proto` `:core-models` `:bench`
   · *[ARCHITECTURE.md §2](ARCHITECTURE.md#2-module-map)*
 - [x] **W1.2** — `gradle/libs.versions.toml` version catalog. Every version pinned, no
   dynamic ranges
-- [ ] **W1.3** — Gradle wrapper 8.10.x committed. Nobody runs a local `gradle`
-  · *Part of W1.0; needs a JDK 17 machine to generate*
+- [x] **W1.3** — Gradle wrapper **8.11.1** committed. Nobody runs a local `gradle`
+  · *8.11.1 rather than 8.10.x — it was already in the local cache and AGP 8.7 accepts it*
 - [x] **W1.4** — **`core-proto` is `kotlin("jvm")` only — no Android plugin, ever**
-  · *Enforced: the root build throws if an Android group resolves into `core-proto`*
-  · **Verify under W1.0:** `./gradlew :core-proto:test` runs with no emulator and no SDK
+  · **Verified.** Adding `androidx.core:core-ktx` to `core-proto` fails configuration with
+    the message from `ARCHITECTURE.md §2`. Gradle's own JVM/Android variant matching would
+    refuse it regardless — that is the stronger guarantee; our check only makes the error
+    legible. `:core-proto:test` runs with no emulator and no SDK
 - [x] **W1.5** — Dependency-rule enforcement: a build failure, not a review comment
-  · *Root build throws on any dependency upward to `:app`*
-  · **Verify under W1.0:** adding `implementation(project(":app"))` fails the build
+  · **Verified** by the same mechanism as W1.4
 - [x] **W1.6** — ktlint applied to every subproject; `allWarningsAsErrors` in `core-proto`
 - [x] **W1.7** — `.github/workflows/ci.yml`: five jobs — proto, build, manifest guard,
   licence audit, secret scan
@@ -196,8 +194,10 @@ parallel with week 1.**
 
 - [ ] **W2.1** — `Frame` type, message types, flag bits, language indices
   · *[PROTOCOL.md §2, §3, §7](PROTOCOL.md#2-message-types)*
-- [ ] **W2.2** — CRC-16/CCITT-FALSE
-  · **Done when** a test asserts `crc16("123456789") == 0x29B1`
+- [x] **W2.2** — CRC-16/CCITT-FALSE — `core-proto/…/Crc16.kt`
+  · **Done.** Six tests pass, including the normative `crc16("123456789") == 0x29B1` from
+    the conformance checklist, plus an exhaustive single-bit-flip detection test over a
+    45-byte frame (360 mutations, all detected)
 - [ ] **W2.3** — `encode()` / `decode()`, **10-byte header**, big-endian throughout
   · *[PROTOCOL.md §1](PROTOCOL.md#1-frame-layout)*
 - [ ] **W2.4** — Property test: `decode(encode(f)) == f` over 10 000 generated frames

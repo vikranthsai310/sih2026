@@ -1,0 +1,10 @@
+# Model export, quantisation and evaluation tooling.
+# Runtime never uses Python -- this is build-time only. (docs/SETUP.md 1)
+onnx==1.17.0
+onnxruntime==1.20.1
+numpy==2.1.3
+soundfile==0.12.1
+librosa==0.10.2.post1
+jiwer==3.0.5                # word error rate scoring (bench)
+tqdm==4.67.1
+requests==2.32.3            # model fetch, setup only
