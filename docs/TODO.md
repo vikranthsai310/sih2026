@@ -21,8 +21,8 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 35 of 205 complete, 1 in progress, 1 blocked.** The build runs and
-**97 tests pass** across `core-proto`, `core-audio` and `core-asr` — CRC, frame codec,
+**Progress: 39 of 205 complete, 1 in progress, 1 blocked.** The build runs and
+**121 tests pass** across `core-proto`, `core-audio` and `core-asr` — CRC, frame codec,
 script packer, pre-trigger ring, energy gate and endpointer. `core-proto` holds 94.7 %
 line coverage.
 
@@ -252,13 +252,18 @@ parallel with week 1.**
   `PACKED` when packing does not reduce
   · *Verified on a distress sentence in each of the nine Indic languages;
     `isWorthPacking()` keeps `PACKED` clear for ASCII*
-- [ ] **W2.12** — `templates.json` loader, canonical serialisation, `profileDigest`
-- [ ] **W2.13** — Fuzzy match: normalised-token Levenshtein ≥ 0.85 **and** high recogniser
+- [x] **W2.12** — `templates.json` loader, canonical serialisation, `profileDigest`
+  · *`TemplateTable`. Canonical serialisation is order-independent; digest is
+    SHA-256 truncated to 4 bytes*
+- [x] **W2.13** — Fuzzy match: normalised-token Levenshtein ≥ 0.85 **and** high recogniser
   confidence. Both required
   · *[PROTOCOL.md §5.3](PROTOCOL.md#53-matching-rule)*
 
 ### Cryptography
 
+  · *Both conditions enforced. **Finding:** at 0.85, one wrong word only survives in
+    a sentence of 7+ tokens, so short sentences need near-exact recognition. Documented
+    in PROTOCOL.md §5.3 — the conservative side to err on*
 - [x] **W2.14** — AES-256-GCM seal / open, **AAD = the entire 10-byte header**
   · *`Aead`. AAD is the whole 10-byte header, so SRC and TYPE cannot be forged*
 - [x] **W2.15** — Deterministic nonce `EPOCH ‖ SRC ‖ SEQ ‖ 0x00×5`
@@ -283,13 +288,17 @@ parallel with week 1.**
 
   · *Every single-byte mutation of the sealed payload **and** of the header fails
     verification — 384 + 10 mutations, all rejected*
-- [ ] **W2.22** — `readFully` loop and `0xA1` resynchronisation
+- [x] **W2.22** — `readFully` loop and `0xA1` resynchronisation
   · *[PROTOCOL.md §13](PROTOCOL.md#13-stream-framing). Risk T-08 — the most common defect
   in this class of project*
-- [ ] **W2.23** — Fuzz harness: truncated at every cut point, byte-interleaved frames,
+  · *`StreamFramer`. Reassembles across every cut point, skips corrupt frames,
+    resynchronises on 0xA1, and stays bounded on a stream with no sentinel*
+- [x] **W2.23** — Fuzz harness: truncated at every cut point, byte-interleaved frames,
   1/2/8 bit flips, `LEN` of 0/1/1023/1024/1025/65535, megabytes with no sentinel
   · **Done when** 10⁵ inputs produce no uncaught exception, no unbounded allocation, no
   socket closure, and correct recovery on the next valid frame
+  · *Fuzz: 20 000 random inputs, 3 000 multi-bit-flip streams, byte-interleaved
+    frames, implausible LEN — never throws, never grows*
 - [ ] **W2.24** — All 12 items of the conformance checklist as named tests
   · *[PROTOCOL.md §14](PROTOCOL.md#14-conformance-checklist)*
 

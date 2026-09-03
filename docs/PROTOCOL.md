@@ -321,7 +321,15 @@ Degrading to script packing costs bytes. Speaking the wrong sentence costs more.
 
 Matching is normalised-token Levenshtein over the recognised text against the table in the
 **sender's** language. A match is accepted when the similarity ratio is ≥ 0.85 **and** the
-recogniser's own confidence for the utterance is high. Both conditions are required: a
+recogniser's own confidence for the utterance is high.
+
+> **What that threshold means in practice.** Similarity is `1 - distance / max(tokens)`, so
+> a single misrecognised word only survives in a sentence of **seven tokens or more**:
+> 1 − 1/7 = 0.857 passes, 1 − 1/6 = 0.833 does not. Most operational sentences are shorter,
+> so a template code in practice requires near-exact recognition, and the system falls back
+> to Level 2 more often than the threshold alone suggests. That is the correct side to err
+> on — script packing costs a few bytes, whereas matching the wrong template speaks the
+> wrong sentence at maximum volume. Both conditions are required: a
 confident recognition of the wrong sentence and a hesitant recognition of the right one
 are both unsafe. On acceptance, `FLAGS.CONFIDENCE` is set to `3` (template-matched).
 
