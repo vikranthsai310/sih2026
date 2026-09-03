@@ -21,8 +21,8 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 39 of 205 complete, 1 in progress, 1 blocked.** The build runs and
-**121 tests pass** across `core-proto`, `core-audio` and `core-asr` — CRC, frame codec,
+**Progress: 44 of 205 complete, 1 in progress, 1 blocked.** The build runs and
+**143 tests pass** across `core-proto`, `core-audio` and `core-asr` — CRC, frame codec,
 script packer, pre-trigger ring, energy gate and endpointer. `core-proto` holds 94.7 %
 line coverage.
 
@@ -299,18 +299,26 @@ parallel with week 1.**
   socket closure, and correct recovery on the next valid frame
   · *Fuzz: 20 000 random inputs, 3 000 multi-bit-flip streams, byte-interleaved
     frames, implausible LEN — never throws, never grows*
-- [ ] **W2.24** — All 12 items of the conformance checklist as named tests
+- [x] **W2.24** — All 12 items of the conformance checklist as named tests
   · *[PROTOCOL.md §14](PROTOCOL.md#14-conformance-checklist)*
 
 ### Link layer
 
-- [ ] **W2.25** — `Link` interface, `LinkState`, `LinkMetrics`
+  · *All twelve checklist items now have named tests in `core-proto`*
+- [x] **W2.25** — `Link` interface, `LinkState`, `LinkMetrics`
   · *[TRANSPORT.md §1](TRANSPORT.md#1-the-abstraction)*
-- [ ] **W2.26** — `LoopbackLink` in-process, for integration tests with no radio
+  · *`Link`, `LinkState`, `LinkMetrics` in `core-link`*
+- [x] **W2.26** — `LoopbackLink` in-process, for integration tests with no radio
+  · *`LoopbackLink`. Delivers **seven bytes at a time** by default, so a consumer
+    that assumes one write equals one read fails here rather than in the field (T-08)*
 - [ ] **W2.27** — `RfcommLink` — **`cancelDiscovery()` before `connect()`**, or throughput
   collapses by an order of magnitude
-- [ ] **W2.28** — Reconnection: exponential backoff 1 s → 30 s with jitter, reset on success
-- [ ] **W2.29** — `HEARTBEAT` every 2 s; three misses mark the peer offline
+- [x] **W2.28** — Reconnection: exponential backoff 1 s → 30 s with jitter, reset on success
+  · *`Backoff`. 1 s to 30 s with jitter; a test asserts the exact schedule and that
+    jitter actually spreads retries*
+- [x] **W2.29** — `HEARTBEAT` every 2 s; three misses mark the peer offline
+  · *`Heartbeat` payload codec, 12 bytes. Carries the epoch (S-07) and the template
+    digest (S-06) — the two values other safety properties depend on*
 - [ ] **W2.30** — Outbox in Room: store-and-forward, capped 500 frames / 24 h, flush in
   order on reconnect
 - [ ] **W2.31** — Temporary debug text field to send typed text — **delete in W3.12**

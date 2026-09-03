@@ -21,6 +21,7 @@ dependencies {
     implementation(libs.kotlin.coroutines)
     implementation(project(":core-proto"))
     testImplementation(libs.junit)
+    testImplementation(libs.coroutines.test)
 }
 
 tasks.withType<Test>().configureEach {
