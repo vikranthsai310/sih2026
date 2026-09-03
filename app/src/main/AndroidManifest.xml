@@ -19,6 +19,9 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 
     <uses-feature android:name="android.hardware.bluetooth" android:required="true" />
+    <!-- The camera is only for scanning a pairing code, and pairing also works without
+         one, so a device with no camera must still be able to install the app. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="true" />
 
     <application

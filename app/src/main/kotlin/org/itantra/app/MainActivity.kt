@@ -5,12 +5,12 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,14 +22,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
-import androidx.compose.material3.Divider
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -64,14 +64,20 @@ class MainActivity : ComponentActivity() {
     private var adapter: BluetoothAdapter? = null
     private var link: RfcommLink? = null
 
+    /** Drives the screen, so a denied permission is visible rather than a silent failure. */
+    private var bluetoothGranted by mutableStateOf(false)
+
     private val permissions =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            bluetoothGranted = hasBluetoothPermission()
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
-        permissions.launch(requiredPermissions())
+        bluetoothGranted = hasBluetoothPermission()
+        if (!bluetoothGranted) permissions.launch(requiredPermissions())
 
         setContent { BringUpScreen() }
     }
@@ -86,6 +92,15 @@ class MainActivity : ComponentActivity() {
         } else {
             arrayOf(Manifest.permission.RECORD_AUDIO)
         }
+
+    /**
+     * `BLUETOOTH_CONNECT` became a runtime permission in Android 12. Below that it is
+     * granted at install time, so there is nothing to ask for and nothing to check.
+     */
+    private fun hasBluetoothPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
+            PackageManager.PERMISSION_GRANTED
 
     @Composable
     private fun BringUpScreen() {
@@ -110,30 +125,45 @@ class MainActivity : ComponentActivity() {
                 Spacer(Modifier.height(12.dp))
 
                 Text("Link: $linkState", fontFamily = FontFamily.Monospace, color = Color.Black)
+                if (!bluetoothGranted) {
+                    Text(
+                        "Bluetooth permission not granted — tap either button to ask again",
+                        fontSize = 12.sp,
+                        color = Color.Red,
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = {
-                        lifecycleScope.launch {
-                            startLink(RfcommLink.Role.HOST, null) { linkState = it } .also { }
+                        withBluetooth(log) {
+                            lifecycleScope.launch {
+                                startLink(RfcommLink.Role.HOST, null) { linkState = it }
+                            }
                         }
                     }) { Text("Listen") }
 
                     Button(onClick = {
-                        lifecycleScope.launch {
-                            val bonded = adapter?.bondedDevices?.firstOrNull()
-                            if (bonded == null) {
-                                log.add(0, "no bonded device — pair the phones in Settings first")
-                            } else {
-                                startLink(RfcommLink.Role.CLIENT, bonded) { linkState = it }
-                                log.add(0, "dialling ${bonded.name}")
+                        withBluetooth(log) {
+                            lifecycleScope.launch {
+                                when (val bonded = firstBondedDevice()) {
+                                    null ->
+                                        log.add(
+                                            0,
+                                            "no bonded device — pair the phones in Settings first",
+                                        )
+                                    else -> {
+                                        log.add(0, "dialling ${deviceLabel(bonded)}")
+                                        startLink(RfcommLink.Role.CLIENT, bonded) { linkState = it }
+                                    }
+                                }
                             }
                         }
                     }) { Text("Connect") }
                 }
 
                 Spacer(Modifier.height(12.dp))
-                Divider()
+                HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
 
                 OutlinedTextField(
@@ -152,7 +182,8 @@ class MainActivity : ComponentActivity() {
                         sentBytes = wire.size.toLong()
                         log.add(
                             0,
-                            "sent  ${wire.size} B  (${"%.0f".format(96_000.0 / wire.size)}x vs audio)  $typed",
+                            "sent  ${wire.size} B  " +
+                                "(${"%.0f".format(96_000.0 / wire.size)}x vs audio)  $typed",
                         )
                         lifecycleScope.launch { link?.send(wire) }
                         typed = ""
@@ -171,7 +202,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Spacer(Modifier.height(12.dp))
-                Divider()
+                HorizontalDivider()
                 LazyColumn {
                     items(log) { line ->
                         Text(
@@ -187,7 +218,7 @@ class MainActivity : ComponentActivity() {
         }
 
         // Receive path: decode, unpack, show.
-        androidx.compose.runtime.LaunchedEffect(link) {
+        LaunchedEffect(link) {
             link?.incoming?.collect { wire ->
                 val frame = Frame.decode(wire).orNull() ?: return@collect
                 val text =
@@ -200,6 +231,51 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    /**
+     * Runs [action] only if Bluetooth is usable, and says why in the log when it is not.
+     *
+     * Without this the buttons appear to work and nothing happens, which is the hardest
+     * kind of failure to diagnose on a handset with no logcat attached.
+     */
+    private fun withBluetooth(
+        log: MutableList<String>,
+        action: () -> Unit,
+    ) {
+        if (adapter == null) {
+            log.add(0, "no Bluetooth adapter on this device")
+            return
+        }
+        if (!hasBluetoothPermission()) {
+            log.add(0, "Bluetooth permission needed — asking now")
+            permissions.launch(requiredPermissions())
+            return
+        }
+        if (adapter?.isEnabled != true) {
+            log.add(0, "Bluetooth is off — turn it on in Settings")
+            return
+        }
+        action()
+    }
+
+    /**
+     * The permission is checked immediately above each call, but the platform can still
+     * refuse between the check and the call — a revoked permission restarts the process,
+     * yet a `SecurityException` here would crash the demo rather than report a problem.
+     */
+    private fun firstBondedDevice(): BluetoothDevice? =
+        try {
+            if (hasBluetoothPermission()) adapter?.bondedDevices?.firstOrNull() else null
+        } catch (denied: SecurityException) {
+            null
+        }
+
+    private fun deviceLabel(device: BluetoothDevice): String =
+        try {
+            if (hasBluetoothPermission()) device.name ?: device.address else device.address
+        } catch (denied: SecurityException) {
+            device.address
+        }
 
     /** Packs when it helps, and clears `PACKED` when it does not. */
     private fun buildFrame(text: String): Frame {
@@ -239,5 +315,3 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { link?.disconnect() }
     }
 }
-
-private fun <T> mutableStateListOf() = androidx.compose.runtime.mutableStateListOf<T>()

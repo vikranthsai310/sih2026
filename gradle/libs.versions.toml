@@ -14,7 +14,9 @@ sherpaOnnx      = "1.13.2"
 zxing           = "3.5.3"
 junit           = "4.13.2"
 kotest          = "5.9.1"
-androidxTest    = "1.6.1"
+# androidx.test.ext:junit is versioned separately from androidx.test:core — its
+# latest release is 1.2.1, not the 1.6.x of the core runner.
+androidxTest    = "1.2.1"
 espresso        = "3.6.1"
 ktlint          = "12.1.1"
 kover           = "0.8.3"

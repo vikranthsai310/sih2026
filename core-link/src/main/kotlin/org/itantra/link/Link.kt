@@ -109,7 +109,11 @@ class Backoff(
     }
 
     /** Delay that would be used next, without jitter or advancing the attempt. */
-    fun peekBaseMillis(): Long = minOf(initialMillis * Math.pow(multiplier, attempt.toDouble()), maxMillis.toDouble()).toLong()
+    fun peekBaseMillis(): Long =
+        minOf(
+            initialMillis * Math.pow(multiplier, attempt.toDouble()),
+            maxMillis.toDouble(),
+        ).toLong()
 
     /** Called on any successful frame. */
     fun reset() {

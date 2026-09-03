@@ -113,6 +113,30 @@ the end-to-end figure, and it is written to `latency.csv` for every utterance.
 Report the **median and p95 over at least 100 utterances**. A single best-case number is
 not a measurement and a jury that has seen a hundred demos knows it.
 
+### Implementation
+
+`ClockSync` in `core-proto` (task W3.10) and `LatencyLog` in `bench` (task W3.11), the
+latter wired into the application itself so every utterance is logged during ordinary use —
+the only realistic way to reach a hundred of them.
+
+Three decisions in there are worth stating, because each is a way the numbers could
+otherwise be wrong without anyone noticing:
+
+- **The offset is a median, not a mean.** Bluetooth round trips are occasionally stalled by
+  tens of milliseconds while the radio is busy, and one such outlier drags a mean far more
+  than it moves a median. A test holds a single 200 ms stall to no more than 1 ms of error
+  in the offset.
+- **An unsynchronised clock refuses to produce a figure** rather than returning a zero
+  offset. A zero would look plausible and would make every latency figure derived from it
+  wrong.
+- **A stage that did not happen is written as an empty field, never a zero.** An offline
+  recogniser produces no partial hypothesis, and a zero in `t_first_partial` would be read
+  as a partial arriving at the microphone and averaged in as a measurement.
+
+The estimator assumes the outbound and return paths take equal time. They do not exactly,
+and the residual error is half the path asymmetry — a few milliseconds over Bluetooth,
+against a budget of 800 ms. That bound is asserted as a test rather than left as a claim.
+
 ## 5. Efficiency — 20 % of the mark
 
 | Quantity | Target | Method |

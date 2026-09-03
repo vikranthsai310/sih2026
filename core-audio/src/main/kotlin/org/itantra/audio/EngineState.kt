@@ -82,7 +82,8 @@ object EngineTransitions {
 
     private const val DEGRADED = "Degraded"
 
-    private fun key(state: EngineState): String = if (state is EngineState.Degraded) DEGRADED else state::class.simpleName ?: "?"
+    private fun key(state: EngineState): String =
+        if (state is EngineState.Degraded) DEGRADED else state::class.simpleName ?: "?"
 
     fun isLegal(
         from: EngineState,

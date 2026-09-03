@@ -119,6 +119,33 @@ tokens are joined into text.
 | Threads | 2 | 4 threads is faster cold and slower after thermal soak — see risk T-03 |
 | Provider | `cpu` (XNNPACK) | NNAPI is inconsistent across entry-tier vendors; evaluated and rejected |
 
+### 3.4 Contextual biasing — the highest-yield accuracy work
+
+Decoding scores are boosted for a supplied phrase list. In a distress context the critical
+vocabulary is small and known in advance: मदद, घायल, आग, निकासी, unit callsigns, sector
+numbers, local place names.
+
+Loading a domain lexicon and a deployment gazetteer measurably reduces error on precisely
+the words whose misrecognition would be most costly, and requires **no retraining**.
+
+| Source | Contents | Size |
+| --- | --- | --- |
+| Domain lexicon | Distress and operational vocabulary, per language, shipped in the pack | ~300 terms |
+| Negation terms | "not", "do not", "नहीं", and equivalents, weighted high | ~20 terms |
+| Deployment gazetteer | Place names, sector labels, unit callsigns, loaded per deployment | ~200 terms |
+| Roster | Display names of paired units, injected at runtime | ≤ 254 terms |
+
+Hotword score 1.5 by default; the value is a per-language tunable recorded in the pack
+manifest.
+
+Negation terms are in the list because of risk S-03: a recognition error that turns "do
+not evacuate" into "now evacuate" inverts meaning and is the most dangerous single failure
+this system can produce.
+
+> **Demonstration note.** Decoding the same audio with biasing off and then on is one of
+> the strongest live comparisons available to us. It takes fifteen seconds and it shows a
+> measurable, explainable accuracy improvement that the team engineered deliberately.
+
 ### 3.5 Decoding an offline model without paying for it at the end
 
 > **Verified 2026-09-03, and it changes the architecture.** There is **no streaming
@@ -165,32 +192,29 @@ not the 500–800 ms the design document claimed. That figure was derived from a
 recogniser that does not exist for these languages. See
 [EVALUATION.md §4](EVALUATION.md#4-latency--20--of-the-mark).
 
-### 3.4 Contextual biasing — the highest-yield accuracy work
+#### Implementation
 
-Decoding scores are boosted for a supplied phrase list. In a distress context the critical
-vocabulary is small and known in advance: मदद, घायल, आग, निकासी, unit callsigns, sector
-numbers, local place names.
+`SlidingWindowDecoder` in `core-asr`, task W3.13. The model is injected as a function, so
+the windowing is tested without one — the claim under test is not that the recogniser is
+accurate, which is measured separately against a corpus, but that **only a bounded tail is
+left to decode when the speaker stops**.
 
-Loading a domain lexicon and a deployment gazetteer measurably reduces error on precisely
-the words whose misrecognition would be most costly, and requires **no retraining**.
+That is the property the whole latency revision rests on, and it is asserted directly: a
+test sweeps every utterance length from 100 ms to 8 s in 100 ms steps and checks after
+every capture that the undecoded tail never exceeds one window. The post-endpoint decode is
+therefore bounded by a constant rather than growing with the utterance. A 3 s utterance
+leaves 800 ms to decode instead of 3 000 ms — about 240 ms at a real-time factor of 0.30,
+inside the 250–450 ms budgeted above.
 
-| Source | Contents | Size |
-| --- | --- | --- |
-| Domain lexicon | Distress and operational vocabulary, per language, shipped in the pack | ~300 terms |
-| Negation terms | "not", "do not", "नहीं", and equivalents, weighted high | ~20 terms |
-| Deployment gazetteer | Place names, sector labels, unit callsigns, loaded per deployment | ~200 terms |
-| Roster | Display names of paired units, injected at runtime | ≤ 254 terms |
+**Stitching.** Because the windows overlap, consecutive decodes repeat the words in the
+overlap. The join takes the longest suffix of the text so far that is also a prefix of the
+next window and drops the duplicate. Where two windows share nothing — the recogniser
+produced different words for the same audio — the pieces are concatenated rather than
+trimmed. That is the deliberate choice: a listener recovers from a repeated word, but never
+from one that was silently dropped.
 
-Hotword score 1.5 by default; the value is a per-language tunable recorded in the pack
-manifest.
-
-Negation terms are in the list because of risk S-03: a recognition error that turns "do
-not evacuate" into "now evacuate" inverts meaning and is the most dangerous single failure
-this system can produce.
-
-> **Demonstration note.** Decoding the same audio with biasing off and then on is one of
-> the strongest live comparisons available to us. It takes fifteen seconds and it shows a
-> measurable, explainable accuracy improvement that the team engineered deliberately.
+What remains is the call into the real recogniser, which waits on the sherpa-onnx
+distribution question (W1.23, open question Q3).
 
 ## 4. Confidence
 

@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "org.itantra"
-        minSdk = 26            // AudioAttributes.USAGE_ALARM, Keystore, AudioRecord timestamps
+        minSdk = 26 // AudioAttributes.USAGE_ALARM, Keystore, AudioRecord timestamps
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
@@ -50,6 +50,9 @@ dependencies {
     implementation(project(":core-link"))
     implementation(project(":core-proto"))
     implementation(project(":core-models"))
+    // The latency log writes on the live path, because the reporting rules ask for a
+    // median and p95 over 100+ utterances — see docs/EVALUATION.md section 4.
+    implementation(project(":bench"))
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

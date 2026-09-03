@@ -21,10 +21,13 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 50 of 205 complete, 2 in progress, 1 blocked.** The build runs and
-**175 tests pass** across `core-proto`, `core-audio` and `core-asr` — CRC, frame codec,
-script packer, pre-trigger ring, energy gate and endpointer. `core-proto` holds 94.7 %
-line coverage.
+**Progress: 55 of 205 complete, 3 in progress, 1 blocked.** `./gradlew build` is green
+end to end — compilation, ktlint, Android Lint and the coverage gate — and **231 tests
+pass** across `core-proto`, `core-audio`, `core-asr`, `core-tts`, `core-link` and
+`bench`: CRC, frame codec, script packer, templates, replay window, AEAD, clock sync,
+pre-trigger ring, energy gate, endpointer, sliding-window decoding, normalisation, clause
+splitting and the latency log. `core-proto` holds 95.3 % line coverage. The debug APK is
+10.1 MB and `aapt2` confirms it carries no `INTERNET` and no location permission.
 
 > **What is left in week 1 needs hardware.** The audio capture wrapper, the recogniser
 > binding, the Silero and Vosk models and gate W1.G all require the target handset, and
@@ -125,10 +128,21 @@ line coverage.
 - [ ] **W1.11** — `app` module, `MainActivity`, Compose scaffold
 - [ ] **W1.12** — Monochrome high-contrast theme tokens
   · *[WIREFRAMES.md §1](WIREFRAMES.md#1-layout-system) — 8 dp grid, 64 dp minimum target*
-- [ ] **W1.13** — `EngineService` foreground service with persistent notification
+- [x] **W1.13** — `EngineService` foreground service with persistent notification
   · *[ARCHITECTURE.md §3](ARCHITECTURE.md#3-threading-and-lifecycle)*
-- [ ] **W1.14** — Runtime permissions: `RECORD_AUDIO`, `BLUETOOTH_CONNECT`,
+  · *Owns the `EngineState` machine and rejects an illegal transition rather than
+    applying it. `FOREGROUND_SERVICE_TYPE_MICROPHONE`, `START_STICKY`, and a
+    deliberately **silent low-importance** channel — this runs for hours, and a radio
+    that pings on every state change is switched off within the first hour*
+  · *The manifest had declared this class since week 1 without it existing, which
+    Android Lint caught as `MissingClass`*
+- [x] **W1.14** — Runtime permissions: `RECORD_AUDIO`, `BLUETOOTH_CONNECT`,
   `BLUETOOTH_SCAN` with `neverForLocation`
+  · *Requested on first launch, **checked before every Bluetooth call**, and a denial is
+    shown on screen with the buttons asking again rather than failing silently*
+  · *Android Lint caught the original code calling `bondedDevices` with no check at all,
+    which throws `SecurityException` on Android 12 and above — the likeliest reason a
+    first run on real handsets would have refused to connect with no explanation*
 - [x] **W1.15** — **No `INTERNET`, no location permission** — verified in the built APK
   with `aapt2 dump permissions`, not merely in the manifest source
   · *Implemented as a CI job; the manifest is written and carries neither*
@@ -369,18 +383,41 @@ parallel with week 1.**
 - [ ] **W3.8** — Synthesis thread at `THREAD_PRIORITY_AUDIO`
 - [ ] **W3.9** — Wire the receive path end to end: `Link → decode → CRC → AEAD → replay
   check → unpack/template → normalise → phonemise → TTS → AudioTrack`
-- [ ] **W3.10** — Clock sync: four `HEARTBEAT` round trips, median offset, so end-to-end
+- [x] **W3.10** — Clock sync: four `HEARTBEAT` round trips, median offset, so end-to-end
   latency is measured rather than stopwatched
   · *[EVALUATION.md §4](EVALUATION.md#4-latency--20--of-the-mark)*
-- [ ] **W3.11** — `latency.csv` writer, every stage boundary, every utterance
+  · *`ClockSync` in `core-proto`. Tested against a simulated pair of handsets with a
+    known offset, so the instrument itself is verified: a 47 s clock difference that
+    would report 47 900 ms recovers the true 900 ms*
+  · *Median, not mean — a test holds a single 200 ms radio stall to ≤ 1 ms of error*
+  · *Refuses to return an offset before four round trips complete. Silently returning
+    zero would make every latency figure wrong in a way nobody would notice*
+- [x] **W3.11** — `latency.csv` writer, every stage boundary, every utterance
+  · *`LatencyLog` + `UtteranceTrace` + `LatencySummary` in `bench`, wired into `app`
+    so every utterance is logged on the live path — the only way to reach the 100
+    utterances the reporting rules demand*
+  · *A stage that did not happen is written **empty, never zero**: a zero would be
+    averaged into the results as if it were a measurement*
+  · *A row whose arity does not match the header is refused rather than written —
+    the classic way a results file becomes quietly wrong*
+  · *Receiver-side stages have the clock offset removed before any subtraction*
 - [ ] **W3.12** — Delete the debug text field from W2.31
-- [ ] **W3.13** — **Sliding-window decoding.** Decode 1.5 s windows with 0.4 s overlap
+- [x] **W3.13** — **Sliding-window decoding.** Decode 1.5 s windows with 0.4 s overlap
   *while the speaker is still talking*, so only the final partial window is decoded after
   the endpoint; stitch the windows into one hypothesis
   · *[ASR.md §3.5](ASR.md#35-decoding-an-offline-model-without-paying-for-it-at-the-end)*
   · **Done when** post-endpoint decode is 250–450 ms rather than ~900 ms, measured
   · *Risk T-16. Without this the end-to-end figure is ~1330 ms and the latency criterion
   is lost. Costs ~1.6× compute, affordable because it runs only during speech*
+  · *`SlidingWindowDecoder` in `core-asr`, with the model injected so the windowing is
+    tested without one. **The load-bearing test sweeps every utterance length from
+    100 ms to 8 s and asserts the undecoded tail never exceeds one window** — so the
+    post-endpoint decode is bounded by a constant instead of growing with the utterance*
+  · *A 3 s utterance leaves 800 ms to decode, not 3 000 ms — ~240 ms at RTF 0.30*
+  · *Stitching removes words repeated in the overlap by longest suffix/prefix match.
+    Where two windows share nothing it **concatenates rather than trims**: a listener
+    recovers from a repeated word, never from one silently dropped*
+  · *Still to bind: the real recogniser call, which waits on W1.23 (sherpa-onnx)*
 
 - [ ] **W3.G** — **GATE:** speech in on A, speech out on B. Baseline end-to-end latency
   recorded in `latency.csv`. Video. **The project is now de-risked**
