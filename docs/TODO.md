@@ -23,6 +23,19 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 ---
 
+> ## Revised 2026-09-03 after model verification
+>
+> Three findings changed tasks below. **Read these before picking anything up.**
+>
+> 1. **No streaming acoustic model exists for the ten Indian languages.** The production
+>    recogniser is `OfflineRecognizer`, not `OnlineRecognizer`, and it cannot endpoint —
+>    our VAD tiers do that. Affects W1.27, W1.29, W6.2. New task W3.13 adds sliding-window
+>    decoding, without which end-to-end delay is ~1330 ms. Risk T-16.
+> 2. **The acoustic model is one shared ~120 MB file covering all ten languages**, not ten
+>    35 MB packs. Affects W4.4, W4.5, W4.10, W7.1. Risk T-17.
+> 3. **Piper publishes Odia voices**, so the expected gap probably does not exist. W4.12
+>    becomes a confirmation task and moves to week 1.
+
 ## Phase 0 — Before a line of code
 
 **Three days. Nothing below week 1 can be honestly measured until P0.2 completes.**
@@ -124,11 +137,16 @@ Tick a box only when *Done when* is true, not when the code compiles.
 - [ ] **W1.25** — `tools/fetch_models.py` — download, SHA-256 verify, atomic install
 - [ ] **W1.26** — Vosk Hindi small model fetched and loading
   · *Week-one prototype. **Schedule insurance, not a compromise** — risk T-07*
-- [ ] **W1.27** — `OnlineRecognizer` binding, 2 threads, `modified_beam_search`, beam 4
-  · *[ASR.md §8](ASR.md#8-reference-binding)*
+- [ ] **W1.27** — **`OfflineRecognizer` binding** (NeMo-CTC), 4 threads while decoding and
+  2 at idle, greedy search
+  · *[ASR.md §8](ASR.md#8-reference-binding). **Not `OnlineRecognizer`** — no streaming
+  Indic model exists, risk T-16. Vosk in W1.26 is streaming and may still be driven that
+  way for the week-1 prototype only*
 - [ ] **W1.28** — Endpointing state machine `IDLE / LISTENING / FINALISING`
   · *[ASR.md §2](ASR.md#2-endpointing) — 400 ms phone, 150 ms PTT, 8 s max, 300 ms min*
 - [ ] **W1.29** — Emit `Hypothesis(text, isFinal, confidence, tEndpoint)`
+  · *An offline model yields no partials, so `isFinal` is always true until W3.13 lands
+  sliding-window decoding. Do not design the UI around live partial text*
 - [ ] **W1.30** — Models loaded at service start and held resident; transmit disabled until
   `READY` with a visible indicator
   · *Risk T-11 — the cold-start cost must never be paid on a key press*
@@ -259,6 +277,13 @@ parallel with week 1.**
   · *[EVALUATION.md §4](EVALUATION.md#4-latency--20--of-the-mark)*
 - [ ] **W3.11** — `latency.csv` writer, every stage boundary, every utterance
 - [ ] **W3.12** — Delete the debug text field from W2.31
+- [ ] **W3.13** — **Sliding-window decoding.** Decode 1.5 s windows with 0.4 s overlap
+  *while the speaker is still talking*, so only the final partial window is decoded after
+  the endpoint; stitch the windows into one hypothesis
+  · *[ASR.md §3.5](ASR.md#35-decoding-an-offline-model-without-paying-for-it-at-the-end)*
+  · **Done when** post-endpoint decode is 250–450 ms rather than ~900 ms, measured
+  · *Risk T-16. Without this the end-to-end figure is ~1330 ms and the latency criterion
+  is lost. Costs ~1.6× compute, affordable because it runs only during speech*
 
 - [ ] **W3.G** — **GATE:** speech in on A, speech out on B. Baseline end-to-end latency
   recorded in `latency.csv`. Video. **The project is now de-risked**
@@ -278,10 +303,13 @@ parallel with week 1.**
   · **Done when** WER delta vs float32 is < 1.5 % relative, **per language**
   · *Mandatory. The whole efficiency argument rests on this claim; it must be
   re-established per language, not assumed*
-- [ ] **W4.4** — `models/manifest.json` schema + five language entries
-  · *[MODELS.md §3](MODELS.md#3-manifest-schema)*
+- [ ] **W4.4** — `models/manifest.json` schema: **one shared acoustic-model entry plus a
+  per-language vocabulary and voice entry** — the acoustic model is not per language
+  · *[MODELS.md §1](MODELS.md#1-delivery) and §3. Risk T-17*
 - [ ] **W4.5** — `core-models`: manifest loader, SHA-256 verify, **atomic install** (temp
   file then rename — a partial pack must never be loadable), resumable download
+  · *The ~120 MB shared model download must resume; it will be interrupted on a weak
+  connection far more often than a 60 MB voice*
 - [ ] **W4.6** — Language switch: unload outgoing, load incoming, blocked while floor held
 - [ ] **W4.7** — Pack licence is a **load-time precondition** — a pack with no licence field
   fails verification and does not load
@@ -293,9 +321,11 @@ parallel with week 1.**
 - [ ] **W4.10** — IndicSUPERB / Kathbath subsets downloaded for five languages
 - [ ] **W4.11** — `scorecard.csv` writer with the full schema, recording device and build
   · *[EVALUATION.md §6](EVALUATION.md#6-instrumentation)*
-- [ ] **W4.12** — **Odia gap: assess and assign now, not in week 7**
-  · *Risk T-05. Decide between MMS (CC-BY-NC, disclosed, excluded from deployability) and
-  training a Coqui VITS voice on IIT Madras IndicTTS data (~2 GPU-days)*
+- [ ] **W4.12** — **Confirm the Piper Odia voices exist** (Debjani, Manas) in the official
+  `rhasspy/piper-voices` repository — **do this in week 1, it takes ten minutes**
+  · *Risk T-05, downgraded to Low by verification. If confirmed, drop Meta MMS entirely and
+  remove its CC-BY-NC disclosure from `LICENSES.md`. Only if it is absent does the old plan
+  apply: MMS as a disclosed stopgap, then a Coqui VITS voice on IIT Madras data (~2 GPU-days)*
 - [ ] **W4.13** — `alert-lexicon.txt` per language: ~300 domain terms
 - [ ] **W4.14** — **Negation terms weighted high** — "not", "do not", "नहीं"
   · *Risk S-03. "Do not evacuate" becoming "now evacuate" is the most dangerous single
@@ -371,6 +401,7 @@ parallel with week 1.**
 
 - [ ] **W6.1** — Chunked synthesis tuned; time-to-first-audio measured and recorded
 - [ ] **W6.2** — Stabilised partials; `PARTIAL` flag; receiver may begin early synthesis
+  · *Depends on W3.13 — partials come from completed decode windows, not from the model*
 - [ ] **W6.3** — Adaptive endpointing
 - [ ] **W6.4** — `BleLink`: GATT, MTU negotiated to 247, ~244 usable
 - [ ] **W6.5** — Fragmentation for BLE and serial: chunks of `mtu - 12`, 2 s reassembly
@@ -407,7 +438,8 @@ parallel with week 1.**
 
 **Gate W7: ten languages, normalisation 100 %, relay soak clean, field test recorded.**
 
-- [ ] **W7.1** — Remaining five languages exported, quantised, verified, in the manifest
+- [ ] **W7.1** — Remaining five languages enabled — **vocabulary and voice per language;
+  the acoustic model is already present** — verified and in the manifest
 - [ ] **W7.2** — `normalise.json` for all ten languages
 - [ ] **W7.3** — Normalisation fixtures ≥ 60 cases × 10 languages, **100 % in CI**
   · *Adding a rule without its fixtures is a rejected review*
