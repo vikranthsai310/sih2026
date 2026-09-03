@@ -21,8 +21,8 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 46 of 205 complete, 2 in progress, 1 blocked.** The build runs and
-**143 tests pass** across `core-proto`, `core-audio` and `core-asr` — CRC, frame codec,
+**Progress: 50 of 205 complete, 2 in progress, 1 blocked.** The build runs and
+**175 tests pass** across `core-proto`, `core-audio` and `core-asr` — CRC, frame codec,
 script packer, pre-trigger ring, energy gate and endpointer. `core-proto` holds 94.7 %
 line coverage.
 
@@ -346,13 +346,23 @@ parallel with week 1.**
 - [ ] **W3.1** — espeak-ng data (~10 MB) in base assets; Piper Hindi voice fetched
 - [ ] **W3.2** — `OfflineTts` binding, 2 threads
   · *[TTS.md §6](TTS.md#6-reference-binding)*
-- [ ] **W3.3** — Normalisation engine + `normalise.json` loader
+- [x] **W3.3** — Normalisation engine + `normalise.json` loader
   · *[TTS.md §1](TTS.md#1-text-normalisation)*
-- [ ] **W3.4** — Hindi rules: `time-24h`, `unit-km`, `callsign`, `long-num`, `cardinal`
+  · *`TextNormaliser` — an ordered rule engine; adding a language needs a rule set,
+    not a code change*
+- [x] **W3.4** — Hindi rules: `time-24h`, `unit-km`, `callsign`, `long-num`, `cardinal`
   · *The quantity-versus-identifier rule is where the perceived quality lives*
-- [ ] **W3.5** — Hindi normalisation fixtures, ≥ 60 cases, asserted in CI at **100 %**
-- [ ] **W3.6** — Clause splitter: punctuation → conjunctions → hard split; min 8 phonemes,
+  · *`HindiRules` + `HindiNumerals`. **All 100 values below a hundred are irregular
+    in Hindi**, so the table is exhaustive by necessity. Indian scale throughout —
+    लाख and करोड़, not hundred-thousand*
+- [x] **W3.5** — Hindi normalisation fixtures, ≥ 60 cases, asserted in CI at **100 %**
+  · *32 tests. Every value 0–1000 asserted to leave **no surviving digit**, plus ten
+    operational sentences with units and call-sign markers*
+- [x] **W3.6** — Clause splitter: punctuation → conjunctions → hard split; min 8 phonemes,
   max 12 words
+  · *`ClauseSplitter`. Splits on the Devanagari danda as well as Western marks, and
+    merges a fragment too short to synthesise alone — an audible gap mid-sentence is
+    worse than a little extra initial latency*
 - [ ] **W3.7** — Streaming playout: `AudioTrack` `WRITE_BLOCKING`, playback starts on chunk 1
   · **Done when** time-to-first-audio ≤ 250 ms, measured
   · *Underrun policy: synthesise the remainder as one block. **Never a gap mid-sentence***
