@@ -1,6 +1,6 @@
 # iTantra documentation
 
-`Doc/iTantra.html` is the design document — the argument for the system, written to be
+`docs/source/iTantra.html` is the design document — the argument for the system, written to be
 read start to finish. This directory is the **specification** — normative, indexed, and
 written to be consulted while writing code.
 
@@ -62,7 +62,7 @@ Resolved divergences are listed at the bottom of this page.
   message type names (`TYPE_ALERT`) are stable across all documents and may be cited
   directly in code comments and commit messages.
 
-## Divergences from `Doc/iTantra.html`
+## Divergences from `docs/source/iTantra.html`
 
 The design document is Revision 1.0 and remains accurate as an argument. Six details
 were under-specified or over-specified for implementation and have been settled here.

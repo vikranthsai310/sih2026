@@ -43,7 +43,7 @@ into a walkie-talkie:
 
 ## Documentation
 
-The complete design argument lives in [`Doc/iTantra.html`](Doc/iTantra.html) — read that
+The complete design argument lives in [`docs/source/iTantra.html`](docs/source/iTantra.html) — read that
 first if you want to know *why* the system is shaped this way. The `docs/` tree is the
 normative engineering specification: what to build, to what tolerance, and how it is
 verified.
@@ -61,7 +61,7 @@ verified.
 ## Repository layout
 
 ```
-Doc/                     Design document (HTML + PDF) and the SIH submission template
+docs/source/             Design document (HTML + PDF) and the SIH submission template
 docs/                    Normative engineering specification — see docs/README.md
 app/                     Android application: UI, orchestration, foreground service
 core-audio/              Capture, playback, ring buffers, alert audio policy

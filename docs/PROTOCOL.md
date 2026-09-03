@@ -68,7 +68,7 @@ decision.
 > **A note on the 13 B template frame.** The design document quotes "13 B — header plus a
 > one-byte message ID" and a 7 385× ratio. With an 11-byte header that was arithmetically
 > impossible; with the destination byte removed it is exactly right. The headline figure in
-> `Doc/iTantra.html` is now literally true rather than approximately so.
+> `docs/source/iTantra.html` is now literally true rather than approximately so.
 
 ---
 

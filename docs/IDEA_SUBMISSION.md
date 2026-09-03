@@ -6,7 +6,7 @@
 > [ROADMAP.md](ROADMAP.md). The eight-week build plan is downstream of surviving it.
 > What is due is six slides as a PDF — not code, not a demonstration.
 
-Content for `Doc/SIH2026-IDEA-Presentation-Format (1).pptx`. Six slides maximum including
+Content for `docs/source/SIH2026-IDEA-Presentation-Format (1).pptx`. Six slides maximum including
 the title slide; the template's instruction slide is deleted before upload; the file is
 uploaded as **PDF**, not PPT.
 

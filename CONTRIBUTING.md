@@ -7,7 +7,7 @@ each other's way, not to impose process for its own sake.
 
 Read, in this order:
 
-1. `Doc/iTantra.html` sections 01–03 — the argument. Nothing else makes sense without it
+1. `docs/source/iTantra.html` sections 01–03 — the argument. Nothing else makes sense without it
 2. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — module boundaries and the dependency rules
 3. The specification for the module you own — see [docs/README.md](docs/README.md)
 4. [docs/SETUP.md](docs/SETUP.md) — get a build running
@@ -91,7 +91,7 @@ Everything in `docs/` is specification. If you change what the system does, chan
 document in the same commit.
 
 - New behaviour with no specification: write the section first, then the code. It is faster.
-- A resolved ambiguity in `Doc/iTantra.html` goes in the divergence table in
+- A resolved ambiguity in `docs/source/iTantra.html` goes in the divergence table in
   [docs/README.md](docs/README.md), so the design document and the specification never
   silently disagree.
 - A new risk goes in [docs/RISKS.md](docs/RISKS.md) with an owner. A risk with no owner is
