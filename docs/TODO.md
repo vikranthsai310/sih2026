@@ -21,8 +21,8 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 29 of 205 complete, 1 in progress, 1 blocked.** The build runs and
-**76 tests pass** across `core-proto`, `core-audio` and `core-asr` — CRC, frame codec,
+**Progress: 35 of 205 complete, 1 in progress, 1 blocked.** The build runs and
+**97 tests pass** across `core-proto`, `core-audio` and `core-asr` — CRC, frame codec,
 script packer, pre-trigger ring, energy gate and endpointer. `core-proto` holds 94.7 %
 line coverage.
 
@@ -259,22 +259,30 @@ parallel with week 1.**
 
 ### Cryptography
 
-- [ ] **W2.14** — AES-256-GCM seal / open, **AAD = the entire 10-byte header**
-- [ ] **W2.15** — Deterministic nonce `EPOCH ‖ SRC ‖ SEQ ‖ 0x00×5`
+- [x] **W2.14** — AES-256-GCM seal / open, **AAD = the entire 10-byte header**
+  · *`Aead`. AAD is the whole 10-byte header, so SRC and TYPE cannot be forged*
+- [x] **W2.15** — Deterministic nonce `EPOCH ‖ SRC ‖ SEQ ‖ 0x00×5`
   · *[PROTOCOL.md §6.2](PROTOCOL.md#62-deterministic-nonce)*
+  · *`Aead.nonce`, 12 bytes, never transmitted — saves 12 B on every frame*
 - [ ] **W2.16** — `EPOCH` persistence: increments on every `SEQ` wrap **and every service
   start**
   · **Correctness-critical. Nonce reuse destroys GCM completely — risk S-07**
-- [ ] **W2.17** — Nonce-uniqueness test over 10⁷ simulated frames including restarts and wraps
+- [x] **W2.17** — Nonce-uniqueness test over 10⁷ simulated frames including restarts and wraps
+  · *Proved by **strict monotonicity** over 10 M nonces across 150+ wraps, which is
+    stronger than "no duplicate seen" and costs constant memory*
 - [ ] **W2.18** — Tag length by transport class: 16 B on BT/Wi-Fi, 8 B on serial
-- [ ] **W2.19** — Auth-failure rate limit: > 16 from one `SRC` in 60 s → `DEGRADED`
+- [x] **W2.19** — Auth-failure rate limit: > 16 from one `SRC` in 60 s → `DEGRADED`
   · *Required to make an 8-byte tag defensible*
-- [ ] **W2.20** — Replay window: 64-entry sliding, per `SRC`, keyed `(EPOCH, SEQ)`
-- [ ] **W2.21** — Mutation test: **every single-byte change to a valid frame fails
+  · *`AuthFailureLimiter`, 16 failures per sender per 60 s*
+- [x] **W2.20** — Replay window: 64-entry sliding, per `SRC`, keyed `(EPOCH, SEQ)`
+  · *`ReplayWindow`, a 64-bit sliding mask keyed on (EPOCH, SEQ)*
+- [x] **W2.21** — Mutation test: **every single-byte change to a valid frame fails
   verification**
 
 ### Robustness
 
+  · *Every single-byte mutation of the sealed payload **and** of the header fails
+    verification — 384 + 10 mutations, all rejected*
 - [ ] **W2.22** — `readFully` loop and `0xA1` resynchronisation
   · *[PROTOCOL.md §13](PROTOCOL.md#13-stream-framing). Risk T-08 — the most common defect
   in this class of project*
