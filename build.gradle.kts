@@ -6,12 +6,16 @@ plugins {
     alias(libs.plugins.compose.compiler)    apply false
     alias(libs.plugins.ksp)                 apply false
     alias(libs.plugins.ktlint)              apply false
+    alias(libs.plugins.kover)               apply false
 }
 
 // Dependency rules from docs/ARCHITECTURE.md section 2 are a build failure,
 // not a review comment. core-proto must stay free of Android so that the frame
 // codec can be fuzzed on a laptop; nothing may depend upward on :app.
 subprojects {
+    // W1.6: ktlint on every module, not merely declared at the root.
+    apply(plugin = "org.jlleitschuh.gradle.ktlint")
+
     configurations.all {
         resolutionStrategy.eachDependency {
             if (requested.group.startsWith("com.android") && project.name == "core-proto") {

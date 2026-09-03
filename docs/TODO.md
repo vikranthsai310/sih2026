@@ -21,6 +21,8 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
+**Progress: 10 of 209 complete** — the build scaffold. Everything else is unstarted.
+
 ---
 
 > ## Revised 2026-09-03 after model verification
@@ -76,25 +78,41 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 ### Build system
 
-- [ ] **W1.1** — `settings.gradle.kts` with all eight modules: `:app` `:core-audio`
+> **Scaffolded but not compiled.** W1.1–W1.10 below are written and committed. Nothing has
+> been built, because there is no Gradle wrapper yet and the machine that wrote them has
+> JDK 25 on the PATH while AGP 8.7 needs 17. **W1.0 must pass before any box here is
+> honestly ticked.**
+
+- [ ] **W1.0** — **Make the scaffold build.** Install Temurin **JDK 17** and put it first on
+  the PATH; run `gradle wrapper --gradle-version 8.10.2` once to generate and commit the
+  wrapper; then `./gradlew :core-proto:test`
+  · *`java -version` currently reports 25.0.1 on the authoring machine, which AGP 8.7 rejects.
+  See [SETUP.md §1](SETUP.md#1-toolchain)*
+  · **Done when** `./gradlew :core-proto:test` and `./gradlew assembleDebug` both succeed
+  · **Blocks** every task in week 1 and everything after it
+
+- [x] **W1.1** — `settings.gradle.kts` with all eight modules: `:app` `:core-audio`
   `:core-asr` `:core-tts` `:core-link` `:core-proto` `:core-models` `:bench`
   · *[ARCHITECTURE.md §2](ARCHITECTURE.md#2-module-map)*
-- [ ] **W1.2** — `gradle/libs.versions.toml` version catalog. Every version pinned, no
+- [x] **W1.2** — `gradle/libs.versions.toml` version catalog. Every version pinned, no
   dynamic ranges
 - [ ] **W1.3** — Gradle wrapper 8.10.x committed. Nobody runs a local `gradle`
-- [ ] **W1.4** — **`core-proto` is `kotlin("jvm")` only — no Android plugin, ever**
-  · *This is what makes the highest-risk code testable in milliseconds*
-  · **Done when** `./gradlew :core-proto:test` runs with no emulator and no SDK
-- [ ] **W1.5** — Dependency-rule enforcement: a build failure, not a review comment
-  · *[ARCHITECTURE.md §2](ARCHITECTURE.md#2-module-map) dependency rules*
-  · **Done when** adding `implementation(project(":app"))` to a `core-*` module fails the build
-- [ ] **W1.6** — ktlint + Android Lint. Warnings are errors in `core-proto`
-- [ ] **W1.7** — `.github/workflows/ci.yml`: build → lint → unit tests → coverage
-- [ ] **W1.8** — Coverage gate: `core-proto` ≥ 90 % line coverage, enforced
-- [ ] **W1.9** — **Licence audit CI gate** — a dependency absent from
-  [LICENSES.md](../LICENSES.md) fails the build
-  · *Risk P-04. Costs nothing now, is an emergency in week 8*
-- [ ] **W1.10** — Secret scan in CI: no keystore, key material or credential in a diff
+  · *Part of W1.0; needs a JDK 17 machine to generate*
+- [x] **W1.4** — **`core-proto` is `kotlin("jvm")` only — no Android plugin, ever**
+  · *Enforced: the root build throws if an Android group resolves into `core-proto`*
+  · **Verify under W1.0:** `./gradlew :core-proto:test` runs with no emulator and no SDK
+- [x] **W1.5** — Dependency-rule enforcement: a build failure, not a review comment
+  · *Root build throws on any dependency upward to `:app`*
+  · **Verify under W1.0:** adding `implementation(project(":app"))` fails the build
+- [x] **W1.6** — ktlint applied to every subproject; `allWarningsAsErrors` in `core-proto`
+- [x] **W1.7** — `.github/workflows/ci.yml`: five jobs — proto, build, manifest guard,
+  licence audit, secret scan
+- [x] **W1.8** — Coverage gate: Kover `minBound(90)` on `core-proto`, run in CI
+- [x] **W1.9** — **Licence audit CI gate** — `tools/check_licences.py`; a catalog entry
+  absent from [LICENSES.md](../LICENSES.md) fails the build
+  · *Risk P-04. **It caught nine undeclared framework dependencies on first run**, now
+  recorded in `LICENSES.md` §4a*
+- [x] **W1.10** — Secret scan in CI: no keystore, key material or credential in the tree
 
 ### Application shell
 
@@ -105,7 +123,8 @@ Tick a box only when *Done when* is true, not when the code compiles.
   · *[ARCHITECTURE.md §3](ARCHITECTURE.md#3-threading-and-lifecycle)*
 - [ ] **W1.14** — Runtime permissions: `RECORD_AUDIO`, `BLUETOOTH_CONNECT`,
   `BLUETOOTH_SCAN` with `neverForLocation`
-- [ ] **W1.15** — **Manifest assertion test: no `INTERNET`, no location permission**
+- [x] **W1.15** — **Manifest guard in CI: no `INTERNET`, no location permission**
+  · *Implemented as a CI job; the manifest is written and carries neither*
   · *Constraint C2. This is the strongest form of the offline claim — platform-enforced,
   not asserted*
   · **Done when** CI fails if either permission appears

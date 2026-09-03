@@ -11,7 +11,7 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :core-proto:test :core-proto:ktlintCheck
+      - run: ./gradlew :core-proto:test :core-proto:ktlintCheck :core-proto:koverVerify
 
   build:
     runs-on: ubuntu-latest
@@ -42,3 +42,21 @@ jobs:
       - uses: actions/checkout@v4
       - name: Every catalog library must appear in LICENSES.md
         run: python tools/check_licences.py
+
+  # W1.10: key material must never reach a diff. Risk S-04.
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: No keystore, key or credential in the tree
+        run: |
+          if git ls-files | grep -nE '\.(jks|keystore|p12|pem)$|keystore\.properties|secrets\.properties'; then
+            echo "::error::Signing or key material is tracked. Remove it and rotate."
+            exit 1
+          fi
+          if git grep -nIE 'BEGIN (RSA |EC )?PRIVATE KEY|aead[Kk]ey *= *"' -- ':!docs' ':!*.md'; then
+            echo "::error::A literal key appears in the source."
+            exit 1
+          fi
+          echo "secret scan clean"

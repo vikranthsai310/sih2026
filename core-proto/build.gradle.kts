@@ -5,6 +5,7 @@
 // before any model exists. See docs/ARCHITECTURE.md section 2.
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kover)
 }
 
 kotlin { jvmToolchain(17) }
@@ -23,4 +24,16 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 tasks.test {
     useJUnit()
     testLogging { events("passed", "failed", "skipped") }
+}
+
+// W1.8: 90 % line coverage, enforced. This is the only module with a coverage
+// gate -- it holds the frame codec, and a gap here is a defect in the field.
+kover {
+    reports {
+        verify {
+            rule {
+                minBound(90)
+            }
+        }
+    }
 }
