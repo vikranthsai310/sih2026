@@ -26,6 +26,12 @@ android {
         }
     }
 
+    // aapt compresses assets by default, including .onnx weights, which then cannot
+    // be memory-mapped and fail alignment at runtime. Models must ship uncompressed.
+    androidResources {
+        noCompress += listOf("onnx", "bin", "ort", "tflite")
+    }
+
     buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

@@ -75,7 +75,8 @@ machine.
 > explaining on a slide.
 
 The leading pad requires that the ring buffer retain 250 ms of pre-trigger audio at all
-times. This is 8 000 samples, 16 kB, permanently allocated at service start.
+times. At 16 kHz that is 4 000 samples, or 8 000 bytes, permanently allocated at
+service start.
 
 ## 3. From pressure wave to text
 

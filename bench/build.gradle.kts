@@ -14,6 +14,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
     sourceSets["main"].java.srcDir("src/main/kotlin")
     sourceSets["test"].java.srcDir("src/test/kotlin")
+    testOptions { unitTests.isReturnDefaultValues = true }
 }
 
 dependencies {
@@ -22,4 +23,8 @@ dependencies {
     implementation(project(":core-asr"))
     implementation(project(":core-tts"))
     testImplementation(libs.junit)
+}
+
+tasks.withType<Test>().configureEach {
+    testLogging { events("passed", "failed", "skipped") }
 }

@@ -10,7 +10,7 @@ lifecycle       = "2.8.7"
 datastore       = "1.1.1"
 room            = "2.6.1"
 ksp             = "2.0.21-1.0.25"
-sherpaOnnx      = "1.10.32"
+sherpaOnnx      = "1.13.2"
 zxing           = "3.5.3"
 junit           = "4.13.2"
 kotest          = "5.9.1"
@@ -32,7 +32,7 @@ datastore-prefs        = { module = "androidx.datastore:datastore-preferences", 
 room-runtime           = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-ktx               = { module = "androidx.room:room-ktx",     version.ref = "room" }
 room-compiler          = { module = "androidx.room:room-compiler", version.ref = "room" }
-sherpa-onnx            = { module = "com.k2fsa.sherpa.onnx:sherpa-onnx", version.ref = "sherpaOnnx" }
+sherpa-onnx            = { module = "com.k2fsa.sherpa.onnx:sherpa-onnx-android", version.ref = "sherpaOnnx" }
 zxing-core             = { module = "com.google.zxing:core", version.ref = "zxing" }
 junit                  = { module = "junit:junit", version.ref = "junit" }
 kotest-property        = { module = "io.kotest:kotest-property", version.ref = "kotest" }

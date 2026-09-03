@@ -14,10 +14,15 @@ android {
     kotlinOptions { jvmTarget = "17" }
     sourceSets["main"].java.srcDir("src/main/kotlin")
     sourceSets["test"].java.srcDir("src/test/kotlin")
+    testOptions { unitTests.isReturnDefaultValues = true }
 }
 
 dependencies {
     implementation(libs.kotlin.coroutines)
     implementation(project(":core-proto"))
     testImplementation(libs.junit)
+}
+
+tasks.withType<Test>().configureEach {
+    testLogging { events("passed", "failed", "skipped") }
 }

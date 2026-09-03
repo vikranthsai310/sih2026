@@ -21,7 +21,15 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 23 of 209 complete, 1 in progress.** `core-proto` compiles and has **35 passing tests at 94.7 % line coverage** — CRC, frame codec and script packer. — the build scaffold. Everything else is unstarted.
+**Progress: 26 of 209 complete, 1 in progress, 1 blocked.** The build runs and
+**63 tests pass** across `core-proto`, `core-audio` and `core-asr` — CRC, frame codec,
+script packer, pre-trigger ring, energy gate and endpointer. `core-proto` holds 94.7 %
+line coverage.
+
+> **What is left in week 1 needs hardware.** The audio capture wrapper, the recogniser
+> binding, the Silero and Vosk models and gate W1.G all require the target handset, and
+> the sherpa-onnx distribution channel has to be resolved first (W1.23). Everything in
+> week 1 that could be written and proven without a device now has been. — the build scaffold. Everything else is unstarted.
 
 ---
 
@@ -136,14 +144,19 @@ Tick a box only when *Done when* is true, not when the code compiles.
 ### Audio capture
 
 - [ ] **W1.17** — `AudioRecord` wrapper, 16 kHz mono, 20 ms hops (320 samples)
-- [ ] **W1.18** — Pre-allocated ring buffer retaining 250 ms pre-trigger (8 000 samples, 16 kB)
+- [x] **W1.18** — Pre-allocated ring buffer retaining 250 ms pre-trigger (8 000 samples, 16 kB)
   · *[ASR.md §2](ASR.md#2-endpointing) leading pad*
+  · *`PreTriggerRing`. 250 ms at 16 kHz is **4 000 samples / 8 kB** — the spec said
+    8 000 / 16 kB, which is 500 ms. `ASR.md` corrected*
 - [ ] **W1.19** — Capture thread at `THREAD_PRIORITY_URGENT_AUDIO`
   · **Done when** an allocation-tracking test shows **zero allocations** in the capture loop
   · *No logging, no string formatting. A correctness constraint, not style*
-- [ ] **W1.20** — Tier 0 energy gate: EMA noise floor τ = 3 s updated only on non-speech
+- [x] **W1.20** — Tier 0 energy gate: EMA noise floor τ = 3 s updated only on non-speech
   frames, +9 dB trigger, 3-frame open / 10-frame close hysteresis
   · *[ASR.md §1](ASR.md#1-three-tier-voice-activity-detection)*
+  · *`EnergyGate`. Six tests: opens after exactly 3 frames, closes after exactly 10,
+    ignores steady background, and **the floor does not move while a talker speaks** —
+    the failure the class exists to prevent*
 - [ ] **W1.21** — Bounded queue capture → inference, depth 100 (2 s), drop-oldest with a
   counter, never blocks capture
   · *[ARCHITECTURE.md §3](ARCHITECTURE.md#3-threading-and-lifecycle) queue policy*
@@ -151,7 +164,11 @@ Tick a box only when *Done when* is true, not when the code compiles.
 ### Recognition
 
 - [ ] **W1.22** — Bundle `silero_vad.onnx` (1.8 MB) in base assets
-- [ ] **W1.23** — sherpa-onnx AAR dependency; verify it loads on the target handset
+- [!] **W1.23** — sherpa-onnx AAR dependency; verify it loads on the target handset
+  · **Blocked.** sherpa-onnx is not on Maven Central under the coordinates assumed,
+    nor as `com.k2fsa.sherpa.onnx:sherpa-onnx-android`. Upstream carries a
+    `jitpack.yml`, so it is likely JitPack or a downloaded `.aar`. The dependency
+    is parked with a note in `core-asr`; nothing written so far needs it
 - [ ] **W1.24** — Tier 1 Silero VAD: 512-sample window, threshold 0.5, min speech 250 ms,
   min silence 100 ms. Runs only when tier 0 has opened
 - [ ] **W1.25** — `tools/fetch_models.py` — download, SHA-256 verify, atomic install
@@ -162,8 +179,10 @@ Tick a box only when *Done when* is true, not when the code compiles.
   · *[ASR.md §8](ASR.md#8-reference-binding). **Not `OnlineRecognizer`** — no streaming
   Indic model exists, risk T-16. Vosk in W1.26 is streaming and may still be driven that
   way for the week-1 prototype only*
-- [ ] **W1.28** — Endpointing state machine `IDLE / LISTENING / FINALISING`
+- [x] **W1.28** — Endpointing state machine `IDLE / LISTENING / FINALISING`
   · *[ASR.md §2](ASR.md#2-endpointing) — 400 ms phone, 150 ms PTT, 8 s max, 300 ms min*
+  · *`Endpointer`. Fourteen tests covering both modes, the 8 s cut, the 300 ms
+    discard, and that a 200 ms inter-clause pause does **not** finalise*
 - [ ] **W1.29** — Emit `Hypothesis(text, isFinal, confidence, tEndpoint)`
   · *An offline model yields no partials, so `isFinal` is always true until W3.13 lands
   sliding-window decoding. Do not design the UI around live partial text*
