@@ -7,7 +7,7 @@ differences.
 
 | Tool | Version | Note |
 | --- | --- | --- |
-| JDK | 17 (Temurin) | Required by AGP 8.x |
+| JDK | **17 (Temurin)** | Required by AGP 8.7. **Not 21, and definitely not 25** — a newer JDK on the PATH is the most common first-day build failure. Check with `java -version` before anything else |
 | Android Studio | Ladybug or later | |
 | Android Gradle Plugin | 8.7.x | |
 | Gradle | 8.10.x | Wrapper is committed; never run a local `gradle` |
@@ -110,6 +110,16 @@ something has gone wrong and it is a release blocker, not a nuisance.
 Measurement conditions are normative and are in
 [EVALUATION.md §1](EVALUATION.md#1-measurement-conditions). Figures taken outside those
 conditions are not reportable.
+
+## 6a. Package naming — a trap specific to Indian projects
+
+The package root is **`org.itantra`**, not `in.itantra`.
+
+`in` is a **Kotlin keyword** (`for (x in xs)`, and the contravariance modifier). A package
+segment named `in` must be escaped with backticks at every import and declaration —
+`` `in`.itantra.app `` — which is unpleasant and breaks a good deal of tooling. The reverse-DNS
+instinct for an Indian project is `in.something`, and it costs a day to discover this the
+hard way. Use `org.itantra`; the `applicationId` is `org.itantra`.
 
 ## 7. Code style
 

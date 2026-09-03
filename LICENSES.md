@@ -55,6 +55,21 @@ iTantra is released under **Apache-2.0**, subject to the copyleft note in §6.
 connectivity SDK is used, and **Google Nearby Connections is deliberately excluded** —
 raw sockets instead — because it is not open source and would breach C1.
 
+## 4a. Application framework and platform libraries
+
+Added when the build was scaffolded. All are Apache-2.0, the standard licence for
+AndroidX, and none is a voice component, so none touches constraint C1.
+
+| Component | Licence | Role |
+| --- | --- | --- |
+| kotlinx-coroutines-core / -android | Apache-2.0 | Structured concurrency for the four-thread pipeline |
+| androidx.compose (BOM, ui, material3) | Apache-2.0 | User interface |
+| androidx.activity:activity-compose | Apache-2.0 | Activity host for Compose |
+| androidx.lifecycle:lifecycle-service | Apache-2.0 | Foreground service lifecycle |
+| androidx.datastore:datastore-preferences | Apache-2.0 | Typed configuration storage |
+| androidx.room (runtime, ktx, compiler) | Apache-2.0 | Outbox for store-and-forward |
+| com.google.zxing:core | Apache-2.0 | QR generation and scanning for optical key transfer |
+
 ## 5. Reference designs studied
 
 Studied for architecture. **No code is copied from any of these**, which matters because

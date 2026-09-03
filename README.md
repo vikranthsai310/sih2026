@@ -61,21 +61,29 @@ verified.
 ## Repository layout
 
 ```
-docs/source/             Design document (HTML + PDF) and the SIH submission template
-docs/                    Normative engineering specification — see docs/README.md
-app/                     Android application: UI, orchestration, foreground service
-core-audio/              Capture, playback, ring buffers, alert audio policy
-core-asr/                Recognition: VAD tiers, endpointing, biasing, confidence
-core-tts/                Synthesis: normalisation, phonemisation, chunked playout
-core-link/               Transport: RFCOMM, BLE, Wi-Fi, serial
-core-proto/              Wire format: framing, CRC, AEAD, script packing, templates
-core-models/             Language pack manifest, verification, lifecycle
-bench/                   Evaluation harness: WER, RTF, latency, resource, scorecard
-tools/                   Model export and quantisation scripts, dataset preparation
+settings.gradle.kts       8 modules; core-proto deliberately has no Android plugin
+build.gradle.kts          dependency rules enforced as build failures
+gradle/libs.versions.toml every version pinned, no dynamic ranges
+
+app/                      UI, push-to-talk, alerts, pairing, foreground service
+core-audio/               capture, playback, ring buffers, alert audio policy
+core-asr/                 VAD tiers, endpointing, recognition, biasing
+core-tts/                 normalisation, phonemisation, chunked playout
+core-link/                Link interface: RFCOMM, BLE, Wi-Fi, serial
+core-proto/               PURE JVM -- frame codec, CRC, AEAD, script packing
+core-models/              language pack manifest, verification, lifecycle
+bench/                    WER, RTF, latency, resource, scorecard export
+
+models/                   manifest.json tracked; binaries are not
+tools/                    model export, licence audit, report build
+docs/                     the specification -- see docs/README.md
+docs/source/              the original design document and the SIH template
+.github/workflows/        CI: proto tests, build, manifest guard, licence audit
 ```
 
-Modules under `app/` and `core-*` do not exist yet. Week 1 of
-[the roadmap](docs/ROADMAP.md) creates them.
+The module skeleton, build files and CI exist. **The source files do not yet** — week 1 of
+[the roadmap](docs/ROADMAP.md) fills them, starting with `core-proto`, which needs no
+models, no handset and no Android SDK.
 
 ## Status
 
