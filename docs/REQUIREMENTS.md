@@ -142,13 +142,13 @@ A compact binary wire protocol with minimal framing overhead.
 
 ### R6 — Through a Wi-Fi/Bluetooth connected embedded device or another phone
 
-A transport abstraction with at least three implementations, one of which is serial-shaped
-so it can drive a radio module.
+A transport abstraction with three implementations, all phone to phone. The problem
+statement offers "embedded device **or** another phone"; we deliver the second.
 
 - **Owner:** `core-link`
-- **Acceptance:** four implementations satisfy the `Link` interface; switching transport
-  is a settings toggle with no change above `core-link`; the serial implementation drives
-  an ESP32 + LoRa pair.
+- **Acceptance:** three implementations satisfy the `Link` interface — Bluetooth Classic,
+  Bluetooth LE and Wi-Fi — and switching transport is a settings toggle with no change
+  above `core-link`.
 - **Verification:** the same integration suite runs green against all four transports.
 - **Specification:** [TRANSPORT.md](TRANSPORT.md).
 

@@ -38,8 +38,8 @@ into a walkie-talkie:
   flagship. Every published number is measured on that class of device.
 - **Two modes.** Push-to-talk (half duplex, walkie-talkie) and released (full duplex,
   telephone).
-- **Four transports** behind one interface: Bluetooth Classic, BLE, Wi-Fi, and serial to a
-  LoRa or HF radio module.
+- **Three transports** behind one interface: Bluetooth Classic, Bluetooth LE and Wi-Fi —
+  phone to phone, no additional hardware.
 
 ## Documentation
 

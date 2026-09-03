@@ -21,8 +21,8 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 26 of 209 complete, 1 in progress, 1 blocked.** The build runs and
-**63 tests pass** across `core-proto`, `core-audio` and `core-asr` — CRC, frame codec,
+**Progress: 29 of 205 complete, 1 in progress, 1 blocked.** The build runs and
+**76 tests pass** across `core-proto`, `core-audio` and `core-asr` — CRC, frame codec,
 script packer, pre-trigger ring, energy gate and endpointer. `core-proto` holds 94.7 %
 line coverage.
 
@@ -63,9 +63,6 @@ line coverage.
   · **Blocks** W2.G, W3.G
 - [ ] **P0.4** — Third handset, pre-configured spare, kept in the bag
   · *Risk P-03* · **Blocks** W8.11
-- [ ] **P0.5** — Order LoRa hardware: 2 × ESP32 + SX1276/SX1278, 865.5 MHz, ~₹1 500
-  · **Order now — two-week lead time will otherwise eat the differentiator**
-  · **Blocks** W7.12
 - [~] **P0.6** — Toolchain on every machine
   · **JDK is solved and needs no action:** `settings.gradle.kts` applies the foojay
     resolver, so Gradle provisions JDK 17 itself whatever is on the PATH. This removes the
@@ -137,12 +134,15 @@ line coverage.
   · *Constraint C2. This is the strongest form of the offline claim — platform-enforced,
   not asserted*
   · **Done when** CI fails if either permission appears
-- [ ] **W1.16** — State machine: `INITIALISING → READY → LISTENING → …`, plus `DEGRADED`
+- [x] **W1.16** — State machine: `INITIALISING → READY → LISTENING → …`, plus `DEGRADED`
   with a reason string
   · *[ARCHITECTURE.md §4](ARCHITECTURE.md#4-state-model)*
 
 ### Audio capture
 
+  · *`EngineState` + `EngineTransitions`. Nine tests: transmit disabled while
+    initialising (T-11) and while degraded, every reason carries an operator message,
+    and degraded recovers only through Ready*
 - [ ] **W1.17** — `AudioRecord` wrapper, 16 kHz mono, 20 ms hops (320 samples)
 - [x] **W1.18** — Pre-allocated ring buffer retaining 250 ms pre-trigger (8 000 samples, 16 kB)
   · *[ASR.md §2](ASR.md#2-endpointing) leading pad*
@@ -157,12 +157,14 @@ line coverage.
   · *`EnergyGate`. Six tests: opens after exactly 3 frames, closes after exactly 10,
     ignores steady background, and **the floor does not move while a talker speaks** —
     the failure the class exists to prevent*
-- [ ] **W1.21** — Bounded queue capture → inference, depth 100 (2 s), drop-oldest with a
+- [x] **W1.21** — Bounded queue capture → inference, depth 100 (2 s), drop-oldest with a
   counter, never blocks capture
   · *[ARCHITECTURE.md §3](ARCHITECTURE.md#3-threading-and-lifecycle) queue policy*
 
 ### Recognition
 
+  · *`BoundedFrameQueue`. Six tests including a two-thread race; a full queue drops
+    the oldest and counts it rather than blocking capture*
 - [ ] **W1.22** — Bundle `silero_vad.onnx` (1.8 MB) in base assets
 - [!] **W1.23** — sherpa-onnx AAR dependency; verify it loads on the target handset
   · **Blocked.** sherpa-onnx is not on Maven Central under the coordinates assumed,
@@ -183,9 +185,11 @@ line coverage.
   · *[ASR.md §2](ASR.md#2-endpointing) — 400 ms phone, 150 ms PTT, 8 s max, 300 ms min*
   · *`Endpointer`. Fourteen tests covering both modes, the 8 s cut, the 300 ms
     discard, and that a 200 ms inter-clause pause does **not** finalise*
-- [ ] **W1.29** — Emit `Hypothesis(text, isFinal, confidence, tEndpoint)`
+- [x] **W1.29** — Emit `Hypothesis(text, isFinal, confidence, tEndpoint)`
   · *An offline model yields no partials, so `isFinal` is always true until W3.13 lands
   sliding-window decoding. Do not design the UI around live partial text*
+  · *`Hypothesis` + `Confidence`, carrying tMic/tEndpoint/tFinal so latency.csv needs
+    no separate tracing*
 - [ ] **W1.30** — Models loaded at service start and held resident; transmit disabled until
   `READY` with a visible indicator
   · *Risk T-11 — the cold-start cost must never be paid on a key press*
@@ -459,8 +463,7 @@ parallel with week 1.**
   timeout, **AEAD verified after reassembly**
 - [ ] **W6.6** — `WifiLink`: hosted network, TCP 38173, UDP discovery 38174
   · *Hosted network is primary. `WifiP2pManager` is optional — risk T-09*
-- [ ] **W6.7** — `SerialLink`: Bluetooth SPP to the radio module
-- [ ] **W6.8** — **Same integration suite runs green against all four transports**
+- [ ] **W6.8** — **Same integration suite runs green against all three transports**
 - [ ] **W6.9** — Enable AES-GCM on every transport; tag length by transport class
 - [ ] **W6.10** — `EPOCH` survives force-stop and reboot
   · **Done when** a test kills the app, reboots, and shows `EPOCH` incremented and no
@@ -506,9 +509,6 @@ parallel with week 1.**
   · *Recruited in P0.10. **Report the actual panel size** — a MOS without one is not a
   measurement*
 - [ ] **W7.11** — Intelligibility test: native listeners transcribe synthesised output
-- [ ] **W7.12** — LoRa firmware, ~200 lines: SPP in → LoRa out, LoRa in → SPP out.
-  **The firmware must not understand the protocol — it is a wire**
-- [ ] **W7.13** — LoRa bench test across a room, then at 2 km
 - [ ] **W7.14** — Field test at range: Bluetooth 30 m, Wi-Fi 150 m
 - [ ] **W7.15** — Four-device relay soak, 1 h · **Done when** every message arrives exactly
   once and the seen-set stays bounded

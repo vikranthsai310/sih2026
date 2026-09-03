@@ -19,6 +19,7 @@ android {
 
 dependencies {
     implementation(libs.kotlin.coroutines)
+    implementation(project(":core-proto"))
     // TODO(W1.23): sherpa-onnx is NOT on Maven Central under the coordinates the
     //  catalog assumed, and not under com.k2fsa.sherpa.onnx:sherpa-onnx-android either.
     //  The upstream repo carries a jitpack.yml, so it is probably distributed through

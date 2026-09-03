@@ -32,7 +32,7 @@ done-condition each. Work from that; review against this.
 | 5 | **Modes and alerts** | Push-to-talk with hardware key, half and full duplex, alert path with alarm-stream routing, wake lock and lock-screen delivery |
 | 6 | **Latency and reach** | Chunked synthesis, stabilised partials, adaptive endpointing. BLE and Wi-Fi transports. Encryption, replay window and relay. Thermal soak begins |
 | 7 | **Coverage and hardening** | Remaining languages; template tables; normalisation suites; noise pre-processing; field testing at range and under noise; four-device relay soak |
-| 8 | **Evidence and rehearsal** | Scorecard generation, latency HUD, documentation, LoRa bench demonstration if hardware permits, demonstration rehearsed to a fixed script |
+| 8 | **Evidence and rehearsal** | Scorecard generation, latency HUD, documentation, demonstration rehearsed to a fixed script |
 
 ## 2. Acceptance gates
 
@@ -93,7 +93,6 @@ demonstrable system.
    pre-shared key compiled into the build, keep the UNSECURED banner honest, and say so
 5. Wi-Fi transport — BT Classic and BLE cover the requirement
 6. Languages beyond five — report five well rather than ten badly
-7. LoRa hop — the strongest differentiator, but a differentiator, not a requirement
 
 **Never cut:** the loop, the alert path, the ten-language coverage, the scorecard. The
 first two are ISRO's words; the rest is 80 % of the mark.
@@ -121,7 +120,6 @@ These run continuously from week 1, not as a phase:
 | --- | --- | --- |
 | SIH idea submission PPT | Sections 01–03 of the design document | **Owned outside this plan.** Content is drafted in [IDEA_SUBMISSION.md](IDEA_SUBMISSION.md); must be uploaded as **PDF**, six slides maximum, by 20 September 2026 |
 | Target handset acquired | — | Week 1. Blocks every reportable number (P-02) |
-| LoRa hardware acquired | — | Order by week 4; a two-week lead time will otherwise consume the differentiator |
 | Listening panel recruited | Week 7 voices | 15 native speakers per language is the largest logistical task in the evaluation — start recruiting in week 5 |
 
 The listening panel is the item most likely to be left until it is too late. It needs

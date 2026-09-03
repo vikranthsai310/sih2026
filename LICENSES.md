@@ -3,9 +3,10 @@
 Constraint C1 prohibits proprietary voice SDKs. **This file is the evidence of
 compliance**, and it is maintained from week 1 rather than assembled in week 8 (risk P-04).
 
-> **CI gate.** A dependency that does not appear in this file fails the build. Adding a
-> dependency and adding its row here are the same commit. This is what makes late licence
-> discovery impossible rather than merely unlikely.
+> **Checked by `tools/check_licences.py`.** A dependency that does not appear in this file
+> fails the check. Run it before any submission build. Adding a dependency and adding its
+> row here are the same commit — that is what makes late licence discovery impossible
+> rather than merely unlikely.
 
 ## Project licence
 

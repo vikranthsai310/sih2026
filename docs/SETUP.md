@@ -32,7 +32,6 @@ pip install -r tools/requirements.txt
 | **Primary target handset** | 4 GB RAM, entry-tier Snapdragon 4-series or MediaTek Helio G-series, Android 11+ |
 | Second handset | Any Android 8+ device, for the two-device loop |
 | Third handset | Pre-configured spare for the demonstration (risk P-03) |
-| LoRa pair | 2 × ESP32 + SX1276/SX1278 at 865.5 MHz, ~₹1 500 |
 
 > **Acquire the target handset in week 1.** Risk P-02: developing on a flagship conceals
 > performance failures, and every published number must come from this device. A team that
@@ -123,7 +122,7 @@ hard way. Use `org.itantra`; the `applicationId` is `org.itantra`.
 
 ## 7. Code style
 
-- ktlint, enforced in CI. Warnings are errors in `core-proto`.
+- ktlint, enforced by `./gradlew ktlintCheck`. Warnings are errors in `core-proto`.
 - Public API in `core-*` modules carries KDoc. Internals do not need it.
 - No logging on the capture thread, ever — no string formatting, no allocation. This is a
   correctness constraint, not a style preference.

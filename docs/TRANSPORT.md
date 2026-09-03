@@ -1,7 +1,17 @@
 # The transport layer
 
-Implemented by `core-link`. Four physical media, one interface. The application never
-learns which one is carrying its bytes.
+Implemented by `core-link`. **Three physical media, one interface**, all of them phone to
+phone. The application never learns which one is carrying its bytes.
+
+> **Scope: mobile application only.** The problem statement asks for streaming "through
+> wifi/Bluetooth connected embedded device **or another phone** with same application". We
+> do the second. There is no radio module, no ESP32 and no LoRa node in this project, so
+> `SerialLink` and the deployment topology that went with it are out of scope.
+>
+> The low-bitrate argument is unaffected and still load-bearing: Bluetooth Low Energy
+> gives 5–20 kbps, which is already below the 6 kbps Opus floor once framing and
+> retransmission are accounted for, and it is the transport that supports the eight-hour
+> standby claim.
 
 ## 1. The abstraction
 

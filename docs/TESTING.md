@@ -72,12 +72,12 @@ maximum alarm volume — a defect certain to be discovered during a demonstratio
 
 ## 4. Latency regression
 
-A CI job runs the loopback integration test and asserts stage budgets against
-[EVALUATION.md §4](EVALUATION.md#4-latency--20--of-the-mark). A commit that pushes any
-stage above its budget fails the build.
+The loopback integration test asserts stage budgets against
+[EVALUATION.md §4](EVALUATION.md#4-latency--20--of-the-mark). Run it before a push; a
+stage above its budget is a regression.
 
-Loopback figures are not reportable — they lack the radio and the real device — but they
-catch a 3× regression the day it lands rather than the week of the demonstration.
+Loopback figures are not reportable — they lack the real device — but they catch a 3×
+regression the day it lands rather than the week of the demonstration.
 
 ## 5. Two-device manual scenarios
 
@@ -114,22 +114,27 @@ them.
 Thermal soak begins in **week 6** and runs weekly thereafter (risk T-03). Finding thermal
 throttling in week 8 is finding it too late.
 
-## 7. Continuous integration
+## 7. Gates, run locally
 
-| Stage | Gate |
+There is no CI pipeline. The same gates run from the command line, and the rule is that
+they pass before a push:
+
+```
+./gradlew :core-proto:test :core-proto:ktlintCheck :core-proto:koverVerify
+./gradlew testDebugUnitTest ktlintCheck
+python tools/check_licences.py
+```
+
+| Gate | What it protects |
 | --- | --- |
-| Build | All modules compile; dependency rules enforced |
-| Lint and format | ktlint, Android Lint; warnings are errors in `core-proto` |
-| Unit tests | All JVM tests pass |
-| Coverage | `core-proto` ≥ 90 % line coverage. Other modules are not gated on coverage |
-| Licence audit | Every dependency appears in `LICENSES.md`; a new dependency without an entry fails the build (risk P-04) |
-| Secret scan | No key material, keystore, or credential in the diff |
-| Normalisation suite | 100 % pass, all languages |
-| Latency regression | Loopback stage budgets |
-| Nightly | Fuzz 10⁶ inputs; instrumented tests on the target handset |
+| `:core-proto:test` | The frame codec — the highest-risk code in the project |
+| `koverVerify` | 90 % line coverage on `core-proto`, enforced |
+| `ktlintCheck` | Style, with warnings as errors in `core-proto` |
+| `check_licences.py` | Risk P-04 — a dependency absent from `LICENSES.md` fails |
+| Manifest inspection | Constraint C2 — no `INTERNET`, no location permission |
 
-The licence audit gate is what makes P-04 a low risk rather than a week-8 emergency. It
-costs nothing and it cannot be forgotten.
+The licence check and the manifest inspection are the two worth running deliberately
+before any submission build, because both protect a claim rather than a behaviour.
 
 ## 8. Test data
 

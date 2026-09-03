@@ -14,7 +14,6 @@ already holding. The script is fixed in week 8 and **not improvised**.
 | 5 | Lock the second handset and set it to silent. Send an alert. It wakes and announces at full volume | Does the alert requirement work as specified? | 0:50 |
 | 6 | Release push-to-talk. Hold an ordinary two-way conversation with no button | Does telephone mode work? | 0:50 |
 | 7 | Switch the receiving handset to Hindi. Send a template alert in Tamil; it is announced in Hindi | What else does the architecture give you? Cross-language operation with no translation model | 0:50 |
-| 8 | **If hardware permits:** disable Bluetooth between the handsets; route through the LoRa pair across the room | Does this work on a real radio link? The strongest single moment available | 1:00 |
 | 9 | Close on the scorecard: application size, memory, idle CPU, WER per language at four SNRs, RTF, latency distribution — all measured on an entry-tier handset | Can you prove any of it? | 1:00 |
 
 Total 6:40, leaving twenty seconds of slack. Do not add a tenth step.
@@ -38,7 +37,6 @@ you prove it" — which is the whole assessment.
 | --- | --- | --- |
 | Target handset | 2 | Both with the **identical APK**; checksum verified |
 | Spare handset | 1 | Already paired, charged, in the bag (P-03) |
-| LoRa nodes | 2 | Charged, pre-paired over Bluetooth SPP, antennas fitted |
 | Power banks | 2 | Handsets at 100 %, not charging during the demo — charging changes thermal behaviour |
 | Printed scorecard | 2 copies | For step 9, in case the projector fails |
 | QR provisioning card | 1 | Printed fallback if re-pairing is needed |
@@ -58,7 +56,6 @@ Run 30 minutes before. Every item has failed for someone.
 - [ ] Byte counter reset to zero
 - [ ] Notifications, updates and battery saver disabled on both handsets
 - [ ] Screen timeout set to 10 minutes
-- [ ] LoRa nodes powered, paired, and one message verified across the room
 - [ ] Scorecard CSVs exported and the printed copies in hand
 - [ ] Spare handset powered on and provisioned
 - [ ] **Thermal:** handsets idle-cool, not just used for a rehearsal five minutes earlier
@@ -77,7 +74,6 @@ improvised reads as a broken system.
 | Pairing lost | Show the QR, scan it — 10 s | Printed QR card |
 | Recognition wrong in a noisy hall | Say the sentence again, closer. **Then point at the confidence indicator and the noise-SNR row of the scorecard** | Turn a failure into the noise-evaluation talking point — this is a strength, not a save |
 | Alert does not fire | Run the alert test from settings on the receiving handset | Video of the locked-handset test, recorded in week 5 |
-| LoRa link fails | Skip step 8, say so plainly, move to step 9 | Never debug hardware in front of a jury |
 | App crashes | Restart — the service reloads in under 2 s and reconnects automatically | Spare handset |
 | Complete failure of both handsets | Move to step 9 with the printed scorecard and the recorded video | The measurements stand on their own |
 
