@@ -58,10 +58,13 @@ Tick a box only when *Done when* is true, not when the code compiles.
 - [ ] **P0.5** — Order LoRa hardware: 2 × ESP32 + SX1276/SX1278, 865.5 MHz, ~₹1 500
   · **Order now — two-week lead time will otherwise eat the differentiator**
   · **Blocks** W7.12
-- [ ] **P0.6** — Install and pin the toolchain on every machine: JDK 17 Temurin, Android
-  Studio Ladybug+, AGP 8.7.x, Gradle 8.10.x, Kotlin 2.0.x
-  · *[SETUP.md §1](SETUP.md#1-toolchain)*
-  · **Done when** `./gradlew --version` matches on all six machines
+- [~] **P0.6** — Toolchain on every machine
+  · **JDK is solved and needs no action:** `settings.gradle.kts` applies the foojay
+    resolver, so Gradle provisions JDK 17 itself whatever is on the PATH. This removes the
+    "six machines, three JDKs" problem the original task was worried about
+  · **Remaining:** each developer installs Android Studio (Ladybug or later) and clones.
+    The wrapper pins Gradle 8.11.1, AGP 8.7.3 and Kotlin 2.0.21 for everyone
+  · **Done when** every machine can run `./gradlew :core-proto:test`
 - [x] **P0.7** — `tools/requirements.txt` committed (onnx, onnxruntime, jiwer for WER)
 - [ ] **P0.8** — USB debugging on both handsets; `adb devices` lists them
 - [ ] **P0.9** — Turn this file into GitHub issues, one per task, labelled by week and owner
