@@ -7,7 +7,7 @@ differences.
 
 | Tool | Version | Note |
 | --- | --- | --- |
-| JDK | **17 — provisioned automatically** | You do **not** need to install it.  applies the foojay resolver, so Gradle downloads a JDK 17 toolchain on first build regardless of what is on your PATH. This is deliberate: six machines with three different JDKs cannot produce comparable benchmark figures, and AGP 8.7 rejects JDK 25 outright |
+| JDK | **17 — provisioned automatically** | You do **not** need to install it. `settings.gradle.kts` applies the foojay resolver, so Gradle downloads a JDK 17 toolchain on first build regardless of what is on your PATH. This is deliberate: six machines with three different JDKs cannot produce comparable benchmark figures, and AGP 8.7 rejects JDK 25 outright |
 | Android Studio | Ladybug or later | |
 | Android Gradle Plugin | 8.7.x | |
 | Gradle | **8.11.1** | Wrapper is committed; never run a local `gradle` |
