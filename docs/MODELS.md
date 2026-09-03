@@ -9,9 +9,16 @@ therefore modular.
 | Component | Size | Delivery |
 | --- | --- | --- |
 | Base application, ONNX runtime, Silero VAD, espeak-ng data | ~25 MB | Installer |
-| Hindi and English packs | ~120 MB | Installer — usable immediately, offline, out of the box |
-| Each additional language | ~60 MB | On demand, **once**, at setup; verified by checksum |
+| **Acoustic model — one multilingual model, all ten languages** | **~120 MB int8** | Fetched once at setup. **Not per-language**: IndicConformer is a single ~120 M-parameter model with a per-language vocabulary file |
+| Synthesis voice, per language | 20–60 MB | On demand, once, at setup; verified by checksum |
 | Template and gazetteer tables, all ten languages | < 1 MB | Installer |
+
+> **Corrected after verification.** The design document assumed ten independent
+> 35 MB acoustic models, 350 MB in total. The published IndicConformer ONNX is a single
+> multilingual model of ~493 MB in float32, which quantises to roughly 120 MB — larger per
+> download than assumed, but a third of the assumed total, and it covers every language at
+> once. The consequence is that **the acoustic model cannot be delivered per language**; the
+> on-demand story applies to synthesis voices only.
 
 **Runtime operation is unconditionally offline.** Downloads occur only during setup, only
 on explicit user action, and the running system makes no network call ever. The shipped

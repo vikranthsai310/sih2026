@@ -93,13 +93,13 @@ methodology attached. A MOS quoted without a panel size is not a measurement.
 | --- | --- | --- |
 | Capture and buffering | 20–40 ms | 20 ms hop size |
 | Endpoint silence window | 150–400 ms | Largest term; a design choice, not compute. 150 ms in PTT mode |
-| Final decode after endpoint | 100–250 ms | Scales with utterance length |
+| Final decode after endpoint | 250–450 ms | **Revised.** The recogniser is offline, so only the final window is decoded after the endpoint; the earlier windows were decoded during speech. See [ASR.md §3.5](ASR.md#35-decoding-an-offline-model-without-paying-for-it-at-the-end) |
 | Framing, encryption, transmit | 20–60 ms | Bluetooth; sub-millisecond of that is the payload itself |
 | Normalisation | < 10 ms | Rule-based |
 | First synthesis chunk | 150–250 ms | Chunked, not full-sentence synthesis |
 | Output pipeline | 30–80 ms | `AudioTrack`; Oboe if this proves material |
-| **End to end, PTT mode** | **500–800 ms** | The figure the jury will time |
-| **End to end, phone mode** | **750–1100 ms** | Includes the silence window |
+| **End to end, PTT mode** | **800–1200 ms** | **Revised upward.** The figure the jury will time. Naive offline decode would give ~1330 ms; sliding-window decoding recovers roughly 400 ms of it |
+| **End to end, phone mode** | **1050–1500 ms** | Includes the 400 ms silence window |
 | Real-time factor, ASR | < 0.30 | Sustained, after thermal soak |
 | Real-time factor, TTS | < 0.25 | Sustained |
 

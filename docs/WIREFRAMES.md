@@ -493,7 +493,7 @@ never stored; the replay control re-synthesises from text.
  │  ┌────────────────────┬───────────────────┐  │
  │  │  ● PUSH TO TALK    │  ○ PHONE          │  │   96 dp
  │  │    half duplex     │    full duplex    │  │
- │  │    500–800 ms      │    750–1100 ms    │  │   honest numbers
+ │  │   800–1200 ms      │   1050–1500 ms    │  │   honest numbers
  │  │    lowest power    │    higher power   │  │
  │  └────────────────────┴───────────────────┘  │
  ├──────────────────────────────────────────────┤

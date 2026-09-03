@@ -118,6 +118,52 @@ tokens are joined into text.
 | Threads | 2 | 4 threads is faster cold and slower after thermal soak — see risk T-03 |
 | Provider | `cpu` (XNNPACK) | NNAPI is inconsistent across entry-tier vendors; evaluated and rejected |
 
+### 3.5 Decoding an offline model without paying for it at the end
+
+> **Verified 2026-09-03, and it changes the architecture.** There is **no streaming
+> (online) acoustic model published for the ten Indian languages.** Everything available
+> through sherpa-onnx for Indic ASR — IndicConformer NeMo-CTC and the Dolphin CTC family —
+> is **offline**. The only genuinely streaming option is Vosk, whose accuracy is materially
+> lower. The design document assumed `OnlineRecognizer`, partial hypotheses and
+> `isEndpoint()`; none of that is available with the production model.
+
+The naive consequence is severe. With an offline recogniser nothing is decoded until the
+utterance has ended, so the whole decode lands *after* the endpoint:
+
+```
+ speak 3 s ──────────────────────►│ endpoint │◄─── decode 3 s of audio ───►│ transmit
+                                   150 ms          900 ms at RTF 0.30
+```
+
+That alone is 1 050 ms before a byte is sent, and pushes end-to-end past 1 300 ms.
+
+**The fix is to decode during speech anyway.** Voice activity detection already tells us
+when speech is in progress, so the buffered audio is decoded in overlapping windows as it
+accumulates, and only the final short window is decoded after the endpoint:
+
+```
+ speech  |--- w1 ---|--- w2 ---|--- w3 --|
+         decode w1   decode w2   decode w3   <- these run while the speaker is still talking
+                                       endpoint
+                                       |-- decode tail --|   ~250-450 ms, not 900 ms
+```
+
+| Parameter | Value | Rationale |
+| --- | --- | --- |
+| Window | 1.5 s | Long enough for stable CTC output, short enough that the tail is cheap |
+| Overlap | 0.4 s | Covers words straddling a boundary |
+| Tail decode | Final partial window only | The term that remains in the latency budget |
+| Threads | 4 while decoding a window, 2 at idle | Cores are free during speech; thermal budget is not |
+
+This costs roughly 1.6× the total compute of a single pass, which the efficiency budget can
+absorb because it happens only while someone is speaking — perhaps five per cent of elapsed
+time. It buys back around 400 ms of the delay that matters.
+
+**Honest consequence:** end-to-end in push-to-talk mode is now budgeted at **800–1200 ms**,
+not the 500–800 ms the design document claimed. That figure was derived from a streaming
+recogniser that does not exist for these languages. See
+[EVALUATION.md §4](EVALUATION.md#4-latency--20--of-the-mark).
+
 ### 3.4 Contextual biasing — the highest-yield accuracy work
 
 Decoding scores are boosted for a supplied phrase list. In a distress context the critical
@@ -182,8 +228,8 @@ preference.
 
 | Candidate | Licence | Size, int8 | Assessment |
 | --- | --- | --- | --- |
-| AI4Bharat IndicConformer | Permissive | ~35 MB | **Production choice.** Trained specifically on Indian languages; covers all ten targets. Requires NeMo → ONNX export |
-| Vosk small models | Apache-2.0 | ~40 MB | **Week-one prototype.** Streaming, Android-ready today, lower accuracy. This is schedule insurance, not a compromise |
+| AI4Bharat IndicConformer, NeMo-CTC | Permissive | **~120 MB int8, shared** | **Production choice.** ~120 M parameters, 493 MB as fp32 ONNX. **One multilingual model covers all ten languages** with a per-language vocabulary file — it is not 35 MB per language. **Offline, not streaming** |
+| Vosk small models | Apache-2.0 | ~40 MB | **Week-one prototype, and the only genuinely streaming option available.** Android-ready today, lower accuracy. Schedule insurance, not a compromise |
 | Whisper tiny / base | MIT | ~40–75 MB | Baseline for comparison only. Not streaming; weak on Odia and Kannada; slow on entry-tier silicon |
 | IndicWhisper | Permissive | ~240 MB | Strong accuracy, too heavy for the target device. Useful as an accuracy ceiling reference |
 | Meta MMS | CC-BY-NC ⚠ | ~300 MB | Broadest coverage; the non-commercial licence makes it unsuitable for any deployability claim. Gap-filler only |
@@ -198,9 +244,9 @@ execute integer arithmetic considerably faster than float.
 
 | Precision | Size | Relative speed | WER impact | Verdict |
 | --- | --- | --- | --- | --- |
-| float32, as trained | ~120 MB | 1.0× | baseline | Unshippable |
-| float16 | ~60 MB | 1.3× | ≈ 0 | Intermediate |
-| **int8 dynamic** | **~32 MB** | **2.5×** | **+ ~1 % rel.** | **Shipped** |
+| float32, as trained | ~493 MB | 1.0× | baseline | Unshippable |
+| float16 | ~240 MB | 1.3× | ≈ 0 | Intermediate |
+| **int8 dynamic** | **~120 MB** | **2.5×** | **+ ~1 % rel.** | **Shipped** |
 
 Four times smaller, two and a half times faster, for approximately one per cent relative
 degradation. This single transformation is what makes on-device speech viable on an
@@ -210,36 +256,35 @@ criterion — put it in the deck.
 ## 8. Reference binding
 
 ```kotlin
-// constructed once, at foreground-service start
-val recognizer = OnlineRecognizer(
+// One multilingual model, constructed once at foreground-service start.
+// OFFLINE, not OnlineRecognizer -- no streaming Indic model exists (see 3.5).
+val recognizer = OfflineRecognizer(
     assetManager = assets,
-    config = OnlineRecognizerConfig(
+    config = OfflineRecognizerConfig(
         featConfig  = FeatureConfig(sampleRate = 16000, featureDim = 80),
-        modelConfig = OnlineModelConfig(
-            transducer = OnlineTransducerModelConfig(
-                encoder = "models/hi/encoder.int8.onnx",
-                decoder = "models/hi/decoder.onnx",
-                joiner  = "models/hi/joiner.onnx"
-            ),
-            tokens     = "models/hi/tokens.txt",
-            numThreads = 2,
+        modelConfig = OfflineModelConfig(
+            nemoCtc    = OfflineNemoEncDecCtcModelConfig("models/asr/indicconformer.int8.onnx"),
+            tokens     = "models/asr/tokens.hi.txt",   // vocabulary is per language
+            numThreads = 4,                            // 4 while decoding, 2 at idle
             provider   = "cpu"
         ),
-        enableEndpoint = true,
-        endpointConfig = EndpointConfig(),
-        decodingMethod = "modified_beam_search",
+        decodingMethod = "greedy_search",
         hotwordsFile   = "models/hi/alert-lexicon.txt",
         hotwordsScore  = 1.5f
     )
 )
 
-// per 100 ms of captured audio
-stream.acceptWaveform(samples, 16000)
-while (recognizer.isReady(stream)) recognizer.decode(stream)
-val text = recognizer.getResult(stream).text
-if (recognizer.isEndpoint(stream)) {
-    link.send(Frame.encode(text, lang = HI))   // always broadcast
-    recognizer.reset(stream)
+// Endpointing is ours, from the VAD tiers -- the model cannot do it.
+// Windows are decoded while the speaker is still talking; only the tail waits.
+vad.speechWindows().collect { window ->                 // 1.5 s, 0.4 s overlap
+    partials += recognizer.createStream()
+        .apply { acceptWaveform(window, 16000) }
+        .let { recognizer.decode(it); it.result.text }
+}
+onEndpoint { tail ->                                     // 250-450 ms, not 900 ms
+    val text = stitch(partials, decodeTail(tail))
+    link.send(Frame.encode(text, lang = HI))             // always broadcast
+    partials.clear()
 }
 ```
 

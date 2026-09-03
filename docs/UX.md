@@ -49,7 +49,7 @@ behind a developer toggle wastes it.
 | Speaker | Muted while transmitting | Active, with barge-in ducking |
 | Floor control | `PTT_CTL` frames announce and release the floor; a busy indicator prevents collisions | Not applicable |
 | Power | Lowest — no idle inference | Higher — continuous VAD |
-| Latency | 500–800 ms | 750–1100 ms |
+| Latency | 800–1200 ms | 1050–1500 ms |
 
 The transmit control is bound both to a large on-screen target **and to the volume-down
 hardware key**, because operators wear gloves and rarely look at the screen. Releasing the

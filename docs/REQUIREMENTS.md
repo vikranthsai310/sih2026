@@ -84,7 +84,7 @@ Quantised on-device acoustic and synthesis models per language, with a measured 
 rate and a reported footprint per language.
 
 - **Owner:** `core-asr`, `core-tts`, `core-models`
-- **Acceptance:** all ten languages present in the pack manifest; each pack ≤ 70 MB; WER
+- **Acceptance:** all ten languages present in the pack manifest; the shared acoustic model ≤ 130 MB int8 and each voice ≤ 70 MB; WER
   reported per language at four SNRs; TTS mean opinion score reported per language.
 - **Verification:** `bench` produces `scorecard.csv`. See [EVALUATION.md](EVALUATION.md).
 - **Languages:** English, Hindi, Bengali, Marathi, Telugu, Tamil, Gujarati, Kannada,

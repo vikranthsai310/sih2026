@@ -101,7 +101,7 @@ be able to find every phrase of it answered.
 | --- | --- |
 | Platform | Android, Kotlin, Jetpack Compose |
 | Inference | ONNX Runtime via sherpa-onnx (Apache-2.0) |
-| Recognition | AI4Bharat IndicConformer, int8 quantised, ~35 MB/language |
+| Recognition | AI4Bharat IndicConformer NeMo-CTC, int8, ~120 MB shared across all ten languages |
 | Synthesis | Piper VITS voices (MIT), streaming chunked playout |
 | Detection | Silero VAD (MIT), 1.8 MB |
 | Transport | Bluetooth RFCOMM · BLE GATT · Wi-Fi · serial → LoRa (SX1276, 865.5 MHz) |
@@ -177,7 +177,7 @@ be able to find every phrase of it answered.
 
 **Operational**
 
-- Sub-second delivery: **500–800 ms** end to end in push-to-talk mode
+- **800–1200 ms** end to end in push-to-talk mode
 - Alerts wake a locked, silenced handset and announce at full volume
 - 2 182× compression puts voice communication on links that could never carry it
 

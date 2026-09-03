@@ -96,11 +96,11 @@ handset after a thirty-minute thermal soak. Method and full breakdown in
 
 | | Target |
 | --- | --- |
-| End-to-end latency, PTT mode | 500–800 ms |
-| End-to-end latency, phone mode | 750–1100 ms |
+| End-to-end latency, PTT mode | 800–1200 ms |
+| End-to-end latency, phone mode | 1050–1500 ms |
 | Word error rate, clean read speech | < 12 % |
 | Word error rate, critical vocabulary with biasing | < 6 % |
-| Installer size, two languages resident | < 30 MB |
+| Installer size | < 30 MB (models fetched once at setup) |
 | Idle CPU while listening | < 2 % |
 | Standby endurance, BLE, screen off | > 8 h |
 

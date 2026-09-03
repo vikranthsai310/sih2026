@@ -268,7 +268,7 @@ td.n{text-align:right; white-space:nowrap}
   <table>
 <thead><tr><th>What the problem statement requires</th><th>How iTantra delivers it</th></tr></thead>
 <tbody>
-    <tr><td>Lightweight, highly accurate STT and TTS for ten Indian languages</td><td>Quantised on-device acoustic and synthesis models per language, each pack under 70 MB, with word error rate measured per language and the model footprint reported</td></tr>
+    <tr><td>Lightweight, highly accurate STT and TTS for ten Indian languages</td><td>Quantised on-device acoustic and synthesis models per language, one shared multilingual acoustic model under 130 MB and each synthesis voice under 70 MB, with word error rate measured per language and the model footprint reported</td></tr>
     <tr><td>Runs locally on a low-power device</td><td>All inference on the device; no server; budgeted RAM, CPU and thermal envelope on an entry-tier handset</td></tr>
     <tr><td>STT activated after detecting pauses and stoppages</td><td>Three-tier voice activity detection followed by an endpointing state machine that decides when a sentence has ended</td></tr>
     <tr><td>Should form the sentences detected</td><td>Segment-level finalisation with punctuation and text normalisation, not a stream of loose words</td></tr>
@@ -402,7 +402,7 @@ td.n{text-align:right; white-space:nowrap}
 <tbody>
     <tr><td>k2-fsa / sherpa-onnx</td><td>Apache-2.0</td><td>Principal dependency. Recognition, synthesis, voice activity detection and endpointing in one library, with an Android archive and Kotlin bindings</td></tr>
     <tr><td>Microsoft ONNX Runtime</td><td>MIT</td><td>Inference engine beneath sherpa-onnx, with XNNPACK acceleration on ARM</td></tr>
-    <tr><td>AI4Bharat IndicConformer</td><td>Permissive</td><td>Production acoustic models covering all ten target languages</td></tr>
+    <tr><td>AI4Bharat IndicConformer (NeMo-CTC)</td><td>Permissive</td><td>Production acoustic model. One multilingual model, ~120 M parameters, covering all ten languages with a per-language vocabulary. Offline rather than streaming</td></tr>
     <tr><td>Vosk small models</td><td>Apache-2.0</td><td>Week-one prototype models; schedule insurance while export is completed</td></tr>
     <tr><td>Rhasspy Piper voices</td><td>MIT</td><td>Primary synthesis voices, already in ONNX format</td></tr>
     <tr><td>AI4Bharat Indic-TTS</td><td>Permissive</td><td>Higher-naturalness Indic voices where Piper quality is inadequate</td></tr>
@@ -410,7 +410,7 @@ td.n{text-align:right; white-space:nowrap}
     <tr><td>Silero VAD</td><td>MIT</td><td>Tier-one voice activity detection, 1.8 MB</td></tr>
     <tr><td>espeak-ng</td><td>GPL-3.0 ⚠</td><td>Phonemisation. Copyleft; disclosed rather than discovered</td></tr>
     <tr><td>Xiph RNNoise</td><td>BSD-3-Clause</td><td>Noise suppression on the recognition path only</td></tr>
-    <tr><td>Meta MMS</td><td>CC-BY-NC ⚠</td><td>Coverage gap-filler only; non-commercial, excluded from any deployability claim</td></tr></tbody>
+    <tr><td>Meta MMS</td><td>CC-BY-NC ⚠</td><td>Retained only as a contingency. Verification found Piper voices for all ten languages including Odia, so this dependency is expected to be dropped</td></tr></tbody>
 </table>
   <p class="cap"><b>Table 2.2:</b> Machine learning components. Two carry restrictive licences
   and both are disclosed here rather than left to be found.</p>
@@ -559,6 +559,18 @@ td.n{text-align:right; white-space:nowrap}
   on reconnection.</p>
 
   <h4>2.2.5 Recognition pipeline in detail</h4>
+  <p><b>Verified against published models on 3 September 2026, with two consequences.</b>
+  First, <b>no streaming acoustic model is published for the ten Indian languages</b>; every
+  available Indic model — IndicConformer NeMo-CTC and the Dolphin family — is offline, so
+  nothing is decoded until the utterance ends. Endpointing already comes from our own voice
+  activity detection rather than from the model, so the architecture survives, and the
+  buffered audio is decoded in overlapping windows <i>while the speaker is still talking</i>
+  so that only a short tail remains after the endpoint. End-to-end delay in push-to-talk mode
+  is budgeted accordingly at <b>800 to 1200 milliseconds</b> rather than the 500 to 800
+  milliseconds a streaming recogniser would have allowed. Second, IndicConformer is a single
+  multilingual model of approximately 120 million parameters — 493 MB as float32, about
+  120 MB quantised to 8-bit integers — rather than ten separate 35 MB models, so it covers
+  every language at once but cannot be delivered one language at a time.</p>
   <p>Running the acoustic model continuously would exhaust the battery in roughly two hours and
   would fail the efficiency criterion outright. Detection is therefore tiered, so that the
   expensive stage runs only when the inexpensive stages agree that a human is speaking.</p>
@@ -612,9 +624,9 @@ td.n{text-align:right; white-space:nowrap}
   <table>
 <thead><tr><th>Precision</th><th class="n">Size</th><th class="n">Relative speed</th><th class="n">Effect on WER</th><th>Verdict</th></tr></thead>
 <tbody>
-    <tr><td>float32, as trained</td><td class="n">~120 MB</td><td class="n">1.0×</td><td class="n">baseline</td><td>Unshippable</td></tr>
-    <tr><td>float16</td><td class="n">~60 MB</td><td class="n">1.3×</td><td class="n">≈ 0</td><td>Intermediate</td></tr>
-    <tr><td><b>int8 dynamic</b></td><td class="n"><b>~32 MB</b></td><td class="n"><b>2.5×</b></td><td class="n"><b>+1 % rel.</b></td><td><b>Adopted</b></td></tr></tbody>
+    <tr><td>float32, as published</td><td class="n">~493 MB</td><td class="n">1.0×</td><td class="n">baseline</td><td>Unshippable</td></tr>
+    <tr><td>float16</td><td class="n">~240 MB</td><td class="n">1.3×</td><td class="n">≈ 0</td><td>Intermediate</td></tr>
+    <tr><td><b>int8 dynamic</b></td><td class="n"><b>~120 MB</b></td><td class="n"><b>2.5×</b></td><td class="n"><b>+1 % rel.</b></td><td><b>Adopted</b></td></tr></tbody>
 </table>
   <p class="cap"><b>Table 2.9:</b> Four times smaller and two and a half times faster for
   approximately one per cent relative degradation. This single transformation is what makes
@@ -685,7 +697,7 @@ td.n{text-align:right; white-space:nowrap}
     <tr><td class="n">1</td><td>Capture and recognise</td><td>Skeleton application; capture into voice activity detection into a prototype recogniser; recognised Hindi text on screen, offline, on the target handset</td></tr>
     <tr><td class="n">2</td><td>Transport</td><td>Transport interface, Bluetooth implementation, frame codec with CRC, fuzz-tested decoder. Typed text traverses two handsets, independent of any model</td></tr>
     <tr><td class="n">3</td><td><b>Close the loop</b></td><td>Synthesis on the receiving device. <b>Speech in, speech out, end to end.</b> Baseline latency measured. The project is now de-risked</td></tr>
-    <tr><td class="n">4</td><td>Production models</td><td>IndicConformer exported and quantised; five languages integrated; word error rate harness operational; the Odia gap assessed and assigned</td></tr>
+    <tr><td class="n">4</td><td>Production models</td><td>IndicConformer exported and quantised; five languages integrated; word error rate harness operational; the Piper Odia voice confirmed against the official repository</td></tr>
     <tr><td class="n">5</td><td>Modes and alerts</td><td>Push-to-talk with the hardware key, half and full duplex, the complete alert path with lock-screen delivery</td></tr>
     <tr><td class="n">6</td><td>Latency, reach and security</td><td>Chunked synthesis, BLE and Wi-Fi transports, encryption, replay window, relay. Thermal soak testing begins</td></tr>
     <tr><td class="n">7</td><td>Coverage and hardening</td><td>Remaining languages, template tables, normalisation suites, noise pre-processing, field testing at range, multi-device relay soak</td></tr>
@@ -721,7 +733,7 @@ td.n{text-align:right; white-space:nowrap}
   <table>
 <thead><tr><th>Capability required</th><th>Existing evidence that it is achievable</th></tr></thead>
 <tbody>
-    <tr><td>On-device Indic speech recognition</td><td>AI4Bharat IndicConformer models cover all ten languages; sherpa-onnx runs them on Android today</td></tr>
+    <tr><td>On-device Indic speech recognition</td><td>IndicConformer NeMo-CTC is published as ONNX covering all ten languages and loads in sherpa-onnx today. Verified 2026-09-03; it is offline rather than streaming, which the design accommodates</td></tr>
     <tr><td>On-device neural synthesis</td><td>Piper VITS voices are already exported to ONNX and run in real time on mobile ARM</td></tr>
     <tr><td>Low-power always-listening detection</td><td>Silero VAD at 1.8 MB is widely deployed for exactly this purpose</td></tr>
     <tr><td>Text over long-range radio from Android</td><td>Meshtastic and APRSdroid are working, deployed systems</td></tr>
@@ -764,7 +776,7 @@ td.n{text-align:right; white-space:nowrap}
     <tr><td>T-02</td><td>Digits, call signs and place names misrecognised</td><td>High</td><td>Precisely the tokens that carry operational meaning are lost</td></tr>
     <tr><td>T-03</td><td>Thermal throttling doubles real-time factor during a long demonstration</td><td>High</td><td>Latency figures measured cold do not hold in the room</td></tr>
     <tr><td>T-04</td><td>Total asset size defeats the efficiency criterion</td><td>Medium</td><td>Installer exceeds the thirty-megabyte budget</td></tr>
-    <tr><td>T-05</td><td>No adequate open synthesis model exists for Odia</td><td>Medium</td><td>One of the ten required languages cannot be delivered</td></tr>
+    <tr><td>T-16</td><td>No streaming acoustic model exists for the ten Indian languages; every available Indic model is offline</td><td>High</td><td>Nothing is decoded until the utterance ends, adding the whole decode to the delay</td></tr>
     <tr><td>T-06</td><td>Code-mixed Hindi and English speech is mis-decoded</td><td>Medium</td><td>Realistic mixed speech degrades accuracy</td></tr>
     <tr><td>T-07</td><td>Model export from the training format fails or degrades accuracy</td><td>Medium</td><td>Production models unavailable</td></tr>
     <tr><td>T-08</td><td>Stream framing defect corrupts frames under load</td><td>Medium</td><td>Works on a desk, fails in the field</td></tr>
@@ -830,7 +842,7 @@ td.n{text-align:right; white-space:nowrap}
 <thead><tr><th>Target audience</th><th>Situation today</th><th>Impact of the solution</th></tr></thead>
 <tbody>
     <tr><td>Disaster relief and NDRF teams</td><td>Mobile towers fail early in a flood or earthquake; handheld radios carry no voice on the links that remain</td><td>Voice-to-voice coordination continues where infrastructure has failed, in the local language, without training</td></tr>
-    <tr><td>Armed forces and border patrols</td><td>Narrowband tactical links; operators wearing gloves at altitude cannot type</td><td>Single-button operation with the screen off; sub-second delivery; authenticated frames</td></tr>
+    <tr><td>Armed forces and border patrols</td><td>Narrowband tactical links; operators wearing gloves at altitude cannot type</td><td>Single-button operation with the screen off; delivery in around a second; authenticated frames</td></tr>
     <tr><td>Fishermen and coastal communities</td><td>Beyond cellular range; literacy is not universal</td><td>Communication with shore in the mother tongue, requiring no reading or typing at any point</td></tr>
     <tr><td>Forest, wildlife and remote medical patrols</td><td>No coverage; text messaging requires literacy and steady hands</td><td>Long-range voice-to-voice contact over LoRa with ₹1 500 of additional hardware</td></tr>
     <tr><td>ISRO ground and field teams</td><td>Narrowband satellite burst channels cannot carry a voice call</td><td>Sentence delivery within a 1 kbps burst channel, which is the sponsoring organisation's own use case</td></tr>

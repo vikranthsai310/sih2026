@@ -6,7 +6,7 @@ import fitz
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 D = r'C:\Users\DELL\AppData\Local\Temp\claude\D--Downloads-PROJECTS-SIH2026\dd5256fc-5e29-4899-bff1-2a9972911c8a\scratchpad'
-PDF = r'D:\Downloads\PROJECTS\SIH2026\docs\iTantra Project Report.pdf'
+PDF = r'D:\Downloads\PROJECTS\SIH2026\docs\Taraketu_iTantra_Report.pdf'
 
 src = open(D + r'\report4.html', encoding='utf-8').read()
 if '__LOGO__' in src:
