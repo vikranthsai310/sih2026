@@ -13,7 +13,7 @@ Resolved divergences are listed at the bottom of this page.
 
 | Document | What it settles |
 | --- | --- |
-| [REQUIREMENTS.md](REQUIREMENTS.md) | **ISRO's problem statement verbatim**, then R1–R11 restated as testable requirements, the four constraints, and a traceability matrix from requirement to module to test |
+| [REQUIREMENTS.md](REQUIREMENTS.md) | **The PRD.** ISRO's problem statement verbatim, R1–R11 as testable requirements, N1–N9 non-functional, the four constraints, who the system is for, explicit non-goals, the traceability matrix, and the open questions |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Module boundaries, dependency rules, threading model, service lifecycle, end-to-end signal path |
 
 ### Component specifications

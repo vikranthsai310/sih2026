@@ -1,9 +1,16 @@
-# Requirements
+# Requirements — the product requirements document
 
 Problem Statement 26173 written as testable requirements. Every requirement has an
 identifier, an owning module, an acceptance test, and a verification method. Nothing in
 this document is aspirational — if a row cannot be demonstrated, the requirement is not
 met.
+
+**This is the PRD.** It is deliberately one document rather than a separate product brief
+restating it: two documents describing the same requirements drift apart, and a
+requirement that disagrees with itself is worse than one written only once. What a product
+brief would normally hold lives here — the problem (§0), who it is for (§6), what it must
+do (§1), what it must not (§5), the bounds it works within (§2, §2a), how success is judged
+(§3), and what is still unresolved (§7).
 
 ## 0. The problem statement, verbatim
 
@@ -205,6 +212,28 @@ how the system performs.
 | C3 | **Approved frameworks** | TensorFlow Lite, PyTorch Mobile, ONNX Runtime or equivalent. Our runtime is ONNX Runtime via sherpa-onnx — permissively licensed, ARM-optimised, explicitly in scope. | Dependency list; LiteRT and ExecuTorch evaluated as alternates and recorded. |
 | C4 | **Low and mid-range phones** | Target is a 4 GB entry-tier Snapdragon or Helio handset. Every number in every document is measured on that class of hardware. | The target device is named in [SETUP.md](SETUP.md) and every scorecard records the device it was produced on. |
 
+## 2a. Non-functional requirements
+
+The functional requirements say what the system does. These say how well, and each is
+measured rather than asserted — the method is in
+[EVALUATION.md](EVALUATION.md#1-measurement-conditions).
+
+| ID | Requirement | Target | Verified by |
+| --- | --- | --- | --- |
+| **N1 Latency** | End-to-end delay from the end of a spoken sentence to audio beginning on the receiving handset | 800–1200 ms push-to-talk; 1050–1500 ms telephone mode | `latency.csv`, median and p95 over ≥ 100 utterances |
+| **N2 Efficiency** | Installer size, resident memory, idle processor use while listening | < 30 MB installer; < 350 MB resident; < 2 % idle CPU | Perfetto trace, memory profiler, APK inspection |
+| **N3 Endurance** | Standby listening on one charge, BLE, screen off | > 8 h | `batterystats` over a full run |
+| **N4 Reliability** | A corrupt frame is discarded and never spoken | 100 % — a garbled instruction is more dangerous than a missing one | CRC and AEAD tests in `core-proto` |
+| **N5 Robustness** | The frame decoder survives malformed input | No uncaught exception, no unbounded growth, recovery on the next valid frame | Fuzz harness, 20 000 inputs |
+| **N6 Security** | An unauthorised transmitter cannot inject an alert | Every single-byte mutation fails verification | Mutation tests; see [SECURITY.md](SECURITY.md) |
+| **N7 Usability** | Operable without reading, with gloves, screen off | Icons and colour carry primary meaning; text is secondary | Inclusive design rules, [UX.md §4](UX.md#4-inclusive-design-rules) |
+| **N8 Portability** | Runs on a low or mid-range handset | Every reported figure measured on the entry-tier target device | Device named in every scorecard row |
+| **N9 Sustained performance** | Figures hold after prolonged use, not only cold | RTF after a 30-minute soak < 2× cold RTF | Thermal soak from week 6 |
+
+N9 exists because entry-tier handsets throttle after roughly ten minutes of continuous
+inference and the real-time factor can double. A latency figure taken from a cold device is
+not the figure a jury will see.
+
 ## 3. Assessment criteria
 
 Eighty per cent of the marks are allocated to measurable properties. This is unusual and
@@ -246,6 +275,15 @@ asking for measurements.
 | C2 | `app` | [ARCHITECTURE.md](ARCHITECTURE.md) | No `INTERNET` permission |
 | C3 | `core-asr`, `core-tts` | [MODELS.md](MODELS.md) | Dependency list |
 | C4 | all | [SETUP.md](SETUP.md) | Device recorded in every scorecard |
+| N1 | `core-asr`, `core-tts`, `core-link` | [EVALUATION.md §4](EVALUATION.md#4-latency--20--of-the-mark) | `latency.csv`, median and p95 |
+| N2 | `core-models`, `app` | [EVALUATION.md §5](EVALUATION.md#5-efficiency--20--of-the-mark) | Perfetto, memory profiler, APK inspection |
+| N3 | `core-audio`, `core-link` | [TESTING.md §6](TESTING.md#6-soak-tests) | `batterystats`, 8 h run |
+| N4 | `core-proto` | [PROTOCOL.md §12](PROTOCOL.md#12-reliability) | `Crc16Test`, `AeadTest` |
+| N5 | `core-proto` | [PROTOCOL.md §13](PROTOCOL.md#13-stream-framing) | `StreamFramerTest` fuzz harness |
+| N6 | `core-proto` | [SECURITY.md §3](SECURITY.md#3-controls) | Mutation tests, 384 + 10 mutations |
+| N7 | `app` | [UX.md §4](UX.md#4-inclusive-design-rules) | Two-device manual script, TalkBack pass |
+| N8 | all | [SETUP.md §2](SETUP.md#2-target-hardware) | Every scorecard names its device |
+| N9 | `core-asr`, `core-tts` | [TESTING.md §6](TESTING.md#6-soak-tests) | 30-minute thermal soak |
 
 ## 5. Explicit non-goals
 
@@ -264,3 +302,83 @@ omission.
 - **Code-mixed Hindi–English speech is a known weakness** (risk T-06). English is retained
   in the biasing lexicon; the limitation is disclosed rather than concealed.
 - **No message history sync, no channel management, no file transfer.** There is no notion of a named group to create or join — pairing distributes a key, and the units that hold it are the radio set.
+
+## 6. Who this is for
+
+Four operators, drawn from the audiences in the problem statement's own framing: alert and
+distress scenarios, where transmitting audio is "more inclusive and will cater to everyone
+even if they are literate or not".
+
+### 6.1 Asha — relief worker, cannot read
+
+Deployed to a flooded district. Speaks Odia. Left school at nine.
+
+- **As Asha, I want to report casualties by speaking**, so that my information reaches base
+  even though I cannot compose a message in any script. → R1, R3, R4, R7
+- **As Asha, I want to hear replies in Odia**, so that I do not need someone literate beside
+  me to interpret. → R1, R7
+- **As Asha, I want to know the message was sent**, without reading a status line — a haptic
+  pulse and a spoken cue. → [UX.md §4](UX.md#4-inclusive-design-rules) rule 2
+
+> Asha is the reason the project exists. Every existing system that carries text over
+> narrowband radio requires her to type and to read, which excludes her at exactly the
+> moment her information is most valuable.
+
+### 6.2 Ravi — NDRF team leader
+
+Coordinating four units across a district. Towers are down. Speaks Hindi; two of his units
+speak Tamil.
+
+- **As Ravi, I want to raise an alert that reaches every unit at full volume**, even a
+  handset that is locked and silenced in a pocket. → R8
+- **As Ravi, I want my Tamil-speaking units to hear alerts in Tamil**, without a translator
+  and without me choosing a language. → Template cross-language delivery, [PROTOCOL.md §5.1](PROTOCOL.md#51-cross-language-delivery)
+- **As Ravi, I want to see that a message was delivered**, and to how many units, so I know
+  whether to repeat it. → Acknowledgement, [PROTOCOL.md §12](PROTOCOL.md#12-reliability)
+- **As Ravi, I want to confirm an alert before it goes**, because an alert that says the
+  opposite of what I meant is worse than no alert. → Risk S-03
+
+### 6.3 Meena — soldier on patrol
+
+At altitude, wearing gloves, in darkness. Cannot look at a screen.
+
+- **As Meena, I want to transmit by pressing one physical key**, with the screen off. → R10,
+  [UX.md §2](UX.md#2-the-two-modes)
+- **As Meena, I want the channel to tell me when someone else is speaking**, so we do not
+  transmit over each other. → Floor control, risk S-05
+- **As Meena, I want to know the link is alive** rather than merely quiet. → Heartbeat
+- **As Meena, I want a stranger in radio range to be unable to send my unit a false order.**
+  → Risk S-01, [SECURITY.md](SECURITY.md)
+
+### 6.4 Base station operator
+
+At a fixed post with mains power, coordinating whoever is in range.
+
+- **As the base operator, I want to switch between push-to-talk and open conversation**,
+  because a briefing and an emergency need different modes. → R10, R11
+- **As the base operator, I want to add a new unit in seconds**, without typing a key or a
+  channel number. → Pairing, [UX.md §5](UX.md#5-pairing)
+- **As the base operator, I want to replay what was said**, because a name or a grid
+  reference is easy to mishear once. → Message log
+
+### 6.5 What every story has in common
+
+None of them involves reading or typing during operation. That is the design constraint the
+whole system is arranged around, and any change that introduces a reading step for a routine
+task should be rejected on that basis alone.
+
+## 7. Open questions
+
+Recorded rather than left implicit. Each blocks something specific.
+
+| # | Question | Blocks | Owner |
+| --- | --- | --- | --- |
+| Q1 | Who owns each of the six roles? | Every weekly gate review; every risk needs exactly one owner | Team |
+| Q2 | Which entry-tier handset is the target device? | **Every reportable number in the project** — risk P-02, task P0.2 | Team |
+| Q3 | How is sherpa-onnx actually distributed? Not on Maven Central under the coordinates tried; upstream carries a `jitpack.yml` | The recogniser and synthesiser bindings — task W1.23 | Models |
+| Q4 | Do the Piper Odia voices exist in the official repository? | Whether Meta MMS and its CC-BY-NC disclosure can be dropped — risk T-05 | Synthesis |
+| Q5 | Can the language-pack downloader live outside the shipped manifest, so no `INTERNET` permission ever ships? | Constraint C2 in its strongest form; the fallback is sideloading | Application |
+| Q6 | Can 150 listening-panel speakers be recruited — 15 per language? | Mean opinion score, and therefore part of the accuracy criterion — risk P-05 | Evaluation |
+| Q7 | Does the sliding-window decoder actually recover the 400 ms it is budgeted to? | The revised 800–1200 ms latency target — risk T-16, task W3.13 | ASR |
+
+Q2 and Q3 are the two that block the most. Everything else can proceed around them.
