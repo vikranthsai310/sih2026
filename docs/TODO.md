@@ -21,7 +21,7 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 44 of 205 complete, 1 in progress, 1 blocked.** The build runs and
+**Progress: 46 of 205 complete, 2 in progress, 1 blocked.** The build runs and
 **143 tests pass** across `core-proto`, `core-audio` and `core-asr` — CRC, frame codec,
 script packer, pre-trigger ring, energy gate and endpointer. `core-proto` holds 94.7 %
 line coverage.
@@ -129,7 +129,8 @@ line coverage.
   · *[ARCHITECTURE.md §3](ARCHITECTURE.md#3-threading-and-lifecycle)*
 - [ ] **W1.14** — Runtime permissions: `RECORD_AUDIO`, `BLUETOOTH_CONNECT`,
   `BLUETOOTH_SCAN` with `neverForLocation`
-- [x] **W1.15** — **Manifest guard in CI: no `INTERNET`, no location permission**
+- [x] **W1.15** — **No `INTERNET`, no location permission** — verified in the built APK
+  with `aapt2 dump permissions`, not merely in the manifest source
   · *Implemented as a CI job; the manifest is written and carries neither*
   · *Constraint C2. This is the strongest form of the offline claim — platform-enforced,
   not asserted*
@@ -311,8 +312,11 @@ parallel with week 1.**
 - [x] **W2.26** — `LoopbackLink` in-process, for integration tests with no radio
   · *`LoopbackLink`. Delivers **seven bytes at a time** by default, so a consumer
     that assumes one write equals one read fails here rather than in the field (T-08)*
-- [ ] **W2.27** — `RfcommLink` — **`cancelDiscovery()` before `connect()`**, or throughput
+- [~] **W2.27** — `RfcommLink` — **`cancelDiscovery()` before `connect()`**, or throughput
   collapses by an order of magnitude
+  · *`RfcommLink` written and compiling. `cancelDiscovery()` before `connect()`, and
+    every read fed through `StreamFramer` rather than assumed whole (T-08).
+    **Unverified — needs two paired phones.***
 - [x] **W2.28** — Reconnection: exponential backoff 1 s → 30 s with jitter, reset on success
   · *`Backoff`. 1 s to 30 s with jitter; a test asserts the exact schedule and that
     jitter actually spreads retries*
@@ -321,9 +325,12 @@ parallel with week 1.**
     digest (S-06) — the two values other safety properties depend on*
 - [ ] **W2.30** — Outbox in Room: store-and-forward, capped 500 frames / 24 h, flush in
   order on reconnect
-- [ ] **W2.31** — Temporary debug text field to send typed text — **delete in W3.12**
-- [ ] **W2.32** — Byte counter in band F
+- [x] **W2.31** — Temporary debug text field to send typed text — **delete in W3.12**
+  · *Bring-up screen with a text field, Listen/Connect buttons and a byte counter.
+    Deleted by W3.12 once speech replaces typing*
+- [x] **W2.32** — Byte counter in band F
 
+  · *Byte counter shows the frame size and the ratio against 96 000 B of audio*
 - [ ] **W2.G** — **GATE:** typed text on A appears on B over RFCOMM; CI green; fuzz clean
 
 ---
