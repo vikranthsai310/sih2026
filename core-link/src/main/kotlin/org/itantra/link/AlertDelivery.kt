@@ -63,6 +63,9 @@ class AlertDelivery(
 
     val queueDepth: Int get() = queue.size
 
+    /** Alerts still tracked for acknowledgement. Bounded by [MAX_TRACKED]. */
+    val trackedCount: Int get() = inFlight.size
+
     /**
      * Enqueues a frame. An `ALERT` goes to the front, ahead of any ordinary text already
      * waiting — but behind any alert already queued, so two alerts stay in the order
@@ -86,8 +89,34 @@ class AlertDelivery(
         if (next.isAlert) {
             inFlight[next.seq] = Progress(next.seq, attempts = 1, ackedBy = emptySet(), peerCount = peerCount)
             nextRetryAt[next.seq] = nowMillis + retryIntervalMillis
+            evictFinished()
         }
         return next
+    }
+
+    /**
+     * Keeps the tracking table bounded. Task **W7.17**.
+     *
+     * [forget] is the intended way an alert leaves this table, and the engine calls it.
+     * But "bounded provided every caller remembers" is not a bound, it is a hope, and the
+     * path that forgets to call it is silent until the process is killed — which on an
+     * eight-hour deployment means it is silent for the whole deployment. So the table
+     * evicts for itself.
+     *
+     * **Only finished alerts are evicted**, eldest first. An alert still awaiting
+     * acknowledgement must never disappear: [undelivered] is how the operator is told
+     * that a message they believe went out did not, and dropping one to save a few
+     * hundred bytes would trade the worst failure this interface can have against
+     * nothing. An unfinished alert is bounded anyway — it becomes given-up after
+     * [maxAttempts] retries.
+     */
+    private fun evictFinished() {
+        if (inFlight.size <= MAX_TRACKED) return
+        val eldestFinished =
+            inFlight.entries.firstOrNull { (_, progress) ->
+                progress.isDelivered || progress.givenUp
+            } ?: return
+        forget(eldestFinished.key)
     }
 
     /**
@@ -158,5 +187,15 @@ class AlertDelivery(
         /** Three attempts at 300 ms — `docs/TODO.md` W5.15. */
         const val RETRY_INTERVAL_MILLIS = 300L
         const val MAX_ATTEMPTS = 3
+
+        /**
+         * Finished alerts kept before the eldest is dropped. Task **W7.17**.
+         *
+         * Sixty-four is far above any real number of alerts outstanding at once — an
+         * operator sending one every ten seconds for an hour never has more than a
+         * handful unresolved — and it is a few kilobytes. It exists to make the table
+         * bounded by construction, not to be reached.
+         */
+        const val MAX_TRACKED = 64
     }
 }
