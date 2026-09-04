@@ -84,8 +84,8 @@ keeps moving looks prepared; a team crouched over a phone does not.
 
 | Question | Answer |
 | --- | --- |
-| "Why not just use a codec?" | Opus bottoms out at 6 kbps. The link is 300 bps. It is a bound, not an engineering gap — and against Opus we are still 42× smaller |
-| "Isn't 2 182× misleading — what about encryption?" | Correct, and the honest figure is 1 600× authenticated, 52 B on the wire. Both are in the scorecard |
+| "Why not just use a codec?" | Opus bottoms out at 6 kbps. The link is 300 bps. It is a bound of the codec, not an engineering gap — and at that floor we are still 43× smaller than it |
+| "Isn't 2 182× misleading — what about encryption?" | Correct. 2 182× is the 44 B unauthenticated frame; the honest deployment figure is **1 600×**, which is 60 B with the full 16-byte tag — what a Bluetooth pairing actually sends. A low-rate radio link truncates the tag to 8 bytes: 52 B and 1 846×. All of them are in `compression.csv`, computed from the frame codec rather than transcribed |
 | "What if the recogniser is wrong?" | Confidence is on the wire and on screen; the sender sees the text before it sends; alerts require confirmation; negations are weighted in the biasing lexicon |
 | "Does the cross-language feature translate anything?" | No, and we do not claim it does. It works for template-coded messages only, because both devices hold the same table in ten languages. Free-form messages are delivered in the language spoken |
 | "How is this different from Meshtastic?" | Meshtastic sends typed text. The entire point here is that the operator never types or reads — which is what makes it usable by someone who cannot |

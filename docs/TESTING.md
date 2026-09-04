@@ -123,6 +123,7 @@ they pass before a push:
 ./gradlew :core-proto:test :core-proto:ktlintCheck :core-proto:koverVerify
 ./gradlew testDebugUnitTest ktlintCheck
 python tools/check_licences.py
+python tools/check_doc_numbers.py
 ```
 
 | Gate | What it protects |
@@ -131,6 +132,7 @@ python tools/check_licences.py
 | `koverVerify` | 90 % line coverage on `core-proto`, enforced |
 | `ktlintCheck` | Style, with warnings as errors in `core-proto` |
 | `check_licences.py` | Risk P-04 — a dependency absent from `LICENSES.md` fails |
+| `check_doc_numbers.py` | Task W8.11 — a compression figure in `docs/` that the frame codec does not produce |
 | Manifest inspection | Constraint C2 — no `INTERNET`, no location permission |
 
 The licence check and the manifest inspection are the two worth running deliberately
