@@ -21,16 +21,21 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 76 of 205 complete, 14 in progress, nothing blocked.** `./gradlew build` is
-green end to end — compilation, ktlint, Android Lint and the coverage gate — and **459
+**Progress: 82 of 205 complete, 15 in progress, nothing blocked.** `./gradlew build` is
+green end to end — compilation, ktlint, Android Lint and the coverage gate — and **470
 tests pass** across all seven modules: CRC, frame codec, script packer, templates, replay
 window, AEAD, clock sync, pre-trigger ring, energy gate, endpointer, sliding-window
 decoding, normalisation, clause splitting, the latency log, the manifest, atomic pack
 installation, resumable downloads, the language switch, the WER scorer, the noise mixer,
 the scorecard, contextual biasing, floor control, alert delivery, relaying,
 fragmentation and the epoch counter. `core-proto` holds
-94.2 % line coverage. The debug APK is 10.4 MB and `aapt2` confirms it carries no
-`INTERNET` and no location permission.
+94.2 % line coverage.
+
+**The sherpa-onnx AAR is fetched and the whole native stack now builds.** The debug APK is
+43.2 MB and the **release APK 30.9 MB** — arm64-only, minified, resources shrunk, and with
+no models in it. `aapt2` confirms it still carries no `INTERNET` and no location
+permission. That 30.9 MB is **0.9 MB over the N2 installer target** and the cause is
+`libonnxruntime.so` at 21.7 MB; see risk T-04, which has been raised to High.
 
 > **Nothing is blocked any more.** Q3 is answered — sherpa-onnx is distributed as a GitHub
 > release asset, not a Maven artifact — so W1.23 moved from `[!]` to `[~]`. What remains
@@ -165,12 +170,12 @@ fragmentation and the epoch counter. `core-proto` holds
   · *`EngineState` + `EngineTransitions`. Nine tests: transmit disabled while
     initialising (T-11) and while degraded, every reason carries an operator message,
     and degraded recovers only through Ready*
-- [ ] **W1.17** — `AudioRecord` wrapper, 16 kHz mono, 20 ms hops (320 samples)
+- [~] **W1.17** — `AudioRecord` wrapper, 16 kHz mono, 20 ms hops (320 samples)
 - [x] **W1.18** — Pre-allocated ring buffer retaining 250 ms pre-trigger (8 000 samples, 16 kB)
   · *[ASR.md §2](ASR.md#2-endpointing) leading pad*
   · *`PreTriggerRing`. 250 ms at 16 kHz is **4 000 samples / 8 kB** — the spec said
     8 000 / 16 kB, which is 500 ms. `ASR.md` corrected*
-- [ ] **W1.19** — Capture thread at `THREAD_PRIORITY_URGENT_AUDIO`
+- [~] **W1.19** — Capture thread at `THREAD_PRIORITY_URGENT_AUDIO`
   · **Done when** an allocation-tracking test shows **zero allocations** in the capture loop
   · *No logging, no string formatting. A correctness constraint, not style*
 - [x] **W1.20** — Tier 0 energy gate: EMA noise floor τ = 3 s updated only on non-speech
@@ -189,6 +194,12 @@ fragmentation and the epoch counter. `core-proto` holds
     the oldest and counts it rather than blocking capture*
 - [ ] **W1.22** — Bundle `silero_vad.onnx` (1.8 MB) in base assets
 - [~] **W1.23** — sherpa-onnx AAR dependency; verify it loads on the target handset
+  · ***The AAR is now fetched, checksum-verified and building.*** *`core-asr` and
+    `core-tts` take it `compileOnly` — AGP refuses to bundle a local `.aar` into a
+    library AAR because the result silently omits its classes and native libraries —
+    and the app module carries it, so it is packaged exactly once*
+  · *Still `[~]` for the only reason that matters: **nothing has been loaded on a
+    handset**, which is the other half of this task*
   · *Open question **Q3 is answered**. sherpa-onnx is **not on Maven Central under any
     coordinates** — verified 2026-09-04 against the Central search API, which returns no
     k2-fsa artifact at all. The only sherpa artifact there is
@@ -204,7 +215,7 @@ fragmentation and the epoch counter. `core-proto` holds
 - [ ] **W1.25** — `tools/fetch_models.py` — download, SHA-256 verify, atomic install
 - [ ] **W1.26** — Vosk Hindi small model fetched and loading
   · *Week-one prototype. **Schedule insurance, not a compromise** — risk T-07*
-- [ ] **W1.27** — **`OfflineRecognizer` binding** (NeMo-CTC), 4 threads while decoding and
+- [~] **W1.27** — **`OfflineRecognizer` binding** (NeMo-CTC), 4 threads while decoding and
   2 at idle, greedy search
   · *[ASR.md §8](ASR.md#8-reference-binding). **Not `OnlineRecognizer`** — no streaming
   Indic model exists, risk T-16. Vosk in W1.26 is streaming and may still be driven that
@@ -371,7 +382,9 @@ parallel with week 1.**
 **Gate W3: speech spoken on device A is heard on device B.**
 
 - [ ] **W3.1** — espeak-ng data (~10 MB) in base assets; Piper Hindi voice fetched
-- [ ] **W3.2** — `OfflineTts` binding, 2 threads
+- [~] **W3.2** — `OfflineTts` binding, 2 threads
+  · *`SherpaSynthesiser`. Compiles against the real AAR; unrun until a voice and a
+    handset exist*
   · *[TTS.md §6](TTS.md#6-reference-binding)*
 - [x] **W3.3** — Normalisation engine + `normalise.json` loader
   · *[TTS.md §1](TTS.md#1-text-normalisation)*
@@ -390,10 +403,15 @@ parallel with week 1.**
   · *`ClauseSplitter`. Splits on the Devanagari danda as well as Western marks, and
     merges a fragment too short to synthesise alone — an audible gap mid-sentence is
     worse than a little extra initial latency*
-- [ ] **W3.7** — Streaming playout: `AudioTrack` `WRITE_BLOCKING`, playback starts on chunk 1
+- [~] **W3.7** — Streaming playout: `AudioTrack` `WRITE_BLOCKING`, playback starts on chunk 1
+  · *Built on `generateWithCallback`, which emits audio **as it is produced** — the
+    mechanism that makes starting on chunk 1 possible at all rather than a matter of
+    buffering. `MODE_STREAM`, buffer 4× the minimum, and `stop()` rather than
+    `flush()` on the way out so the last word is not clipped*
   · **Done when** time-to-first-audio ≤ 250 ms, measured
   · *Underrun policy: synthesise the remainder as one block. **Never a gap mid-sentence***
-- [ ] **W3.8** — Synthesis thread at `THREAD_PRIORITY_AUDIO`
+- [~] **W3.8** — Synthesis thread at `THREAD_PRIORITY_AUDIO`
+  · *`speakOnAudioThread`. Descheduled synthesis is an audible gap, not merely slow*
 - [ ] **W3.9** — Wire the receive path end to end: `Link → decode → CRC → AEAD → replay
   check → unpack/template → normalise → phonemise → TTS → AudioTrack`
 - [x] **W3.10** — Clock sync: four `HEARTBEAT` round trips, median offset, so end-to-end
@@ -584,7 +602,17 @@ parallel with week 1.**
     same answer from the same two numbers with nothing further exchanged*
   · *Tested as a **pair of units resolving one collision independently**: the property
     that matters is not that each behaves sensibly alone but that the two agree*
-- [ ] **W5.4** — **Volume-down hardware key binding, working with the screen off**
+- [~] **W5.4** — **Volume-down hardware key binding, working with the screen off**
+  · *`PushToTalkKey`, 9 tests, wired into the bring-up screen and shown on it so the
+    binding can be checked on a handset. Press-and-hold, not toggle: a toggle would
+    leave a handset transmitting after a knock in a pocket, silencing everyone else
+    until the 12 s stale-hold expiry. Auto-repeat is filtered, and losing focus
+    releases the floor*
+  · **The screen-off half is NOT done.** *An `Activity` key override never sees volume
+    keys once the screen is off or another app is on top. That needs a `MediaSession`
+    taking media-button events in the foreground service, and this is not a substitute
+    for it — the task says "working with the screen off" and that is the part that
+    matters to Meena*
   · *Rule 4. Operators wear gloves and rarely look at the screen*
 - [ ] **W5.5** — Half duplex: speaker muted while transmitting; 150 ms endpoint on release
 - [ ] **W5.6** — Full duplex: continuous VAD-gated streaming both directions
@@ -596,26 +624,30 @@ parallel with week 1.**
 
 ### Alert delivery — all six steps
 
-- [~] **W5.9** — `AudioAttributes.USAGE_ALARM` + `CONTENT_TYPE_SONIFICATION`
+- [x] **W5.9** — `AudioAttributes.USAGE_ALARM` + `CONTENT_TYPE_SONIFICATION`
   · *Declared in the `AlertPlayback.AudioSystem` contract; the Android implementation
     of that interface is still to be written*
-- [~] **W5.10** — `setStreamVolume(STREAM_ALARM, max, 0)` before playback
+- [x] **W5.10** — `setStreamVolume(STREAM_ALARM, max, 0)` before playback
   · *Ordering asserted by test: the volume is raised before focus is requested and
     before any audio plays*
-- [~] **W5.11** — **Restore the prior volume afterwards**
+- [x] **W5.11** — **Restore the prior volume afterwards**
   · *Easy to forget, and forgetting leaves the handset permanently at max alarm volume —
   a defect certain to be found during a demonstration*
   · *Restoration runs in a `finally`, and **a test asserts it still happens when playback
     throws** — that is the case where the volume would otherwise stick at maximum. A
     handset found silenced is left silenced*
-- [~] **W5.12** — `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE`, **loss callbacks deliberately
+- [x] **W5.12** — `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE`, **loss callbacks deliberately
   ignored** — this is precisely the non-interruptible requirement
   · *A **refused** focus request is ignored too, and a test proves the alert still plays.
     Another application holding focus is exactly the situation an alert must override*
-- [~] **W5.13** — `PARTIAL_WAKE_LOCK` + full-screen-intent notification
+- [x] **W5.13** — `PARTIAL_WAKE_LOCK` + full-screen-intent notification
+  · *`AndroidAlertAudio`. The wake lock carries a 60 s timeout, because a stuck one
+    destroys the eight-hour standby figure in N3*
+  · *Android Lint caught the missing `USE_FULL_SCREEN_INTENT` permission — required
+    from Android 14 and granted automatically only to alarm and calling apps*
   · *The wake lock is taken **first** — everything after it is pointless if the device
     sleeps — and released in the same `finally` as the volume*
-- [~] **W5.14** — Vibration pattern, full-screen visual, message repeated twice
+- [x] **W5.14** — Vibration pattern, full-screen visual, message repeated twice
   · *Long pulses, deliberately unlike any notification tick: an operator should be able
     to tell an alert from a message without looking. Announced twice — once is missed in
     a noisy environment*
@@ -698,8 +730,12 @@ parallel with week 1.**
   · *Exhausting the 2³² epoch space **refuses rather than wrapping** — wrapping here is
     silent nonce reuse*
   · *A test drives restarts and sequence wraps through the real `Aead.nonce` derivation
-    and asserts no nonce ever repeats. The on-device `Store` over DataStore, and the
-    instrumented kill-and-reboot test, remain*
+    and asserts no nonce ever repeats*
+  · *`DataStoreEpochStore` now provides the on-device half. **Its writes block on
+    purpose**: a suspending write would let the caller continue before the value was
+    durable, which silently reopens the window the whole design closes. It is called
+    twice per process, so the cost is irrelevant*
+  · *The instrumented kill-and-reboot test remains*
 - [ ] **W6.11** — Pairing screen: QR generate and scan, `FLAG_SECURE`, key straight to
   Android Keystore, decoded string never written to disk
   · *[WIREFRAMES.md §3](WIREFRAMES.md#3-pairing)*

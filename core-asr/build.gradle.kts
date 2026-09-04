@@ -27,6 +27,13 @@ dependencies {
     //  recogniser; nothing written so far needs it.
     // implementation(libs.sherpa.onnx)
     implementation(project(":core-audio"))
+    // sherpa-onnx is a downloaded AAR, not a Maven artifact -- run tools/fetch_sherpa.sh
+    // once. See docs/SETUP.md and open question Q3.
+    //
+    // compileOnly, not implementation: AGP refuses to bundle a local .aar into a library
+    // AAR, because the result would silently omit its classes and native libraries. The
+    // app module carries it instead, so it is packaged exactly once.
+    compileOnly(files(rootProject.file("libs/sherpa-onnx-1.13.7.aar")))
     testImplementation(libs.junit)
 }
 

@@ -53,6 +53,9 @@ dependencies {
     // The latency log writes on the live path, because the reporting rules ask for a
     // median and p95 over 100+ utterances — see docs/EVALUATION.md section 4.
     implementation(project(":bench"))
+    // sherpa-onnx is a downloaded AAR, not a Maven artifact -- run tools/fetch_sherpa.sh
+    // once. See docs/SETUP.md and open question Q3.
+    implementation(files(rootProject.file("libs/sherpa-onnx-1.13.7.aar")))
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

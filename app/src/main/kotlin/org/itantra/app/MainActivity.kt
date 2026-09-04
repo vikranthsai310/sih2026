@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import org.itantra.app.platform.PushToTalkKey
 import org.itantra.link.LinkState
 import org.itantra.link.RfcommLink
 import org.itantra.proto.Flags
@@ -67,6 +68,21 @@ class MainActivity : ComponentActivity() {
     /** Drives the screen, so a denied permission is visible rather than a silent failure. */
     private var bluetoothGranted by mutableStateOf(false)
 
+    /** Lit while the transmit key is held, so the binding can be checked on a handset. */
+    private var keyHeld by mutableStateOf(false)
+
+    /**
+     * The volume-down binding from task W5.4, wired here so it can be exercised on a
+     * handset. Floor control is not connected yet; this shows only that the key reaches
+     * the application while it is in the foreground. See [onKeyDown] for why that is not
+     * the whole of W5.4.
+     */
+    private val transmitKey =
+        PushToTalkKey(
+            onPress = { keyHeld = true },
+            onRelease = { keyHeld = false },
+        )
+
     private val permissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             bluetoothGranted = hasBluetoothPermission()
@@ -80,6 +96,36 @@ class MainActivity : ComponentActivity() {
         if (!bluetoothGranted) permissions.launch(requiredPermissions())
 
         setContent { BringUpScreen() }
+    }
+
+    /**
+     * Task W5.4, partially. Consuming the event here is what stops transmitting from
+     * also changing the alarm volume.
+     *
+     * **This only works while the activity is in the foreground.** An `Activity` key
+     * override never sees volume keys once the screen is off or another app is on top,
+     * so the screen-off half of W5.4 needs a `MediaSession` receiving media-button
+     * events from the foreground service instead. That is not built yet, and this is not
+     * a substitute for it.
+     */
+    override fun onKeyDown(
+        keyCode: Int,
+        event: android.view.KeyEvent,
+    ): Boolean =
+        transmitKey.onKey(keyCode, event.action, event.repeatCount) ||
+            super.onKeyDown(keyCode, event)
+
+    override fun onKeyUp(
+        keyCode: Int,
+        event: android.view.KeyEvent,
+    ): Boolean =
+        transmitKey.onKey(keyCode, event.action, event.repeatCount) ||
+            super.onKeyUp(keyCode, event)
+
+    override fun onPause() {
+        super.onPause()
+        // An operator interrupted mid-transmission must not leave the floor held.
+        transmitKey.releaseIfHeld()
     }
 
     private fun requiredPermissions(): Array<String> =
@@ -125,6 +171,12 @@ class MainActivity : ComponentActivity() {
                 Spacer(Modifier.height(12.dp))
 
                 Text("Link: $linkState", fontFamily = FontFamily.Monospace, color = Color.Black)
+                Text(
+                    if (keyHeld) "PTT key: HELD" else "PTT key: released — hold volume-down",
+                    fontFamily = FontFamily.Monospace,
+                    color = if (keyHeld) Color.Red else Color.DarkGray,
+                    fontSize = 12.sp,
+                )
                 if (!bluetoothGranted) {
                     Text(
                         "Bluetooth permission not granted — tap either button to ask again",

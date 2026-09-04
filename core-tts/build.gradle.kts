@@ -18,6 +18,13 @@ android {
 }
 
 dependencies {
+    // sherpa-onnx is a downloaded AAR, not a Maven artifact -- run tools/fetch_sherpa.sh
+    // once. See docs/SETUP.md and open question Q3.
+    //
+    // compileOnly, not implementation: AGP refuses to bundle a local .aar into a library
+    // AAR, because the result would silently omit its classes and native libraries. The
+    // app module carries it instead, so it is packaged exactly once.
+    compileOnly(files(rootProject.file("libs/sherpa-onnx-1.13.7.aar")))
     implementation(libs.kotlin.coroutines)
     // TODO(W1.23): sherpa-onnx is NOT on Maven Central under the coordinates the
     //  catalog assumed, and not under com.k2fsa.sherpa.onnx:sherpa-onnx-android either.
