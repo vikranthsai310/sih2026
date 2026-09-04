@@ -6,12 +6,17 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kover)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin { jvmToolchain(17) }
 
 dependencies {
     implementation(libs.kotlin.coroutines.core)
+    // templates.json is loaded here, in the module that owns the digest. Pure JVM still:
+    // kotlinx-serialization has no Android dependency, so the frame codec and the table
+    // it hashes stay testable in milliseconds on a laptop.
+    implementation(libs.kotlinx.serialization)
     testImplementation(libs.junit)
     testImplementation(libs.kotest.property) // property tests: pack/unpack round trip
     testImplementation(libs.kotest.assertions)
