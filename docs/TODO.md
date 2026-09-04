@@ -21,14 +21,15 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 66 of 205 complete, 8 in progress, nothing blocked.** `./gradlew build` is
-green end to end — compilation, ktlint, Android Lint and the coverage gate — and **340
+**Progress: 72 of 205 complete, 14 in progress, nothing blocked.** `./gradlew build` is
+green end to end — compilation, ktlint, Android Lint and the coverage gate — and **394
 tests pass** across all seven modules: CRC, frame codec, script packer, templates, replay
 window, AEAD, clock sync, pre-trigger ring, energy gate, endpointer, sliding-window
 decoding, normalisation, clause splitting, the latency log, the manifest, atomic pack
 installation, resumable downloads, the language switch, the WER scorer, the noise mixer,
-the scorecard and contextual biasing. `core-proto` holds 95.3 % line coverage. The debug
-APK is 10.1 MB and `aapt2` confirms it carries no `INTERNET` and no location permission.
+the scorecard, contextual biasing, floor control and alert delivery. `core-proto` holds
+95.3 % line coverage. The debug APK is 10.4 MB and `aapt2` confirms it carries no
+`INTERNET` and no location permission.
 
 > **Nothing is blocked any more.** Q3 is answered — sherpa-onnx is distributed as a GitHub
 > release asset, not a Maven artifact — so W1.23 moved from `[!]` to `[~]`. What remains
@@ -562,29 +563,73 @@ parallel with week 1.**
 
 ### Push-to-talk and phone mode
 
-- [ ] **W5.1** — Floor state machine: free / held by me / held by peer / contended
-- [ ] **W5.2** — `PTT_CTL` seize and release frames; channel-busy indicator
-- [ ] **W5.3** — Randomised backoff on contention · *Risk S-05*
+- [x] **W5.1** — Floor state machine: free / held by me / held by peer / contended
+  · *`FloorControl`. **It cannot prevent collisions and does not claim to** — a seize is
+    an announcement broadcast to everyone, not a request granted by anyone, and it takes
+    20–60 ms to arrive. Two operators pressing inside that window will both believe the
+    floor is theirs. What this does is detect and resolve that quickly*
+  · *A peer hold expires after 12 s. Without it the channel deadlocks permanently the
+    first time a unit walks out of range mid-transmission, and the failure is silent
+    because every remaining unit believes someone else is talking*
+- [x] **W5.2** — `PTT_CTL` seize and release frames; channel-busy indicator
+  · *`PttControl` in `core-proto` — one byte, `0x01` seize / `0x00` release, 13-byte
+    frame. A reserved value is refused rather than guessed*
+  · *A release from a unit that does not hold the floor is **ignored**, so a stale frame
+    from a third unit cannot cut a live transmission short*
+- [x] **W5.3** — Randomised backoff on contention · *Risk S-05*
+  · **Deterministic first, randomised second.** *Pure random backoff on both sides can
+    have both units yield — losing the message — or both retry into a second collision.
+    The lower `SRC` wins outright and only the loser backs off, so both ends compute the
+    same answer from the same two numbers with nothing further exchanged*
+  · *Tested as a **pair of units resolving one collision independently**: the property
+    that matters is not that each behaves sensibly alone but that the two agree*
 - [ ] **W5.4** — **Volume-down hardware key binding, working with the screen off**
   · *Rule 4. Operators wear gloves and rarely look at the screen*
 - [ ] **W5.5** — Half duplex: speaker muted while transmitting; 150 ms endpoint on release
 - [ ] **W5.6** — Full duplex: continuous VAD-gated streaming both directions
 - [ ] **W5.7** — Barge-in: duck to −18 dB within 100 ms, stop at chunk end
-- [ ] **W5.8** — A press while the floor is held gives a **haptic refusal, never a dialog**
+- [x] **W5.8** — A press while the floor is held gives a **haptic refusal, never a dialog**
+  · *`Reaction.Refused` carries who holds the floor so the display can name them. Meena
+    is gloved at altitude with the screen dark; a dialog would have to be dismissed
+    before she could try again*
 
 ### Alert delivery — all six steps
 
-- [ ] **W5.9** — `AudioAttributes.USAGE_ALARM` + `CONTENT_TYPE_SONIFICATION`
-- [ ] **W5.10** — `setStreamVolume(STREAM_ALARM, max, 0)` before playback
-- [ ] **W5.11** — **Restore the prior volume afterwards**
+- [~] **W5.9** — `AudioAttributes.USAGE_ALARM` + `CONTENT_TYPE_SONIFICATION`
+  · *Declared in the `AlertPlayback.AudioSystem` contract; the Android implementation
+    of that interface is still to be written*
+- [~] **W5.10** — `setStreamVolume(STREAM_ALARM, max, 0)` before playback
+  · *Ordering asserted by test: the volume is raised before focus is requested and
+    before any audio plays*
+- [~] **W5.11** — **Restore the prior volume afterwards**
   · *Easy to forget, and forgetting leaves the handset permanently at max alarm volume —
   a defect certain to be found during a demonstration*
-- [ ] **W5.12** — `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE`, **loss callbacks deliberately
+  · *Restoration runs in a `finally`, and **a test asserts it still happens when playback
+    throws** — that is the case where the volume would otherwise stick at maximum. A
+    handset found silenced is left silenced*
+- [~] **W5.12** — `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE`, **loss callbacks deliberately
   ignored** — this is precisely the non-interruptible requirement
-- [ ] **W5.13** — `PARTIAL_WAKE_LOCK` + full-screen-intent notification
-- [ ] **W5.14** — Vibration pattern, full-screen visual, message repeated twice
-- [ ] **W5.15** — `ALERT` pre-empts the transmit queue; ack + retry 3 × 300 ms
-- [ ] **W5.16** — Delivered on the **first** ack; UI shows `3 of 6 units`
+  · *A **refused** focus request is ignored too, and a test proves the alert still plays.
+    Another application holding focus is exactly the situation an alert must override*
+- [~] **W5.13** — `PARTIAL_WAKE_LOCK` + full-screen-intent notification
+  · *The wake lock is taken **first** — everything after it is pointless if the device
+    sleeps — and released in the same `finally` as the volume*
+- [~] **W5.14** — Vibration pattern, full-screen visual, message repeated twice
+  · *Long pulses, deliberately unlike any notification tick: an operator should be able
+    to tell an alert from a message without looking. Announced twice — once is missed in
+    a noisy environment*
+- [x] **W5.15** — `ALERT` pre-empts the transmit queue; ack + retry 3 × 300 ms
+  · *`AlertDelivery`. An alert overtakes queued text but **not another alert**, so two
+    alerts stay in the order they were spoken*
+  · *An alert that exhausts all three attempts with no answer is reported as
+    `undelivered`. A silent failure here is the worst outcome the interface can produce —
+    the sender believes the warning went out*
+- [x] **W5.16** — Delivered on the **first** ack; UI shows `3 of 6 units`
+  · *Two different questions with two different answers. **Delivered** is true on the
+    first ack — one unit hearing an evacuation order is the difference between the
+    message working and not, and retrying past that puts a duplicate on a channel now
+    carrying the reply. **The count keeps rising** afterwards, because an operator
+    deciding whether to send a runner needs the number, not the boolean*
 
 ### Alert screens
 
