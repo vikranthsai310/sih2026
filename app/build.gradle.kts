@@ -16,6 +16,9 @@ android {
         versionName = "0.1.0"
         // arm64 only: halves the installer, and the target handset is arm64
         ndk { abiFilters += "arm64-v8a" }
+        // Without this the instrumented tests do not run at all -- the alert path
+        // can only be proven on a real handset, so this is not optional.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {

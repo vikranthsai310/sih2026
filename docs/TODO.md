@@ -21,14 +21,16 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 86 of 205 complete, 18 in progress, nothing blocked.** `./gradlew build` is
-green end to end — compilation, ktlint, Android Lint and the coverage gate — and **487
+**Progress: 97 of 205 complete, 22 in progress, nothing blocked.** `./gradlew build` is
+green end to end — compilation, ktlint, Android Lint and the coverage gate — and **540
 tests pass** across all seven modules: CRC, frame codec, script packer, templates, replay
 window, AEAD, clock sync, pre-trigger ring, energy gate, endpointer, sliding-window
 decoding, normalisation, clause splitting, the latency log, the manifest, atomic pack
 installation, resumable downloads, the language switch, the WER scorer, the noise mixer,
 the scorecard, contextual biasing, floor control, alert delivery, relaying,
-fragmentation, the epoch counter, pairing codes and the transmit key. `core-proto` holds
+fragmentation, the epoch counter, pairing codes, the transmit key, duplex and
+barge-in policy, adaptive endpointing, stabilised partials, tag-length policy and
+the transport contract. `core-proto` holds
 94.2 % line coverage.
 
 **The sherpa-onnx AAR is fetched and the whole native stack now builds.** The debug APK is
@@ -37,9 +39,11 @@ no models in it. `aapt2` confirms it still carries no `INTERNET` and no location
 permission. That 30.9 MB is **0.9 MB over the N2 installer target** and the cause is
 `libonnxruntime.so` at 21.7 MB; see risk T-04, which has been raised to High.
 
-> **Nothing is blocked any more.** Q3 is answered — sherpa-onnx is distributed as a GitHub
-> release asset, not a Maven artifact — so W1.23 moved from `[!]` to `[~]`. What remains
-> in weeks 3 and 4 needs the two handsets and the model downloads, not a decision.
+> **Everything still open in weeks 1–6 needs the two handsets.** Not a decision, not a
+> dependency — a device. The instrumented tests are written and compiling, the transport
+> contract is stated, and the alert path is unit-tested end to end; what none of that can
+> do is prove an alert is audible on a locked, silenced phone, because the thing under
+> test there is the vendor’s audio policy rather than our code.
 
 > **What is left in week 1 needs hardware.** The audio capture wrapper, the recogniser
 > binding, the Silero and Vosk models and gate W1.G all require the target handset, and
@@ -602,7 +606,7 @@ parallel with week 1.**
     same answer from the same two numbers with nothing further exchanged*
   · *Tested as a **pair of units resolving one collision independently**: the property
     that matters is not that each behaves sensibly alone but that the two agree*
-- [~] **W5.4** — **Volume-down hardware key binding, working with the screen off**
+- [x] **W5.4** — **Volume-down hardware key binding, working with the screen off**
   · *`PushToTalkKey`, 9 tests, wired into the bring-up screen and shown on it so the
     binding can be checked on a handset. Press-and-hold, not toggle: a toggle would
     leave a handset transmitting after a knock in a pocket, silencing everyone else
@@ -621,9 +625,17 @@ parallel with week 1.**
     permission reading "this app can watch everything you do" for a few hundred
     milliseconds*
   · *Rule 4. Operators wear gloves and rarely look at the screen*
-- [ ] **W5.5** — Half duplex: speaker muted while transmitting; 150 ms endpoint on release
-- [ ] **W5.6** — Full duplex: continuous VAD-gated streaming both directions
-- [ ] **W5.7** — Barge-in: duck to −18 dB within 100 ms, stop at chunk end
+- [x] **W5.5** — Half duplex: speaker muted while transmitting; 150 ms endpoint on release
+  · *`DuplexPolicy`. **The mute is not politeness** — without it the handset's own speaker
+    feeds its microphone, the energy gate never closes, and the operator's transmission
+    never ends*
+- [x] **W5.6** — Full duplex: continuous VAD-gated streaming both directions
+  · *Capture runs continuously and the VAD decides what is speech; the endpoint window
+    moves to 400 ms because there is no key release to signal the end*
+- [x] **W5.7** — Barge-in: duck to −18 dB within 100 ms, stop at chunk end
+  · *Ducked rather than cut, and stopped at a chunk boundary rather than mid-word: an
+    abrupt stop sounds like a fault, and an operator who hears a fault repeats themselves*
+  · *A test derives the gain from the decibel figure rather than trusting the constant*
 - [x] **W5.8** — A press while the floor is held gives a **haptic refusal, never a dialog**
   · *`Reaction.Refused` carries who holds the floor so the display can name them. Meena
     is gloved at altitude with the screen dark; a dialog would have to be dismissed
@@ -696,14 +708,24 @@ parallel with week 1.**
 
 ### Instrumented tests — on the target handset, not an emulator
 
-- [ ] **W5.21** — Alert on locked handset · **Done when** audio at max, screen wakes, vibration fires
+- [~] **W5.21** — Alert on locked handset · **Done when** audio at max, screen wakes, vibration fires
+  · *`AlertDeliveryInstrumentedTest` written and compiling; `testInstrumentationRunner` was
+    missing from the app module, so instrumented tests would not have run at all*
+  · **Needs a handset.** *The policy is unit-tested and passes; none of that proves an
+    alert is **audible** on a locked, silenced phone, because what is being tested is the
+    vendor's audio policy rather than our code*
 - [ ] **W5.22** — Alert with ringer silenced
 - [ ] **W5.23** — Alert in Do Not Disturb
-- [ ] **W5.24** — Alert during music playback
+- [~] **W5.24** — Alert during music playback
 - [ ] **W5.25** — Alert during a phone call — documented behaviour, queued and repeated after
-- [ ] **W5.26** — Volume restoration verified
-- [ ] **W5.27** — Focus loss ignored during alert playback
-- [ ] **W5.28** — Mic pre-empted by a call → `DEGRADED` with reason, auto-recovery · *T-12*
+- [~] **W5.26** — Volume restoration verified
+- [~] **W5.27** — Focus loss ignored during alert playback
+- [~] **W5.28** — Mic pre-empted by a call → `DEGRADED` with reason, auto-recovery
+  · *Detection is in `AudioCapture`: a failed `AudioRecord` construction or a dead
+    object surfaces `MICROPHONE_UNAVAILABLE`, which the engine shows verbatim*
+  · ***Auto-recovery is not built.*** *It needs `registerAudioRecordingCallback` to
+    notice the microphone coming back, and there is no point writing that against a
+    guess at when the platform fires it* · *T-12*
 
 - [ ] **W5.G** — **GATE:** video of a locked, silenced, DND handset announcing at full volume
 
@@ -714,9 +736,21 @@ parallel with week 1.**
 **Gate W6: encrypted frames, replay rejected, three transports pass one suite, first soak.**
 
 - [ ] **W6.1** — Chunked synthesis tuned; time-to-first-audio measured and recorded
-- [ ] **W6.2** — Stabilised partials; `PARTIAL` flag; receiver may begin early synthesis
+- [x] **W6.2** — Stabilised partials; `PARTIAL` flag; receiver may begin early synthesis
   · *Depends on W3.13 — partials come from completed decode windows, not from the model*
-- [ ] **W6.3** — Adaptive endpointing
+  · *`StabilisedPartials`. A word is released only after surviving **three consecutive
+    partials unchanged**, which in practice withholds exactly the last few words of the
+    newest window — the part the next overlap usually revises*
+  · ***Nothing is ever un-released***, *because a word the receiver has already spoken
+    cannot be recalled. A disagreement waits for the `FINAL` frame, which carries the whole
+    utterance rather than a remainder*
+- [x] **W6.3** — Adaptive endpointing
+  · *`AdaptiveEndpoint`. The silence window is the **largest single term in the latency
+    budget**, and a fixed value has to be set for the slowest speaker, so everyone else
+    pays*
+  · ***Deliberately asymmetric***: *it rises fast on evidence of long pauses and falls
+    slowly. A symmetric estimator would shorten the window after a run of brisk sentences
+    and then clip the next thoughtful one. Bounded to 120–700 ms whatever the evidence*
 - [~] **W6.4** — `BleLink`: GATT, MTU negotiated to 247, ~244 usable
   · *BLE is the transport for **waiting**; RFCOMM is the transport for **talking**. A unit
     spends most of its day waiting, and that is where the eight-hour standby figure comes
@@ -761,8 +795,24 @@ parallel with week 1.**
     the real peer out. Frames are still AEAD-authenticated, so nothing can be injected —
     the exposure is denial of service, not forgery*
   · *Hosted network is primary. `WifiP2pManager` is optional — risk T-09*
-- [ ] **W6.8** — **Same integration suite runs green against all three transports**
-- [ ] **W6.9** — Enable AES-GCM on every transport; tag length by transport class
+- [~] **W6.8** — **Same integration suite runs green against all three transports**
+  · *`TransportContractTest` states the contract once against the `Link` interface and runs
+    it against `LoopbackLink` in full. **The value is not in testing any one transport** —
+    it is in proving the application cannot tell them apart; a per-transport suite would
+    drift and surface as "works on Bluetooth, not on Wi-Fi"*
+  · *The hardest requirement is that **exactly one complete frame** arrives per emission,
+    so the loopback delivers **one byte at a time** to prove no consumer ever sees a
+    partial*
+  · **Needs two handsets** *for the three real transports; the contract above is the
+    specification those runs check*
+- [x] **W6.9** — Enable AES-GCM on every transport; tag length by transport class
+  · *`TransportClass`. Bluetooth, BLE and Wi-Fi take the full 16-byte tag; a 300 bps serial
+    link truncates to 8, which is over twenty seconds of airtime per message*
+  · ***Truncation is refused unless rate limiting is declared***. *A 2⁻⁶⁴ forgery
+    probability is negligible per attempt and stops being negligible once attempts are
+    unbounded, so the dependency is enforced in code rather than left in prose*
+  · *An unknown transport gets the **full** tag — the safe default is the one that costs
+    bytes, never the one that costs security*
 - [x] **W6.10** — `EPOCH` survives force-stop and reboot
   · **Done when** a test kills the app, reboots, and shows `EPOCH` incremented and no
   replay rejection of new frames
@@ -805,7 +855,9 @@ parallel with week 1.**
     `String` cannot be wiped. `FLAG_SECURE` and the 120 s expiry are what bound that
     exposure; the key itself is zeroed via `destroy()` once it reaches Keystore*
   · *[WIREFRAMES.md §3](WIREFRAMES.md#3-pairing)*
-- [ ] **W6.12** — `KEYID` derived as `SHA-256(key)[0]`, never configured, never shown
+- [x] **W6.12** — `KEYID` derived as `SHA-256(key)[0]`, never configured, never shown
+  · *`Aead.keyId`, tested. Derived rather than configured, so two units that hold the same
+    key always agree on its identifier without exchanging one*
 - [x] **W6.13** — Relay: `TTL` decrement, 512-entry LRU seen-set on `(SRC, EPOCH, SEQ)`,
   0–50 ms random delay · *Risk T-10*
   · *`Relay`. **All three mechanisms are necessary and the class says why**: the seen-set
@@ -816,13 +868,24 @@ parallel with week 1.**
     message — and asserts exactly three rebroadcasts and then silence*
   · *The epoch is in the key because `SEQ` wraps at 65 536; without it the first frame
     after a wrap would be suppressed as a duplicate of one from before it*
-- [ ] **W6.14** — UNSECURED banner: red, permanent, undismissable, no silent path
-- [ ] **W6.15** — `TEMPLATE MISMATCH` warning; template sending disabled on digest mismatch
+- [x] **W6.14** — UNSECURED banner: red, permanent, undismissable, no silent path
+  · *`UnsecuredBanner`. **A banner an operator can dismiss is a banner an operator will
+    dismiss**, and the condition persists after the dismissal — which is why this is a
+    banner rather than a one-time dialog*
+- [x] **W6.15** — `TEMPLATE MISMATCH` warning; template sending disabled on digest mismatch
   · *Risk S-06 — a safety defect, not a compatibility inconvenience*
+  · *`TemplateMismatchBanner`. Byte 4 might be EVACUATE on one handset and ALL CLEAR on the
+    other, and **nothing about that failure looks like an error** — no garbled audio, no
+    checksum failure. Sending is disabled rather than merely flagged; free text still works,
+    and free text carries its own words*
 - [ ] **W6.16** — **First 30-minute thermal soak**; sustained RTF recorded
   · *Risk T-03. **Done when** RTF after soak < 2× RTF cold. Finding throttling in week 8
   is finding it too late*
-- [ ] **W6.17** — Reduce thread count under thermal pressure
+- [x] **W6.17** — Reduce thread count under thermal pressure
+  · *`ThermalThreads`. Once the platform is reducing clocks, more threads make it worse —
+    the cores are already contended and the scheduling is overhead on a device shedding
+    heat. Backs off at MODERATE, before the platform forces it, and warns the operator at
+    SEVERE because latency will be visibly worse*
 - [x] **W6.18** — `resource.csv` writer: CPU, RSS, battery, thermal state
   · *`ResourceLogWriter` + `ResourceRun.summarise`. **`minutesBeforeThrottling` is the
     figure worth quoting** — an entry-tier handset throttles after roughly ten minutes of
