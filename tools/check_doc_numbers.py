@@ -118,6 +118,16 @@ COMPRESSION_RATIO = re.compile(r"(?<![\d.~])(\d[\d\s ]*)\s*×")
 # count -- and chasing those would make this check noisy enough to get switched off.
 SMALLEST_CLAIM = 40
 
+# A figure inside backticks is a quotation, not a claim. Documents have to be able to say
+# "it said 42x and it is 43x" when recording a defect, and a checker that cannot tell a
+# quotation from an assertion forces the record to be vague instead.
+QUOTED = re.compile(r"`[^`]*`")
+
+
+def is_quoted(line: str, at: int) -> bool:
+    return any(span.start() <= at < span.end() for span in QUOTED.finditer(line))
+
+
 known = {expected for _, expected, _ in CLAIMS} | OTHER_CORRECT
 for path, text in corpus.items():
     for line in text.splitlines():
@@ -125,7 +135,7 @@ for path, text in corpus.items():
             continue
         for match in COMPRESSION_RATIO.finditer(line):
             value = int(re.sub(r"[\s ]", "", match.group(1)))
-            if value in known or value < SMALLEST_CLAIM:
+            if value in known or value < SMALLEST_CLAIM or is_quoted(line, match.start()):
                 continue
             failures.append(
                 f"{path.name}: {value}x is stated as a compression figure but is not one "

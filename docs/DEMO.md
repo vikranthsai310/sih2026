@@ -89,9 +89,9 @@ keeps moving looks prepared; a team crouched over a phone does not.
 | "What if the recogniser is wrong?" | Confidence is on the wire and on screen; the sender sees the text before it sends; alerts require confirmation; negations are weighted in the biasing lexicon |
 | "Does the cross-language feature translate anything?" | No, and we do not claim it does. It works for template-coded messages only, because both devices hold the same table in ten languages. Free-form messages are delivered in the language spoken |
 | "How is this different from Meshtastic?" | Meshtastic sends typed text. The entire point here is that the operator never types or reads — which is what makes it usable by someone who cannot |
-| "What is your worst language?" | Name it, give the number, give the reason and the mitigation. Answering this well is worth more than a uniform set of suspiciously similar figures |
-| "Did you measure this on a flagship?" | No. Every figure names the entry-tier device it came from and the soak duration |
-| "Is it really offline?" | The APK declares no `INTERNET` permission. The platform enforces it; we do not merely assert it |
+| "What is your worst language?" | Odia, and we can say why before the numbers land: it has the smallest published speech corpus of the ten, so the acoustic model has seen the least of it, and it is also one of the four with no permissively licensed voice — it recognises and displays but does not speak. Two mitigations, both already built: contextual biasing moves the result furthest exactly where the decoder has least evidence of its own, and a template-coded message reaches an Odia handset in Odia regardless of how its recogniser performs, because the sender's handset did the recognising. Naming the worst language and its mitigation is worth more than ten suspiciously similar figures |
+| "Did you measure this on a flagship?" | No. Every figure names the entry-tier device it came from and the soak duration, in a `#` preamble on the CSV itself — and `ReportBundle` refuses to write any of the three files for a debug build, an emulator, a cold device, a handset on charge, or a run under 100 utterances. The conditions are code, not a promise |
+| "Is it really offline?" | The APK declares no `INTERNET` permission, so the platform enforces it rather than us asserting it. Check it in the room: `aapt2 dump permissions app-release.apk`. Eleven permissions, no `INTERNET`, no location, and `BLUETOOTH_SCAN` carries `neverForLocation` |
 
 ## 7. Rehearsal log
 

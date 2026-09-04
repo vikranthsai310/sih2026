@@ -21,8 +21,8 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 108 of 205 complete, 31 in progress, nothing blocked.** `./gradlew build` is
-green end to end — compilation, ktlint, Android Lint and the coverage gate — and **650
+**Progress: 114 of 205 complete, 33 in progress, nothing blocked.** `./gradlew build` is
+green end to end — compilation, ktlint, Android Lint and the coverage gate — and **692
 tests pass** across all eight modules: CRC, frame codec, script packer, templates, replay
 window, AEAD, clock sync, pre-trigger ring, energy gate, endpointer, sliding-window
 decoding, normalisation, clause splitting, the latency log, the manifest, atomic pack
@@ -30,10 +30,12 @@ installation, resumable downloads, the language switch, the WER scorer, the nois
 the scorecard, contextual biasing, floor control, alert delivery, relaying,
 fragmentation, the epoch counter, pairing codes, the transmit key, duplex and
 barge-in policy, adaptive endpointing, stabilised partials, tag-length policy,
-the transport contract, and — new in week 7 — the ten-language rule loader and its
+the transport contract, the ten-language rule loader and its
 fixtures, the deployment gazetteer and template profile, the critical-term scorer, the
 accuracy matrix and suppression policy, the listening-panel arithmetic, the recognition
-tap, the relay and memory soaks, and the spoken forms behind TalkBack. `core-proto` holds
+tap, the relay and memory soaks, the spoken forms behind TalkBack, and — new in week 8 —
+the compression ratios, the latency stage decomposition, the report-bundle conditions and
+a million-input decoder fuzz. `core-proto` holds
 94.2 % line coverage.
 
 **Week 7 is complete except for measurement.** Ten languages are enabled with vocabulary,
@@ -43,11 +45,20 @@ acoustic model, the evaluation corpus, a handset and a listening panel — so W7
 W7.11, W7.14 and W7.16 carry no figures, and the code says so rather than defaulting to
 one.
 
+**Week 8 is complete except for measurement and rehearsal.** The four compression figures
+are computed from the frame codec rather than transcribed, and a CI gate greps `docs/` for
+any that disagree — it found two wrong numbers in the answers prepared for a technical
+panel. The security audit closed eight of ten items with re-runnable evidence and found two
+controls that were written down rather than enforced. What remains needs two handsets, a
+model, and a room.
+
 **The sherpa-onnx AAR is fetched and the whole native stack now builds.** The debug APK is
-43.2 MB and the **release APK 30.9 MB** — arm64-only, minified, resources shrunk, and with
+43.2 MB and the **release APK 26.3 MiB** — arm64-only, minified, resources shrunk, and with
 no models in it. `aapt2` confirms it still carries no `INTERNET` and no location
-permission. That 30.9 MB is **0.9 MB over the N2 installer target** and the cause is
-`libonnxruntime.so` at 21.7 MB; see risk T-04, which has been raised to High.
+permission. It was 30.9 MB and **0.9 MB over the N2 installer target** until W8.7 found
+that the sherpa-onnx AAR ships two native libraries this application never loads;
+`libonnxruntime.so` is still 21.7 MB of it, so risk T-04 stays worth watching even though
+the target is now met with room to spare.
 
 > **Everything still open in weeks 1–6 needs the two handsets.** Not a decision, not a
 > dependency — a device. The instrumented tests are written and compiling, the transport
@@ -1116,40 +1127,126 @@ parallel with week 1.**
 
 **Gate W8: full scorecard; demo run end to end three times without intervention.**
 
-- [ ] **W8.1** — Metrics screen: histogram, per-stage medians, CSV export
+- [x] **W8.1** — Metrics screen: histogram, per-stage medians, CSV export
+  · *`MetricsScreen`, on `StageSummary`. An operational product carries a metrics screen
+    because the alternative is a slide: this is where a jury watches a figure be produced
+    rather than taking last week's measurement on trust*
+  · *Three views, because one number cannot carry the argument. The median answers "how
+    fast"; the stage table answers "where did the time go", which is what makes a slow run
+    actionable — a slow decode is thermal and a slow link is radio, and they have opposite
+    remedies; the histogram answers "is it consistent", and it is the only one that shows a
+    bimodal run. Empty buckets are kept for exactly that reason*
+  · *The seven stages sum to the end-to-end figure by construction, asserted including
+    under a 45-second clock offset. A decomposition that loses time somewhere unnamed is
+    worse than none, because it invites a reader to trust it*
 - [ ] **W8.2** — **Final measurement run on the target handset after a 30-minute soak**,
   release build, battery > 30 % and not charging
   · *[EVALUATION.md §1](EVALUATION.md#1-measurement-conditions). Figures taken outside
   these conditions are not reportable*
-- [ ] **W8.3** — ≥ 100 utterances per latency figure; **median and p95**, never a single run
+  · *The **conditions** are now code rather than a paragraph — `RunConditions` refuses a
+    debug build, an emulator, a cold device, a handset on charge or a low battery, and
+    reports every unmet condition at once*
+  · **Blocked:** *the run. Needs the handset and the models*
+- [x] **W8.3** — ≥ 100 utterances per latency figure; **median and p95**, never a single run
+  · *`LatencySummary.isReportable` gates the figure, `ReportBundle` refuses to write the
+    files, and `MetricsScreen` shows NOT REPORTABLE with the sample count instead of a
+    number. A plausible millisecond figure on a device screen is exactly what gets
+    photographed and quoted, and by then nobody remembers it came from nine utterances*
 - [ ] **W8.4** — Perfetto idle-CPU trace, 10 minutes of silence with VAD active · *< 2 %*
+  · **Blocked:** *a handset and Perfetto*
 - [ ] **W8.5** — Perfetto active-CPU trace during continuous speech · *< 35 %*
+  · **Blocked:** *a handset and Perfetto*
 - [ ] **W8.6** — `batterystats` 8 h endurance figure
-- [ ] **W8.7** — APK: `arm64-v8a` split, App Bundle · **Done when** installer < 30 MB with
+  · **Blocked:** *a handset and eight hours. Same measurement as W7.16*
+- [x] **W8.7** — APK: `arm64-v8a` split, App Bundle · **Done when** installer < 30 MB with
   two languages resident
-- [ ] **W8.8** — All three CSVs generated, each naming its device and soak duration
-- [ ] **W8.9** — Compression ratios computed four ways: 2 182× unauthenticated, 1 600×
+  · ***26.3 MiB**, from 30.9. The sherpa-onnx AAR ships four native libraries and this
+    application loads two: the dynamic string table of `libsherpa-onnx-jni.so` names
+    `libonnxruntime.so` and the system libraries and nothing else. The C API library is a
+    standalone entry point for native consumers and the C++ one wraps it; excluding both
+    removes 4.7 MB. Checkable with one `strings` command rather than assumed*
+  · *`app/proguard-rules.pro` **did not exist** and the release build referenced it. R8
+    warned and used the default configuration, which does not know that the JNI library
+    resolves `com.k2fsa.sherpa.onnx` classes by name, that kotlinx-serialization's
+    generated serializers are reached only by synthesised calls, or that
+    `RnNoiseSuppressor` declares `external` methods. Each is a crash that appears in the
+    release APK on a handset and nowhere else*
+  · *Locale resources are deliberately **not** stripped: it would save about a megabyte and
+    make every framework accessibility string speak English on a Hindi handset, undoing
+    W7.23 for space the project no longer needs*
+- [~] **W8.8** — All three CSVs generated, each naming its device and soak duration
+  · *`ReportBundle` writes `latency.csv`, `resource.csv` and `scorecard.csv`, each with a
+    `#` preamble naming device, build, soak duration and date — a filename says where a
+    file came from only until somebody renames it*
+  · *An unreportable run produces **no files** rather than files needing a caveat nobody
+    will attach. That is the whole behaviour: a bad run leaves nothing behind to be quoted
+    three weeks later*
+  · **Blocked:** *the contents. The writer is built and tested; the rows need W8.2*
+- [x] **W8.9** — Compression ratios computed four ways: 2 182× unauthenticated, 1 600×
   authenticated, 43× vs Opus, 7 385× template
   · *Have all four ready. Quoting only the largest and being asked for the Opus comparison
   is a bad thirty seconds in front of a technical panel*
-- [ ] **W8.10** — **Security pre-submission audit — all ten items**
+  · *`CompressionRatios` derives every size from `Frame.HEADER_SIZE`, `Frame.CRC_SIZE` and
+    `TransportClass`, so widening the header changes the published figures and fails the
+    tests that pin them*
+  · *The four use **different frame variants**, and that pairing is where they drift:
+    2 182× is 44 B unauthenticated, 1 600× is 60 B with the full tag, 43× is 52 B with the
+    truncated tag against Opus at its floor, 7 385× is the 13 B template. Quoting the
+    8-byte frame as the authenticated ratio would claim 1 846× — fifteen per cent, on the
+    number a jury actually checks*
+- [~] **W8.10** — **Security pre-submission audit — all ten items**
   · *[SECURITY.md §8](SECURITY.md#8-pre-submission-audit-checklist)*
-- [ ] **W8.11** — Documentation consistency pass: every number in `docs/` matches a CSV
+  · *Eight of ten pass with re-runnable evidence recorded beside each item. Two defects
+    found, both the same kind — a control **written down rather than enforced***
+  · *`FLAG_SECURE` was a requirement on a hosting activity that does not exist, so nothing
+    applied it. The QR code on that screen **is** the shared key and without the flag it
+    lands in the recents thumbnail. `PairingScreen` now sets it itself*
+  · *The fuzz bar had drifted across three places: the W2 gate says 10⁵, the checklist says
+    10⁶, the harness did 23 000. `FrameFuzzTest` now runs a million across ten shapes and
+    asserts four properties, including that the generator itself is not broken*
+  · **Open:** *`ENCRYPTED` by default and the UNSECURED banner in the running application
+    both wait on a pairing flow that does not exist. The cryptography under them is built
+    and tested; ticking either would record an intention*
+- [x] **W8.11** — Documentation consistency pass: every number in `docs/` matches a CSV
   · *The `RESCUE-A` and `22 B` drift proves this is needed*
+  · *`tools/check_doc_numbers.py` reads the frame constants out of `core-proto`, recomputes
+    the ratios and greps `docs/` for figures that disagree. In the local gate list beside
+    `check_licences.py`*
+  · *It found two real defects, both in DEMO.md §6 — the answers prepared for a technical
+    panel, which is the worst place to be wrong. `42×` smaller against Opus, where it is
+    43×; and `1 600× authenticated, 52 B on the wire`, where 52 B gives 1 846× and 1 600×
+    is the 60 B frame. Exactly the drift the task predicted*
 - [ ] **W8.12** — Identical APK checksum on both handsets · *R9 symmetry*
+  · **Blocked:** *two handsets*
 - [ ] **W8.13** — Spare handset paired, charged, in the bag · *P-03*
+  · **Blocked:** *a third handset*
 - [ ] **W8.14** — Fallback videos recorded: locked-handset alert, LoRa hop
+  · **Blocked:** *handsets and a camera*
 - [ ] **W8.15** — Scorecard printed, two copies, in case the projector fails
+  · **Blocked:** *W8.2 first — there is nothing to print*
 - [ ] **W8.16** — Demo pre-flight checklist dry run
   · *[DEMO.md §4](DEMO.md#4-pre-flight-checklist)*
+  · **Blocked:** *two handsets. The checklist itself is current*
 - [ ] **W8.17** — **Rehearse the nine-step demo three times without intervention**, logged
   with date, failures and median latency
+  · **Blocked:** *handsets, models and a room*
 - [ ] **W8.18** — Rehearse the failure recoveries — a recovery performed calmly reads as
   competence, improvised reads as a broken system
-- [ ] **W8.19** — Answers prepared for the eight likely questions
+  · **Blocked:** *same*
+- [x] **W8.19** — Answers prepared for the eight likely questions
   · *[DEMO.md §6](DEMO.md#6-questions-to-have-answers-ready-for)*
+  · *Two were wrong and are fixed — see W8.11. Three more now cite something checkable in
+    the room rather than a claim: the Opus comparison names the frame it is measured
+    against, the flagship answer points at `ReportBundle` refusing to write a file for a
+    debug run, and the offline answer gives the `aapt2 dump permissions` command*
+  · *"What is your worst language?" was an instruction to the presenter rather than an
+    answer. It is now Odia, with the reason — smallest published corpus, no permissively
+    licensed voice — and the two mitigations that are already built*
 
 - [ ] **W8.G** — **GATE:** three clean rehearsals; three CSVs; APK under 30 MB
+  · *One of three met: the APK is 26.3 MiB. The CSVs have their writer, their conditions
+    and their preamble but no rows, and the rehearsals need two handsets and a model. Every
+    task in this week that does not need hardware or a person is closed*
 
 ---
 
