@@ -16,7 +16,7 @@
       "script": "Devanagari",
       "blockBase": "U+0900",
       "vocabulary": {
-        "files": ["tokens.hi.txt", "alert-lexicon.hi.txt"],
+        "files": ["tokens.hi.txt", "alert-lexicon.hi.txt", "negation.hi.txt"],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
@@ -39,7 +39,7 @@
       "script": "Bengali",
       "blockBase": "U+0980",
       "vocabulary": {
-        "files": ["tokens.bn.txt", "alert-lexicon.bn.txt"],
+        "files": ["tokens.bn.txt", "alert-lexicon.bn.txt", "negation.bn.txt"],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
@@ -62,7 +62,7 @@
       "script": "Devanagari",
       "blockBase": "U+0900",
       "vocabulary": {
-        "files": ["tokens.mr.txt", "alert-lexicon.mr.txt"],
+        "files": ["tokens.mr.txt", "alert-lexicon.mr.txt", "negation.mr.txt"],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
@@ -85,7 +85,7 @@
       "script": "Telugu",
       "blockBase": "U+0C00",
       "vocabulary": {
-        "files": ["tokens.te.txt", "alert-lexicon.te.txt"],
+        "files": ["tokens.te.txt", "alert-lexicon.te.txt", "negation.te.txt"],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
@@ -108,7 +108,7 @@
       "script": "Malayalam",
       "blockBase": "U+0D00",
       "vocabulary": {
-        "files": ["tokens.ml.txt", "alert-lexicon.ml.txt"],
+        "files": ["tokens.ml.txt", "alert-lexicon.ml.txt", "negation.ml.txt"],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
@@ -131,7 +131,7 @@
       "script": "Tamil",
       "blockBase": "U+0B80",
       "vocabulary": {
-        "files": ["tokens.ta.txt", "alert-lexicon.ta.txt"],
+        "files": ["tokens.ta.txt", "alert-lexicon.ta.txt", "negation.ta.txt"],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
@@ -147,7 +147,7 @@
       "script": "Gujarati",
       "blockBase": "U+0A80",
       "vocabulary": {
-        "files": ["tokens.gu.txt", "alert-lexicon.gu.txt"],
+        "files": ["tokens.gu.txt", "alert-lexicon.gu.txt", "negation.gu.txt"],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
@@ -163,7 +163,7 @@
       "script": "Kannada",
       "blockBase": "U+0C80",
       "vocabulary": {
-        "files": ["tokens.kn.txt", "alert-lexicon.kn.txt"],
+        "files": ["tokens.kn.txt", "alert-lexicon.kn.txt", "negation.kn.txt"],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
@@ -179,7 +179,7 @@
       "script": "Odia",
       "blockBase": "U+0B00",
       "vocabulary": {
-        "files": ["tokens.or.txt", "alert-lexicon.or.txt"],
+        "files": ["tokens.or.txt", "alert-lexicon.or.txt", "negation.or.txt"],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
@@ -194,7 +194,7 @@
       "displayName": "English",
       "script": "Latin",
       "vocabulary": {
-        "files": ["tokens.en.txt", "alert-lexicon.en.txt"],
+        "files": ["tokens.en.txt", "alert-lexicon.en.txt", "negation.en.txt"],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },

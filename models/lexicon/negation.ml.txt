@@ -1,0 +1,32 @@
+# Malayalam negation terms — tasks W4.14 and W7.1, risk S-03.
+#
+# Weight 4.0, the highest in the biasing list. A negation heard as its opposite is a
+# fluent, plausible instruction that means the reverse of what was said, and it will be
+# acted on without question. See negation.hi.txt for the reasoning in full.
+#
+# Drafted by an engineer; not yet checked by a native speaker.
+#
+# One phrase per line. An explicit weight may follow a tab.
+
+ഇല്ല
+അല്ല
+വേണ്ട
+അരുത്
+ഒരിക്കലും ഇല്ല
+ഇല്ലാതെ
+നിർത്തുക
+കാത്തിരിക്കുക
+നിൽക്കുക
+പോകരുത്
+വരരുത്
+അയയ്ക്കരുത്
+അനങ്ങരുത്
+ഒഴിഞ്ഞുപോകരുത്
+സുരക്ഷിതമല്ല
+ഒഴിഞ്ഞിട്ടില്ല
+സാധ്യമല്ല
+കഴിയില്ല
+റദ്ദാക്കുക
+വിലക്ക്
+ചെയ്യരുത്
+പ്രവേശനം ഇല്ല

@@ -1,0 +1,35 @@
+# Odia negation terms — tasks W4.14 and W7.1, risk S-03.
+#
+# Weight 4.0, the highest in the biasing list. A negation heard as its opposite is a
+# fluent, plausible instruction that means the reverse of what was said, and it will be
+# acted on without question. See negation.hi.txt for the reasoning in full.
+#
+# Odia has the smallest published speech corpus of the ten languages, so its recogniser
+# is the one most likely to drop a negation and the one where this list carries the most
+# weight in practice.
+#
+# Drafted by an engineer; not yet checked by a native speaker.
+#
+# One phrase per line. An explicit weight may follow a tab.
+
+ନାହିଁ
+ନୁହେଁ
+ନା
+କେବେ ନାହିଁ
+ବିନା
+ଅଟକନ୍ତୁ
+ଅପେକ୍ଷା କରନ୍ତୁ
+ରୁହନ୍ତୁ
+ଯାଆନ୍ତୁ ନାହିଁ
+ଆସନ୍ତୁ ନାହିଁ
+ପଠାନ୍ତୁ ନାହିଁ
+ହଲନ୍ତୁ ନାହିଁ
+ଖାଲି କରନ୍ତୁ ନାହିଁ
+ସୁରକ୍ଷିତ ନୁହେଁ
+ଖାଲି ନାହିଁ
+ସମ୍ଭବ ନୁହେଁ
+ପାରିବୁ ନାହିଁ
+ବାତିଲ
+ମନା
+ବନ୍ଦ କରନ୍ତୁ
+ପ୍ରବେଶ ନାହିଁ

@@ -1,0 +1,32 @@
+# Kannada negation terms — tasks W4.14 and W7.1, risk S-03.
+#
+# Weight 4.0, the highest in the biasing list. A negation heard as its opposite is a
+# fluent, plausible instruction that means the reverse of what was said, and it will be
+# acted on without question. See negation.hi.txt for the reasoning in full.
+#
+# Drafted by an engineer; not yet checked by a native speaker.
+#
+# One phrase per line. An explicit weight may follow a tab.
+
+ಇಲ್ಲ
+ಅಲ್ಲ
+ಬೇಡ
+ಬೇಡಿ
+ಎಂದಿಗೂ ಇಲ್ಲ
+ಇಲ್ಲದೆ
+ನಿಲ್ಲಿ
+ಕಾಯಿರಿ
+ನಿಲ್ಲಿಸಿ
+ಹೋಗಬೇಡಿ
+ಬರಬೇಡಿ
+ಕಳುಹಿಸಬೇಡಿ
+ಚಲಿಸಬೇಡಿ
+ಖಾಲಿ ಮಾಡಬೇಡಿ
+ಸುರಕ್ಷಿತವಲ್ಲ
+ಖಾಲಿ ಇಲ್ಲ
+ಸಾಧ್ಯವಿಲ್ಲ
+ಆಗುವುದಿಲ್ಲ
+ರದ್ದು
+ನಿಷೇಧ
+ಮಾಡಬೇಡಿ
+ಪ್ರವೇಶ ಇಲ್ಲ

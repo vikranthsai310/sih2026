@@ -1,0 +1,32 @@
+# Gujarati negation terms — tasks W4.14 and W7.1, risk S-03.
+#
+# Weight 4.0, the highest in the biasing list. A negation heard as its opposite is a
+# fluent, plausible instruction that means the reverse of what was said, and it will be
+# acted on without question. See negation.hi.txt for the reasoning in full.
+#
+# Drafted by an engineer; not yet checked by a native speaker.
+#
+# One phrase per line. An explicit weight may follow a tab.
+
+નહીં
+ના
+નથી
+ન કરો
+ક્યારેય નહીં
+વગર
+થોભો
+રાહ જુઓ
+ઊભા રહો
+જશો નહીં
+આવશો નહીં
+મોકલશો નહીં
+હલશો નહીં
+ખાલી ન કરો
+સુરક્ષિત નથી
+ખાલી નથી
+શક્ય નથી
+શકતા નથી
+રદ
+મનાઈ
+બંધ કરો
+પ્રવેશ નથી

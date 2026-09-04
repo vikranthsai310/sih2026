@@ -1,0 +1,32 @@
+# Tamil negation terms — tasks W4.14 and W7.1, risk S-03.
+#
+# Weight 4.0, the highest in the biasing list. A negation heard as its opposite is a
+# fluent, plausible instruction that means the reverse of what was said, and it will be
+# acted on without question. See negation.hi.txt for the reasoning in full.
+#
+# Drafted by an engineer; not yet checked by a native speaker.
+#
+# One phrase per line. An explicit weight may follow a tab.
+
+இல்லை
+வேண்டாம்
+கூடாது
+அல்ல
+ஒருபோதும் இல்லை
+இல்லாமல்
+நிறுத்துங்கள்
+காத்திருங்கள்
+நில்லுங்கள்
+போக வேண்டாம்
+வர வேண்டாம்
+அனுப்ப வேண்டாம்
+நகர வேண்டாம்
+வெளியேற வேண்டாம்
+பாதுகாப்பானது இல்லை
+காலியாக இல்லை
+முடியாது
+இயலாது
+ரத்து
+தடை
+செய்ய வேண்டாம்
+நுழைவு இல்லை

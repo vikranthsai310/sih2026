@@ -1,0 +1,100 @@
+# English domain lexicon — tasks W4.13 and W7.1.
+#
+# Distress and operational vocabulary, boosted at weight 1.5 during decoding. These are
+# the words whose misrecognition is most costly, and biasing them needs no retraining —
+# docs/ASR.md section 3.4.
+#
+# Negation lives in negation.en.txt at a much higher weight; do not duplicate it here.
+# alert-lexicon.hi.txt is the reference set and the longest; this is the core shared by
+# every deployment, extended per deployment through the gazetteer.
+#
+# One phrase per line, `#` comments, optional weight after a tab.
+
+# ── distress ─────────────────────────────────────────────────────────────────
+help
+need help
+rescue
+emergency
+danger
+trapped
+stuck
+injured
+serious
+unconscious
+dead
+missing
+safe
+in danger
+
+# ── casualties and medical ───────────────────────────────────────────────────
+doctor
+medicine
+bandage
+stretcher
+ambulance
+blood
+oxygen
+fracture
+burn
+casualty
+
+# ── hazards ──────────────────────────────────────────────────────────────────
+fire
+smoke
+flood
+water rising
+collapse
+landslide
+gas leak
+live wire
+explosion
+debris
+current
+unstable
+
+# ── movement and logistics ───────────────────────────────────────────────────
+evacuate
+move
+boat
+helicopter
+vehicle
+road
+bridge
+fuel
+food
+drinking water
+blanket
+tent
+supplies
+
+# ── people and units ─────────────────────────────────────────────────────────
+team
+unit
+sector
+commander
+volunteer
+child
+woman
+elderly
+
+# ── places and reference ─────────────────────────────────────────────────────
+village
+camp
+school
+hospital
+river
+bank
+north
+south
+east
+west
+
+# ── communication ────────────────────────────────────────────────────────────
+over
+repeat
+received
+understood
+position
+coordinates
+radio
+battery

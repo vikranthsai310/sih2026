@@ -1,0 +1,32 @@
+# Telugu negation terms — tasks W4.14 and W7.1, risk S-03.
+#
+# Weight 4.0, the highest in the biasing list. A negation heard as its opposite is a
+# fluent, plausible instruction that means the reverse of what was said, and it will be
+# acted on without question. See negation.hi.txt for the reasoning in full.
+#
+# Drafted by an engineer; not yet checked by a native speaker.
+#
+# One phrase per line. An explicit weight may follow a tab.
+
+కాదు
+లేదు
+వద్దు
+కాదని
+ఎప్పుడూ కాదు
+లేకుండా
+ఆగండి
+వేచి ఉండండి
+ఆపండి
+వెళ్లవద్దు
+రావద్దు
+పంపవద్దు
+కదలవద్దు
+ఖాళీ చేయవద్దు
+సురక్షితం కాదు
+ఖాళీగా లేదు
+సాధ్యం కాదు
+చేయలేము
+రద్దు
+నిషేధం
+చేయవద్దు
+ప్రవేశం లేదు

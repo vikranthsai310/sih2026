@@ -1,0 +1,40 @@
+# English negation terms — tasks W4.14 and W7.1, risk S-03.
+#
+# Weight 4.0, the highest in the biasing list. "Do not evacuate" heard as "now evacuate"
+# is a fluent, plausible instruction that means the opposite of what was said, and it
+# will be acted on without question. A spurious negation is an obvious confusion that
+# gets queried; a dropped one is not.
+#
+# English carries a second hazard the Indic lists do not: contractions. "Don't" and
+# "do not" are different token sequences to a recogniser, and a list holding only one of
+# them biases only half the ways an operator says it.
+#
+# One phrase per line. An explicit weight may follow a tab.
+
+no
+not
+do not
+don't
+cannot
+can't
+never
+without
+negative
+stop
+halt
+hold
+wait
+stand by
+cancel
+abort
+do not go
+do not come
+do not send
+do not move
+do not evacuate
+not safe
+not clear
+not possible
+unable
+no entry
+no access

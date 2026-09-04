@@ -1,0 +1,99 @@
+# Odia domain lexicon — tasks W4.13 and W7.1.
+#
+# Distress and operational vocabulary, boosted at weight 1.5 during decoding — see
+# docs/ASR.md section 3.4. Negation lives in negation.or.txt at a much higher weight; do
+# not duplicate it here.
+#
+# Odia has the smallest published speech corpus of the ten languages, which makes biasing
+# worth more here than anywhere else: the decoder has the least evidence of its own to
+# fall back on, so a supplied phrase list moves the result further.
+#
+# Drafted by an engineer; not yet checked by a native speaker.
+#
+# One phrase per line, `#` comments, optional weight after a tab.
+
+# ── distress ─────────────────────────────────────────────────────────────────
+ସାହାଯ୍ୟ
+ସାହାଯ୍ୟ ଦରକାର
+ବଞ୍ଚାନ୍ତୁ
+ଉଦ୍ଧାର
+ଜରୁରୀ
+ବିପଦ
+ଫସିଯାଇଛୁ
+ଆହତ
+ଗମ୍ଭୀର
+ଅଚେତ
+ମୃତ
+ନିଖୋଜ
+ସୁରକ୍ଷିତ
+ବିପଦରେ
+
+# ── casualties and medical ───────────────────────────────────────────────────
+ଡାକ୍ତର
+ଔଷଧ
+ବ୍ୟାଣ୍ଡେଜ
+ଷ୍ଟ୍ରେଚର
+ଆମ୍ବୁଲାନ୍ସ
+ରକ୍ତ
+ଅମ୍ଳଜାନ
+ହାଡ଼ ଭାଙ୍ଗିଛି
+ପୋଡ଼ା
+ଆହତ ବ୍ୟକ୍ତି
+
+# ── hazards ──────────────────────────────────────────────────────────────────
+ନିଆଁ
+ଧୂଆଁ
+ବନ୍ୟା
+ପାଣି ବଢ଼ୁଛି
+ଭାଙ୍ଗି ପଡ଼ିଛି
+ଭୂସ୍ଖଳନ
+ଗ୍ୟାସ ଲିକ
+ବିଦ୍ୟୁତ ତାର
+ବିସ୍ଫୋରଣ
+ଧ୍ୱଂସାବଶେଷ
+ସ୍ରୋତ
+
+# ── movement and logistics ───────────────────────────────────────────────────
+ଖାଲି କରନ୍ତୁ
+ଡଙ୍ଗା
+ହେଲିକପ୍ଟର
+ଯାନ
+ରାସ୍ତା
+ପୋଲ
+ଇନ୍ଧନ
+ଖାଦ୍ୟ
+ପିଇବା ପାଣି
+କମ୍ବଳ
+ତମ୍ବୁ
+ସାମଗ୍ରୀ
+
+# ── people and units ─────────────────────────────────────────────────────────
+ଦଳ
+ୟୁନିଟ୍
+ସେକ୍ଟର
+କମାଣ୍ଡର
+ସ୍ୱେଚ୍ଛାସେବୀ
+ଶିଶୁ
+ମହିଳା
+ବୟସ୍କ
+
+# ── places and reference ─────────────────────────────────────────────────────
+ଗାଁ
+ଶିବିର
+ବିଦ୍ୟାଳୟ
+ଡାକ୍ତରଖାନା
+ନଦୀ
+କୂଳ
+ଉତ୍ତର
+ଦକ୍ଷିଣ
+ପୂର୍ବ
+ପଶ୍ଚିମ
+
+# ── communication ────────────────────────────────────────────────────────────
+ପୁନରାବୃତ୍ତି କରନ୍ତୁ
+ମିଳିଲା
+ବୁଝିଲୁ
+ସ୍ଥାନ
+ନିର୍ଦ୍ଦେଶାଙ୍କ
+ରେଡିଓ
+ବ୍ୟାଟେରୀ
