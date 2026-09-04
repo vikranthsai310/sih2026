@@ -21,14 +21,15 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 72 of 205 complete, 14 in progress, nothing blocked.** `./gradlew build` is
-green end to end — compilation, ktlint, Android Lint and the coverage gate — and **394
+**Progress: 76 of 205 complete, 14 in progress, nothing blocked.** `./gradlew build` is
+green end to end — compilation, ktlint, Android Lint and the coverage gate — and **459
 tests pass** across all seven modules: CRC, frame codec, script packer, templates, replay
 window, AEAD, clock sync, pre-trigger ring, energy gate, endpointer, sliding-window
 decoding, normalisation, clause splitting, the latency log, the manifest, atomic pack
 installation, resumable downloads, the language switch, the WER scorer, the noise mixer,
-the scorecard, contextual biasing, floor control and alert delivery. `core-proto` holds
-95.3 % line coverage. The debug APK is 10.4 MB and `aapt2` confirms it carries no
+the scorecard, contextual biasing, floor control, alert delivery, relaying,
+fragmentation and the epoch counter. `core-proto` holds
+94.2 % line coverage. The debug APK is 10.4 MB and `aapt2` confirms it carries no
 `INTERNET` and no location permission.
 
 > **Nothing is blocked any more.** Q3 is answered — sherpa-onnx is distributed as a GitHub
@@ -667,21 +668,52 @@ parallel with week 1.**
   · *Depends on W3.13 — partials come from completed decode windows, not from the model*
 - [ ] **W6.3** — Adaptive endpointing
 - [ ] **W6.4** — `BleLink`: GATT, MTU negotiated to 247, ~244 usable
-- [ ] **W6.5** — Fragmentation for BLE and serial: chunks of `mtu - 12`, 2 s reassembly
+- [x] **W6.5** — Fragmentation for BLE and serial: chunks of `mtu - 12`, 2 s reassembly
   timeout, **AEAD verified after reassembly**
+  · *`Fragmenter` + `Reassembler`. **Reassembly never decrypts** — a fragment is a slice
+    of ciphertext with no tag of its own, so decrypting per fragment would mean processing
+    attacker-chosen bytes before anything is authenticated, which is the exact position
+    AEAD exists to avoid. Reassembly validates only sizes and indices and hands opaque
+    bytes upward*
+  · *`FINAL` is cleared on every fragment but the last, so a receiver that ignores
+    fragmentation entirely cannot mistake a slice for a complete message*
+  · *A repeated fragment is not counted twice — otherwise a retransmission could make a
+    partial message look complete*
+  · *Bounded in size (64 fragments) **and in time** (2 s): without the timeout a sender
+    that dies mid-message leaks its fragments for the life of the process, and a hostile
+    peer could hold memory open by sending one fragment of many thousands of messages*
 - [ ] **W6.6** — `WifiLink`: hosted network, TCP 38173, UDP discovery 38174
   · *Hosted network is primary. `WifiP2pManager` is optional — risk T-09*
 - [ ] **W6.8** — **Same integration suite runs green against all three transports**
 - [ ] **W6.9** — Enable AES-GCM on every transport; tag length by transport class
-- [ ] **W6.10** — `EPOCH` survives force-stop and reboot
+- [x] **W6.10** — `EPOCH` survives force-stop and reboot
   · **Done when** a test kills the app, reboots, and shows `EPOCH` incremented and no
   replay rejection of new frames
+  · *`EpochCounter`. **Persist before use, not after** — writing afterwards leaves a
+    window in which the process dies having transmitted under an epoch that was never
+    recorded, and the next start reuses it. Being one epoch ahead after a crash costs
+    nothing; being one behind is a total loss of confidentiality*
+  · *A failed write means no epoch is issued at all: transmitting under an unrecorded
+    epoch is worse than failing to start*
+  · *Exhausting the 2³² epoch space **refuses rather than wrapping** — wrapping here is
+    silent nonce reuse*
+  · *A test drives restarts and sequence wraps through the real `Aead.nonce` derivation
+    and asserts no nonce ever repeats. The on-device `Store` over DataStore, and the
+    instrumented kill-and-reboot test, remain*
 - [ ] **W6.11** — Pairing screen: QR generate and scan, `FLAG_SECURE`, key straight to
   Android Keystore, decoded string never written to disk
   · *[WIREFRAMES.md §3](WIREFRAMES.md#3-pairing)*
 - [ ] **W6.12** — `KEYID` derived as `SHA-256(key)[0]`, never configured, never shown
-- [ ] **W6.13** — Relay: `TTL` decrement, 512-entry LRU seen-set on `(SRC, EPOCH, SEQ)`,
+- [x] **W6.13** — Relay: `TTL` decrement, 512-entry LRU seen-set on `(SRC, EPOCH, SEQ)`,
   0–50 ms random delay · *Risk T-10*
+  · *`Relay`. **All three mechanisms are necessary and the class says why**: the seen-set
+    alone fails because a frame can arrive by two paths before either rebroadcast
+    completes; the TTL alone fails because a three-unit loop multiplies traffic at every
+    hop; the delay alone prevents neither*
+  · *The headline test simulates the actual storm — three units in mutual range, one
+    message — and asserts exactly three rebroadcasts and then silence*
+  · *The epoch is in the key because `SEQ` wraps at 65 536; without it the first frame
+    after a wrap would be suppressed as a duplicate of one from before it*
 - [ ] **W6.14** — UNSECURED banner: red, permanent, undismissable, no silent path
 - [ ] **W6.15** — `TEMPLATE MISMATCH` warning; template sending disabled on digest mismatch
   · *Risk S-06 — a safety defect, not a compatibility inconvenience*
@@ -689,7 +721,14 @@ parallel with week 1.**
   · *Risk T-03. **Done when** RTF after soak < 2× RTF cold. Finding throttling in week 8
   is finding it too late*
 - [ ] **W6.17** — Reduce thread count under thermal pressure
-- [ ] **W6.18** — `resource.csv` writer: CPU, RSS, battery, thermal state
+- [x] **W6.18** — `resource.csv` writer: CPU, RSS, battery, thermal state
+  · *`ResourceLogWriter` + `ResourceRun.summarise`. **`minutesBeforeThrottling` is the
+    figure worth quoting** — an entry-tier handset throttles after roughly ten minutes of
+    continuous inference, and every timing figure taken after that is a throttled one*
+  · *`wasOnCharge` detects a rising battery, because a soak run taken on charge is not an
+    endurance measurement and that is how you find out*
+  · *A sample that cannot be true — negative processor use, battery above 100, thermal
+    status out of range — is refused rather than averaged in*
 
 - [ ] **W6.G** — **GATE:** replay rejected, mutation test green, four transports pass, soak
   trace recorded
