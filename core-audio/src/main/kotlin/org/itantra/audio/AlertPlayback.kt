@@ -123,6 +123,18 @@ class AlertPlayback(private val audio: AudioSystem) {
         )
     }
 
+    /**
+     * Vibration without audio, for an alert that arrives during a telephone call. Task
+     * **W5.25**.
+     *
+     * The one case where this system does not announce. Vibration reaches a person holding
+     * the phone to their ear and does not enter the call audio — see [CallAwareAlerts] for
+     * why an alert is held rather than played over a call, and why it is not held silently.
+     */
+    fun vibrateOnly(patternMillis: LongArray) {
+        audio.vibrate(patternMillis)
+    }
+
     companion object {
         /** Twice. A single announcement in a noisy environment is missed. */
         const val REPEATS = 2

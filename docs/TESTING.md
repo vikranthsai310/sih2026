@@ -124,6 +124,7 @@ they pass before a push:
 ./gradlew testDebugUnitTest ktlintCheck
 python tools/check_licences.py
 python tools/check_doc_numbers.py
+python tools/fetch_models.py --all --verify-only
 ```
 
 | Gate | What it protects |
@@ -133,6 +134,7 @@ python tools/check_doc_numbers.py
 | `ktlintCheck` | Style, with warnings as errors in `core-proto` |
 | `check_licences.py` | Risk P-04 — a dependency absent from `LICENSES.md` fails |
 | `check_doc_numbers.py` | Task W8.11 — a compression figure in `docs/` that the frame codec does not produce |
+| `fetch_models.py --verify-only` | Task W1.25 — a model artefact absent or hashing to something other than the manifest says |
 | Manifest inspection | Constraint C2 — no `INTERNET`, no location permission |
 
 The licence check and the manifest inspection are the two worth running deliberately

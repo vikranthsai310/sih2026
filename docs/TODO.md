@@ -21,8 +21,8 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 114 of 205 complete, 33 in progress, nothing blocked.** `./gradlew build` is
-green end to end — compilation, ktlint, Android Lint and the coverage gate — and **692
+**Progress: 126 of 205 complete, 35 in progress, nothing blocked.** `./gradlew build` is
+green end to end — compilation, ktlint, Android Lint and the coverage gate — and **771
 tests pass** across all eight modules: CRC, frame codec, script packer, templates, replay
 window, AEAD, clock sync, pre-trigger ring, energy gate, endpointer, sliding-window
 decoding, normalisation, clause splitting, the latency log, the manifest, atomic pack
@@ -44,6 +44,13 @@ turns audio into a number exists and is tested against a stub. What is absent is
 acoustic model, the evaluation corpus, a handset and a listening panel — so W7.7 through
 W7.11, W7.14 and W7.16 carry no figures, and the code says so rather than defaulting to
 one.
+
+**The parts are now joined.** The largest gap in the project was not a missing component
+but a missing seam: `EpochCounter.start()` had no caller, `TransportClass.tagBytesFor` had
+no caller, and no code path anywhere turned a sentence into bytes or bytes back into a
+sentence. `Session` is that path, and building it is what forced the epoch to advance, the
+tag length to be chosen and the replay window to be consulted — three security properties
+the documents claimed and the code did not have.
 
 **Week 8 is complete except for measurement and rehearsal.** The four compression figures
 are computed from the frame codec rather than transcribed, and a CI gate greps `docs/` for
@@ -162,8 +169,15 @@ the target is now met with room to spare.
 
 ### Application shell
 
-- [ ] **W1.11** — `app` module, `MainActivity`, Compose scaffold
-- [ ] **W1.12** — Monochrome high-contrast theme tokens
+- [x] **W1.11** — `app` module, `MainActivity`, Compose scaffold
+  · *`MainActivity` now hosts `OperatingScreen` and does an activity's job: the window,
+    the permissions, the hardware key. The screen itself knows nothing about Android*
+- [x] **W1.12** — Monochrome high-contrast theme tokens
+  · *`Tokens`. Four files had already grown their own `Color(0xFF101010)`, which is how
+    a high-contrast palette becomes five slightly different greys*
+  · *The contrast ratios are written down beside the values — 19.6:1 for ink on paper,
+    6.4:1 for muted — because "high contrast" is a claim that drifts one hex digit at a
+    time*
   · *[WIREFRAMES.md §1](WIREFRAMES.md#1-layout-system) — 8 dp grid, 64 dp minimum target*
 - [x] **W1.13** — `EngineService` foreground service with persistent notification
   · *[ARCHITECTURE.md §3](ARCHITECTURE.md#3-threading-and-lifecycle)*
@@ -237,7 +251,12 @@ the target is now met with room to spare.
     this task*
 - [ ] **W1.24** — Tier 1 Silero VAD: 512-sample window, threshold 0.5, min speech 250 ms,
   min silence 100 ms. Runs only when tier 0 has opened
-- [ ] **W1.25** — `tools/fetch_models.py` — download, SHA-256 verify, atomic install
+- [x] **W1.25** — `tools/fetch_models.py` — download, SHA-256 verify, atomic install
+  · *Reads `models/manifest.json`, so there is one statement of what a pack contains.
+    Resumable, because a 120 MB download over a relief-camp connection does not complete
+    first try, and a server that ignores a Range request is detected rather than trusted*
+  · *A placeholder hash is refused out loud. A run that printed "installed" for a pack it
+    could not verify would be the worst outcome this script has*
 - [ ] **W1.26** — Vosk Hindi small model fetched and loading
   · *Week-one prototype. **Schedule insurance, not a compromise** — risk T-07*
 - [~] **W1.27** — **`OfflineRecognizer` binding** (NeMo-CTC), 4 threads while decoding and
@@ -260,12 +279,23 @@ the target is now met with room to spare.
 
 ### Interface
 
-- [ ] **W1.31** — Operating screen shell, bands A–F
+- [x] **W1.31** — Operating screen shell, bands A–F
+  · *Same order, same heights, every state. Band C is a `weight` rather than a height so
+    rule 1's third-of-the-screen holds on a taller handset, and every band is a minimum
+    so nothing truncates at 200 % text*
   · *[WIREFRAMES.md §4](WIREFRAMES.md#4-operating--push-to-talk-idle)*
-- [ ] **W1.32** — Recognised text in band E
-- [ ] **W1.33** — Stage timestamps `tMic`, `tVad`, `tFirstPartial`, `tEndpoint`, `tFinal`
+- [x] **W1.32** — Recognised text in band E
+  · *Rule 6, plus the partial hypothesis above band D while transmitting — the sender's
+    last chance to notice a misrecognition before it goes*
+- [x] **W1.33** — Stage timestamps `tMic`, `tVad`, `tFirstPartial`, `tEndpoint`, `tFinal`
+  · *`UtteranceClock`, on the live path because the marks are taken at points scattered
+    across the audio thread, the decoder and the link, and there is no later moment*
+  · *Monotonic, not wall clock: a clock corrected backwards mid-utterance gives a negative
+    latency, which in a hundred-row median silently improves the result*
   · *[ASR.md §9](ASR.md#9-instrumentation)*
-- [ ] **W1.34** — Latency strip band F showing real numbers
+- [x] **W1.34** — Latency strip band F showing real numbers
+  · *An absent figure is an em dash, never a zero. A zero-millisecond stage and a stage
+    nobody measured are different facts, and this is the strip a jury photographs*
   · **Permanent, not a debug view** — 20 % of the mark is latency
 
 - [ ] **W1.G** — **GATE:** 10 Hindi utterances → correct text, on the target handset, in
@@ -333,13 +363,27 @@ parallel with week 1.**
 - [x] **W2.15** — Deterministic nonce `EPOCH ‖ SRC ‖ SEQ ‖ 0x00×5`
   · *[PROTOCOL.md §6.2](PROTOCOL.md#62-deterministic-nonce)*
   · *`Aead.nonce`, 12 bytes, never transmitted — saves 12 B on every frame*
-- [ ] **W2.16** — `EPOCH` persistence: increments on every `SEQ` wrap **and every service
+- [x] **W2.16** — `EPOCH` persistence: increments on every `SEQ` wrap **and every service
   start**
   · **Correctness-critical. Nonce reuse destroys GCM completely — risk S-07**
+  · *`EpochCounter` existed and had **no caller**. `Session` now advances it at start and
+    **before** a `SEQ` wrap rather than after — after is too late, because the wrapping
+    frame would go out under the old epoch with a sequence number already used*
 - [x] **W2.17** — Nonce-uniqueness test over 10⁷ simulated frames including restarts and wraps
   · *Proved by **strict monotonicity** over 10 M nonces across 150+ wraps, which is
     stronger than "no duplicate seen" and costs constant memory*
-- [ ] **W2.18** — Tag length by transport class: 16 B on BT/Wi-Fi, 8 B on serial
+- [x] **W2.18** — Tag length by transport class: 16 B on BT/Wi-Fi, 8 B on serial
+  · *`TransportClass.tagBytesFor` also had no caller. `Session` selects from the transport,
+    so the tag is a property of the link rather than of a call site*
+  · ***SunJCE rejects a 64-bit GCM tag*** *— `Unsupported TLen value. Must be one of
+    {128, 120, 112, 104, 96}`. The choice was to move the protocol to 12 bytes or to
+    truncate ourselves; the protocol wins, because 8 bytes is 27 seconds of airtime on a
+    300 bps link and that saving is the whole argument for truncation existing*
+  · *So `Aead` truncates per NIST SP 800-38D appendix C and verifies by recomputing:
+    CTR-decrypt from GCM's payload counter, re-seal, compare in constant time.
+    `TruncatedTagTest` holds it to every single-byte mutation of ciphertext, tag and
+    header, and to the two confusions that would matter — a full-tag frame must not open
+    as truncated, and a truncated one must not open as full*
 - [x] **W2.19** — Auth-failure rate limit: > 16 from one `SRC` in 60 s → `DEGRADED`
   · *Required to make an 8-byte tag defensible*
   · *`AuthFailureLimiter`, 16 failures per sender per 60 s*
@@ -386,8 +430,16 @@ parallel with week 1.**
 - [x] **W2.29** — `HEARTBEAT` every 2 s; three misses mark the peer offline
   · *`Heartbeat` payload codec, 12 bytes. Carries the epoch (S-07) and the template
     digest (S-06) — the two values other safety properties depend on*
-- [ ] **W2.30** — Outbox in Room: store-and-forward, capped 500 frames / 24 h, flush in
+- [~] **W2.30** — Outbox in Room: store-and-forward, capped 500 frames / 24 h, flush in
   order on reconnect
+  · *`Outbox` holds the policy — 500 frames, 24 hours, in-order flush — and drops the
+    **oldest** when full, the opposite of `Reassembler` and for the opposite reason: that
+    queue is an attacker's to fill, this one is entirely our own and the newest message is
+    the one most likely to still be true*
+  · *The day's cap exists so a returning link does not deliver a flood about a morning at
+    nightfall*
+  · **Blocked:** *the Room binding. Durability sits behind an `Outbox.Store` interface, the
+    same split as `EpochCounter`; Room needs KSP wiring the app module does not have*
 - [x] **W2.31** — Temporary debug text field to send typed text — **delete in W3.12**
   · *Bring-up screen with a text field, Listen/Connect buttons and a byte counter.
     Deleted by W3.12 once speech replaces typing*
@@ -437,7 +489,7 @@ parallel with week 1.**
   · *Underrun policy: synthesise the remainder as one block. **Never a gap mid-sentence***
 - [~] **W3.8** — Synthesis thread at `THREAD_PRIORITY_AUDIO`
   · *`speakOnAudioThread`. Descheduled synthesis is an audible gap, not merely slow*
-- [ ] **W3.9** — Wire the receive path end to end: `Link → decode → CRC → AEAD → replay
+- [x] **W3.9** — Wire the receive path end to end: `Link → decode → CRC → AEAD → replay
   check → unpack/template → normalise → phonemise → TTS → AudioTrack`
 - [x] **W3.10** — Clock sync: four `HEARTBEAT` round trips, median offset, so end-to-end
   latency is measured rather than stopwatched
@@ -457,7 +509,10 @@ parallel with week 1.**
   · *A row whose arity does not match the header is refused rather than written —
     the classic way a results file becomes quietly wrong*
   · *Receiver-side stages have the clock offset removed before any subtraction*
-- [ ] **W3.12** — Delete the debug text field from W2.31
+- [x] **W3.12** — Delete the debug text field from W2.31
+  · *Deleted, not hidden behind a flag. An application whose fastest route to sending a
+    message is to type it is the one thing this project exists not to be, and a debug field
+    that survives to a demonstration gets used in one*
 - [x] **W3.13** — **Sliding-window decoding.** Decode 1.5 s windows with 0.4 s overlap
   *while the speaker is still talking*, so only the final partial window is decoded after
   the endpoint; stitch the windows into one hypothesis
@@ -738,7 +793,16 @@ parallel with week 1.**
 - [ ] **W5.22** — Alert with ringer silenced
 - [ ] **W5.23** — Alert in Do Not Disturb
 - [~] **W5.24** — Alert during music playback
-- [ ] **W5.25** — Alert during a phone call — documented behaviour, queued and repeated after
+- [~] **W5.25** — Alert during a phone call — documented behaviour, queued and repeated after
+  · *`CallAwareAlerts`. The one exception to "an alert always overrides", for two reasons
+    rather than one: during a call the platform attenuates or drops an alarm-stream
+    announcement, so it would not work — and if it did, it would take out the channel the
+    operator is more likely to be coordinating on*
+  · *Held, never dropped, announced in full in arrival order when the call ends. The
+    handset vibrates on arrival, which reaches an ear pressed to a phone and does not enter
+    the call audio*
+  · **Blocked:** *the call detection. `TelephonyManager` belongs in the app module and needs
+    a handset and a SIM to prove*
 - [~] **W5.26** — Volume restoration verified
 - [~] **W5.27** — Focus loss ignored during alert playback
 - [~] **W5.28** — Mic pre-empted by a call → `DEGRADED` with reason, auto-recovery
@@ -1259,7 +1323,14 @@ parallel with week 1.**
 - [ ] **C.4** — Weekly `scorecard.csv` committed from week 4, so the trend is visible
 - [ ] **C.5** — Weekly 30-minute thermal soak from week 6
 - [ ] **C.6** — Demo rehearsal weekly from week 6
-- [ ] **C.7** — Any input that ever caused a failure joins the fuzz corpus permanently
+- [x] **C.7** — Any input that ever caused a failure joins the fuzz corpus permanently
+  · *`core-proto/src/test/resources/fuzz-corpus`, checked in as files rather than Kotlin
+    literals — that is how one gets added at the moment it is found*
+  · *`FrameFuzzTest` finds what a million random inputs find and does not **remember**:
+    change the seed and the sequence that once crashed the decoder is no longer produced,
+    with the suite still green. This directory is the memory*
+  · *Seeded with the eight shapes that historically break framing implementations, asserted
+    by name — an empty corpus with a passing test looks exactly like a working one*
 
 ---
 
