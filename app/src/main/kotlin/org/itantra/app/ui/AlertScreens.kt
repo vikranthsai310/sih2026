@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -129,7 +128,7 @@ private fun TemplateButton(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             // Icon first and larger: it is the primary carrier for an operator who
             // cannot read the word beneath it.
-            Text(template.icon, fontSize = 30.sp)
+            Text(template.icon, fontSize = 30.sp, modifier = Modifier.decorative())
             Text(template.label, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
     }
@@ -213,7 +212,7 @@ private fun ConfirmButton(
         colors = ButtonDefaults.buttonColors(containerColor = colour, contentColor = Paper),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(icon, fontSize = 26.sp)
+            Text(icon, fontSize = 26.sp, modifier = Modifier.decorative())
             Text(label, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
     }
@@ -249,7 +248,7 @@ fun IncomingAlertScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(Modifier.height(24.dp))
-        Text("⚠", fontSize = 84.sp, color = Paper)
+        Text("⚠", fontSize = 84.sp, color = Paper, modifier = Modifier.decorative())
         Spacer(Modifier.height(8.dp))
         Text("A L E R T", fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Paper)
         Spacer(Modifier.height(8.dp))
@@ -285,7 +284,7 @@ fun IncomingAlertScreen(
         Spacer(Modifier.height(16.dp))
         Button(
             onClick = onAcknowledge,
-            modifier = Modifier.fillMaxWidth().size(height = TARGET_DP.dp, width = 0.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = TARGET_DP.dp),
             shape = RoundedCornerShape(8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Paper, contentColor = AlertRed),
         ) {

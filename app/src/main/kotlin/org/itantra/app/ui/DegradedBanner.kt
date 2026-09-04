@@ -13,9 +13,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,10 +53,14 @@ fun DegradedBanner(
             .fillMaxWidth()
             .background(colourFor(reason))
             .padding(horizontal = 16.dp, vertical = 12.dp)
-            .semantics {
+            // Cleared, not merged. `semantics { contentDescription = ... }` on a container
+            // adds to its children rather than replacing them, so the banner would be
+            // announced and then the icon and both lines read again as loose fragments.
+            // One banner, one sentence — task W7.23.
+            .clearAndSetSemantics {
                 // Spoken as soon as it appears; an operator will not go looking for it.
                 liveRegion = LiveRegionMode.Assertive
-                contentDescription = "${reason.message}. ${advice.doThis}"
+                contentDescription = Spoken.degraded(reason)
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {

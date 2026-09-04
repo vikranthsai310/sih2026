@@ -10,8 +10,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -70,58 +71,75 @@ fun MessageLogScreen(
     }
 }
 
+/**
+ * One row of the log.
+ *
+ * ## Two semantic regions, not one
+ *
+ * The described block and the replay control are siblings. [spokenAs] replaces the
+ * semantics of everything beneath it, which is what makes the row one sentence rather than
+ * five fragments — and which would make a control inside it unreachable. Task **W7.23**.
+ */
 @Composable
 private fun MessageRow(
     message: LoggedMessage,
     onReplay: (LoggedMessage) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(
-                if (message.isAlert) "⚠ ALERT  ${message.from}" else message.from,
-                fontSize = 14.sp,
-                fontWeight = if (message.isAlert) FontWeight.Bold else FontWeight.Normal,
-                color = if (message.isAlert) Danger else Ink,
-            )
-            Text(message.age, fontSize = 13.sp, color = Muted)
-        }
-        Spacer(Modifier.height(4.dp))
+        Column(Modifier.fillMaxWidth().spokenAs(Spoken.messageRow(message))) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    if (message.isAlert) "⚠ ALERT  ${message.from}" else message.from,
+                    fontSize = 14.sp,
+                    fontWeight = if (message.isAlert) FontWeight.Bold else FontWeight.Normal,
+                    color = if (message.isAlert) Danger else Ink,
+                )
+                Text(message.age, fontSize = 13.sp, color = Muted)
+            }
+            Spacer(Modifier.height(4.dp))
 
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .border(1.dp, Muted, RoundedCornerShape(6.dp))
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(message.text, fontSize = 16.sp, color = Ink, modifier = Modifier.weight(1f))
             Text(
-                "⟲",
-                fontSize = 22.sp,
+                message.text,
+                fontSize = 16.sp,
                 color = Ink,
                 modifier =
                     Modifier
-                        .size(REPLAY_TARGET_DP.dp)
-                        .clickable { onReplay(message) }
-                        // Spoken as an action, not as a symbol nobody can pronounce.
-                        .semantics { contentDescription = "Replay message from ${message.from}" },
+                        .fillMaxWidth()
+                        .border(1.dp, Muted, RoundedCornerShape(6.dp))
+                        .padding(12.dp),
+            )
+
+            Spacer(Modifier.height(4.dp))
+            Text(
+                // The evidence line. Frame size first, because that is the claim.
+                buildString {
+                    append("${message.frameBytes} B")
+                    if (message.wasTemplate) append(" template")
+                    append(" · ${message.deliveryMark()}")
+                    append(" · ${message.language}")
+                    message.sentInLanguage?.let { append(" · sent in $it") }
+                },
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Muted,
             )
         }
 
         Spacer(Modifier.height(4.dp))
-        Text(
-            // The evidence line. Frame size first, because that is the claim.
-            buildString {
-                append("${message.frameBytes} B")
-                if (message.wasTemplate) append(" template")
-                append(" · ${message.deliveryMark()}")
-                append(" · ${message.language}")
-                message.sentInLanguage?.let { append(" · sent in $it") }
-            },
-            fontSize = 12.sp,
-            fontFamily = FontFamily.Monospace,
-            color = Muted,
-        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                // A minimum, never a fixed size: at 200 % text the glyph is twice as tall
+                // and a `size(64.dp)` box clips it. W7.23.
+                .heightIn(min = REPLAY_TARGET_DP.dp)
+                .clickable { onReplay(message) }
+                .semantics { contentDescription = "Replay message from ${message.from}" },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("⟲", fontSize = 22.sp, color = Ink)
+            Spacer(Modifier.width(8.dp))
+            Text("Replay", fontSize = 14.sp, color = Muted)
+        }
     }
 }
 
