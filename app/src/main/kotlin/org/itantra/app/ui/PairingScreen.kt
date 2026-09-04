@@ -45,9 +45,11 @@ import android.graphics.Color as AndroidColor
  *
  * ## `FLAG_SECURE` is not decoration
  *
- * The activity hosting this screen **must** set `FLAG_SECURE`. The QR code on screen *is*
- * the key; without the flag it lands in the recents thumbnail, in any screenshot, and in
- * a screen recording. See [pairingWindowFlags].
+ * The QR code on screen *is* the key; without the flag it lands in the recents thumbnail,
+ * in any screenshot, and in a screen recording. This screen sets the flag **itself**
+ * through [SecureWindow] rather than asking its host to remember — the audit for W8.10
+ * found that nothing did, because the note was addressed to an activity that does not
+ * exist yet.
  *
  * The code refreshes every 120 seconds, and the countdown is shown so an operator can see
  * it is about to change rather than discovering a scan failed.
@@ -62,6 +64,10 @@ fun PairingScreen(
     onEnterManually: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The QR code below is the key, so FLAG_SECURE is applied here rather than left to
+    // whoever hosts this screen. Task W8.10 item 2 — see [SecureWindow].
+    SecureWindow()
+
     Column(modifier.fillMaxSize().background(Paper).padding(16.dp)) {
         Text("ADD A UNIT", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
         Spacer(Modifier.height(16.dp))

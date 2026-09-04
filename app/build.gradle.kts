@@ -35,6 +35,45 @@ android {
         noCompress += listOf("onnx", "bin", "ort", "tflite")
     }
 
+    // W8.7. The sherpa-onnx AAR ships four native libraries and this application loads
+    // two of them.
+    //
+    // The evidence, rather than the assumption: the dynamic string table of
+    // libsherpa-onnx-jni.so names libonnxruntime.so and the system libraries, and nothing
+    // else. libsherpa-onnx-c-api.so is a standalone C entry point for native consumers,
+    // and libsherpa-onnx-cxx-api.so is a wrapper over that one; the Kotlin binding reaches
+    // the library through JNI and never touches either.
+    //
+    //   strings lib/arm64-v8a/libsherpa-onnx-jni.so | grep '\.so$'
+    //
+    // 4.7 MB, which is the whole distance between the 30.9 MB the release APK was and the
+    // 30 MB installer target N2 asks for. Confirmed on device is a handset task; the
+    // linkage is checkable here and is the reason this is safe to do now.
+    packaging {
+        jniLibs {
+            excludes +=
+                listOf(
+                    "**/libsherpa-onnx-c-api.so",
+                    "**/libsherpa-onnx-cxx-api.so",
+                )
+        }
+    }
+
+    // An App Bundle delivers per device, so a handset downloads only the resources it can
+    // use. The ABI split is already moot -- abiFilters restricts the build to arm64-v8a --
+    // but it is declared so that adding a second ABI later does not silently ship both to
+    // every device.
+    //
+    // Locale splitting is deliberately NOT narrowed with localeFilters. Stripping the
+    // AndroidX locale resources would save around a megabyte and would make every
+    // framework-provided accessibility string speak English on a Hindi handset, which
+    // undoes W7.23 to save space this project no longer needs.
+    bundle {
+        abi { enableSplit = true }
+        density { enableSplit = true }
+        language { enableSplit = true }
+    }
+
     buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

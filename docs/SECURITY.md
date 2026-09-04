@@ -149,13 +149,44 @@ be reproduced in a unit test without a handset.
 
 Run before the final build is signed.
 
-- [ ] No key material reaches any log, crash report, `toString`, or DataStore
-- [ ] `FLAG_SECURE` set on the provisioning screen
-- [ ] The shipped manifest declares no `INTERNET` permission
-- [ ] The shipped manifest declares no location permission; BLE scan is `neverForLocation`
-- [ ] `ENCRYPTED` is set by default for every new pairing
-- [ ] The UNSECURED banner appears whenever the units are paired without encryption
-- [ ] Every single-byte mutation of a valid frame fails AEAD verification
-- [ ] `EPOCH` survives a force-stop and a reboot, and increments across a `SEQ` wrap
-- [ ] The frame decoder fuzz corpus runs clean at 10⁶ inputs
-- [ ] No debug or bench build is present in the release APK
+**Audited 2026-09-04 against `app-release-unsigned.apk`, 26.3 MiB, R8 minified.** Eight of
+ten pass with evidence recorded below. Two cannot be closed on this machine and say why.
+An item is not ticked because somebody believes it; it is ticked because the line beside it
+can be re-run.
+
+| # | Item | Result | Evidence |
+| --- | --- | --- | --- |
+| 1 | No key material reaches any log, crash report, `toString`, or DataStore | **PASS** | There is no logging in shipped code at all — `grep -rn "android.util.Log\|println("` over every `src/main` returns nothing. Keys live in the AndroidKeyStore and `KeystoreVault` returns a `SecretKey` handle, never bytes. `DataStoreEpochStore` persists an epoch counter and nothing else |
+| 2 | `FLAG_SECURE` set on the provisioning screen | **FIXED** | Was failing. `pairingWindowFlags` existed and **nothing applied it** — the requirement was a comment addressed to an activity that does not exist yet. `PairingScreen` now applies it itself through `SecureWindow`, so any host gets it |
+| 3 | The shipped manifest declares no `INTERNET` permission | **PASS** | `aapt2 dump permissions` on the release APK lists eleven permissions; `android.permission.INTERNET` is not among them |
+| 4 | No location permission; BLE scan is `neverForLocation` | **PASS** | Same dump: no `ACCESS_FINE_LOCATION` or `ACCESS_COARSE_LOCATION`, and `BLUETOOTH_SCAN` carries `usesPermissionFlags='neverForLocation'` |
+| 5 | `ENCRYPTED` is set by default for every new pairing | **OPEN** | Cannot be closed: the pairing flow that establishes a session does not exist yet, so there is no default to inspect. `Flags.ENCRYPTED` and the AEAD path are built and tested. Blocked on the same work as item 2's host activity |
+| 6 | The UNSECURED banner appears whenever the units are paired without encryption | **PASS (component)** | `UnsecuredBanner` exists and is rendered from the security-state composable. That it appears *in the running application* depends on the same absent pairing flow as item 5 |
+| 7 | Every single-byte mutation of a valid frame fails AEAD verification | **PASS** | `SecurityTest`: `any single-byte change to the ciphertext or tag fails verification` and `any single-byte change to the header fails verification`, both exhaustive over position and bit |
+| 8 | `EPOCH` survives a force-stop and a reboot, and increments across a `SEQ` wrap | **PASS** | `EpochCounterTest`: `restarting never reuses an epoch`, `a sequence wrap advances the epoch`, `the new epoch is persisted before it is handed out`, `a crash straight after persisting wastes an epoch rather than reusing it`. The store writes synchronously for exactly this reason |
+| 9 | The frame decoder fuzz corpus runs clean at 10⁶ inputs | **FIXED** | Was short. W2.23 ran 23 000 inputs inside the framing test, which closed the week-2 gate at 10⁵ and did not meet this one. `FrameFuzzTest` now runs 10⁶ across ten input shapes and asserts four properties: never throws, never allocates past `MAX_PAYLOAD`, always terminates under a deadline, and recovers on the next valid frame after a megabyte of rubbish |
+| 10 | No debug or bench build is present in the release APK | **PASS** | `strings` over `classes.dex` finds **no** `org/itantra/bench` reference: R8 removed the whole module. Note for the next audit — this passes today because nothing calls it yet. Once `MetricsScreen` is wired to an activity, `LatencySummary` and `StageSummary` will ship deliberately, and the check becomes "no `WerScorer`, `AccuracyMatrix`, `ListeningPanel` or `ReportBundle`" rather than "no bench at all" |
+
+### The two that are open, and why that is the honest state
+
+**Item 5** and the running half of **item 6** both wait on the same thing: a pairing flow.
+The cryptography beneath them is built and tested — sealing, the tag-length policy, the
+replay window, the epoch counter — but nothing yet establishes a session, so there is no
+default to inspect and no state for the banner to react to. Ticking either would be
+recording an intention.
+
+### What the audit found
+
+Two defects, both of the same kind: a control that was **written down rather than
+enforced**.
+
+`FLAG_SECURE` was documented as a requirement on the hosting activity and no activity
+hosted the screen, so the requirement had nothing to attach to. The QR code on that screen
+*is* the shared key, and without the flag it lands in the recents thumbnail — a place a key
+outlives the pairing that produced it. Moving the flag into the screen removes the
+dependency on a future author reading a comment.
+
+The fuzz bar had drifted between two documents: the week-2 gate says 10⁵, this checklist
+says 10⁶, and the harness did 23 000. All three numbers were written by people who believed
+the harness was adequate. A million inputs takes a few seconds.
+
