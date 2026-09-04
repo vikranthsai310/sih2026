@@ -152,6 +152,19 @@ class Reassembler(private val timeoutMillis: Long = REASSEMBLY_TIMEOUT_MILLIS) {
         }
 
         val key = key(frame.src, frame.seq)
+
+        // Bound the number of partial messages, not just the size of each. Otherwise a
+        // hostile peer sends one fragment under each of 256 SRC values and 65 536 SEQ
+        // values, and each one allocates a slot array before anything is authenticated —
+        // a small input buying a much larger allocation. The eldest is evicted rather
+        // than the newest refused, so an attacker cannot lock out live traffic; a
+        // legitimate message interrupted this way simply fails to reassemble and is
+        // retransmitted.
+        if (key !in partials && partials.size >= MAX_PARTIAL_MESSAGES) {
+            val eldest = partials.minByOrNull { it.value.firstSeenMillis }?.key
+            if (eldest != null) partials.remove(eldest)
+        }
+
         val partial = partials.getOrPut(key) { Partial(count, nowMillis) }
 
         // A peer that changes its mind about the message length mid-transfer is either
@@ -204,6 +217,15 @@ class Reassembler(private val timeoutMillis: Long = REASSEMBLY_TIMEOUT_MILLIS) {
     companion object {
         /** `docs/TODO.md` W6.5. Long enough for a slow link, short enough to bound memory. */
         const val REASSEMBLY_TIMEOUT_MILLIS = 2_000L
+
+        /**
+         * How many messages may be part-assembled at once.
+         *
+         * Comfortably more than the handful a six-unit channel produces, and it caps the
+         * pre-authentication buffer at roughly 32 × 64 × MTU — a few megabytes in the
+         * worst case rather than an unbounded amount.
+         */
+        const val MAX_PARTIAL_MESSAGES = 32
 
         private fun key(
             src: Int,

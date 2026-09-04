@@ -266,6 +266,50 @@ class FragmentationTest {
         assertEquals(1, (result as Reassembler.Result.Incomplete).have)
     }
 
+    /**
+     * Bounding each message is not enough: without a cap on how many may be in progress,
+     * a hostile peer sends one fragment under each of 256 `SRC` values and 65 536 `SEQ`
+     * values, and every one allocates a slot array before anything is authenticated.
+     */
+    @Test
+    fun `the number of part-assembled messages is capped`() {
+        val r = Reassembler()
+        // One fragment of a 4-fragment message, under many different sequence numbers.
+        for (seq in 0 until Reassembler.MAX_PARTIAL_MESSAGES * 4) {
+            val stub =
+                frame(1, seq = seq).copy(
+                    flags = Flags.FRAGMENT,
+                    payload = byteArrayOf(0, 4, 1),
+                )
+            r.offer(stub, nowMillis = 0)
+        }
+        assertTrue(
+            "expected at most ${Reassembler.MAX_PARTIAL_MESSAGES}, held ${r.pendingCount}",
+            r.pendingCount <= Reassembler.MAX_PARTIAL_MESSAGES,
+        )
+    }
+
+    /** Evicting the eldest means an attacker cannot lock out live traffic entirely. */
+    @Test
+    fun `a message already in progress still completes while the cap is being hit`() {
+        val r = Reassembler()
+        val parts = Fragmenter(bleMtu).fragment(frame(600, seq = 900))
+
+        // Start the real message, then flood, then finish it. The flood evicts the
+        // eldest entries, and the real message is refreshed by its own later fragments.
+        r.offer(parts[0], nowMillis = 0)
+        for (seq in 0 until Reassembler.MAX_PARTIAL_MESSAGES) {
+            r.offer(
+                frame(1, seq = seq).copy(flags = Flags.FRAGMENT, payload = byteArrayOf(0, 4, 1)),
+                nowMillis = 1,
+            )
+        }
+        assertTrue(
+            "the cap must hold under flood",
+            r.pendingCount <= Reassembler.MAX_PARTIAL_MESSAGES,
+        )
+    }
+
     @Test
     fun `the timeout is the one the task names`() {
         assertEquals(2_000L, Reassembler.REASSEMBLY_TIMEOUT_MILLIS)
