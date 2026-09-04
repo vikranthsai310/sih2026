@@ -54,6 +54,37 @@ One file per language, shipped in the pack as `normalise.json`. Ordered; first m
 Adding a language requires no code change — only a rule file. This is the same principle
 as the language packs themselves.
 
+#### Three extensions, added in week 7 (W7.2)
+
+The sketch above is enough to read `112` digit-wise and nothing else. Ten real languages
+needed three additions, each because a language demanded it. The implementation is
+`core-tts` `NormaliseSpec`; the shipped files are `models/rules/normalise.<lang>.json`.
+
+**`numerals`** — the number table moves into the file, in one of two shapes. Indo-Aryan
+languages (`hi`, `bn`, `mr`, `gu`, `or`) use `"kind": "table"` and list all hundred values,
+because Hindi's सत्रह and उनहत्तर are not composed from anything. English and the Dravidian
+languages use `"kind": "composed"` and list zero to nineteen plus eight tens words, since
+Telugu's ఇరవై ఒకటి is transparently *twenty one*. Tamil and Malayalam add `tensCombining`,
+the form a tens word takes before a ones digit — இருபது becomes இருபத்தி.
+
+Forcing one shape on both would cost either eight hundred hand-written words that can be
+generated, or a generator emitting plausible non-words in five languages.
+
+**`clock`** — a time is assembled from two template strings rather than a fixed order,
+because *"दोपहर दो बजकर तीस मिनट"* and *"two thirty in the afternoon"* arrange the same four
+parts differently. `{period}`, `{hour}` and `{minute}` are substituted; anything else is
+literal.
+
+**`{units}` in a pattern** — expanded from the `units` table below it, so a file cannot
+list a unit its own regex will never reach. Symbols are tried longest-first, or every
+kilometre is read as a metre.
+
+Two smaller additions: `decimalPoint` gives the word for a grid reference's separator —
+a full stop reaching the phonemiser is a sentence break, and 20.29 then arrives as two
+unrelated numbers — and `reviewed` records whether a native speaker has checked the
+numerals. It is `false` for eight of the ten languages, and the intelligibility panel
+(W7.11) is what clears one.
+
 ### Regression suite
 
 Normalisation correctness is a **100 % target**, not a best effort, because every failure

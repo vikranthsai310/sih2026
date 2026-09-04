@@ -58,7 +58,7 @@ class NormalisationFixtureTest {
             val file = fixtureFile(lang)
 
             if (REGENERATE) {
-                file.parentFile.mkdirs()
+                file.parentFile?.mkdirs()
                 file.writeText(generate(lang, spec, normaliser))
                 continue
             }

@@ -21,17 +21,27 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 97 of 205 complete, 22 in progress, nothing blocked.** `./gradlew build` is
-green end to end — compilation, ktlint, Android Lint and the coverage gate — and **540
-tests pass** across all seven modules: CRC, frame codec, script packer, templates, replay
+**Progress: 108 of 205 complete, 31 in progress, nothing blocked.** `./gradlew build` is
+green end to end — compilation, ktlint, Android Lint and the coverage gate — and **650
+tests pass** across all eight modules: CRC, frame codec, script packer, templates, replay
 window, AEAD, clock sync, pre-trigger ring, energy gate, endpointer, sliding-window
 decoding, normalisation, clause splitting, the latency log, the manifest, atomic pack
 installation, resumable downloads, the language switch, the WER scorer, the noise mixer,
 the scorecard, contextual biasing, floor control, alert delivery, relaying,
 fragmentation, the epoch counter, pairing codes, the transmit key, duplex and
-barge-in policy, adaptive endpointing, stabilised partials, tag-length policy and
-the transport contract. `core-proto` holds
+barge-in policy, adaptive endpointing, stabilised partials, tag-length policy,
+the transport contract, and — new in week 7 — the ten-language rule loader and its
+fixtures, the deployment gazetteer and template profile, the critical-term scorer, the
+accuracy matrix and suppression policy, the listening-panel arithmetic, the recognition
+tap, the relay and memory soaks, and the spoken forms behind TalkBack. `core-proto` holds
 94.2 % line coverage.
+
+**Week 7 is complete except for measurement.** Ten languages are enabled with vocabulary,
+rules and fixtures; the two soaks that can run in memory are green; every harness that
+turns audio into a number exists and is tested against a stub. What is absent is the
+acoustic model, the evaluation corpus, a handset and a listening panel — so W7.7 through
+W7.11, W7.14 and W7.16 carry no figures, and the code says so rather than defaulting to
+one.
 
 **The sherpa-onnx AAR is fetched and the whole native stack now builds.** The debug APK is
 43.2 MB and the **release APK 30.9 MB** — arm64-only, minified, resources shrunk, and with
@@ -904,37 +914,201 @@ parallel with week 1.**
 
 **Gate W7: ten languages, normalisation 100 %, relay soak clean, field test recorded.**
 
-- [ ] **W7.1** — Remaining five languages enabled — **vocabulary and voice per language;
+- [~] **W7.1** — Remaining five languages enabled — **vocabulary and voice per language;
   the acoustic model is already present** — verified and in the manifest
-- [ ] **W7.2** — `normalise.json` for all ten languages
-- [ ] **W7.3** — Normalisation fixtures ≥ 60 cases × 10 languages, **100 % in CI**
+  · *Vocabulary done for all ten: `alert-lexicon.<lang>.txt` and `negation.<lang>.txt`,
+    about eighty terms each across the same seven categories, and the manifest now names
+    the negation file so a pack that installs without it fails verification*
+  · *`TenLanguageLexiconTest` asserts per language, not Hindi ten times: the negation
+    floor must outrank the domain ceiling **in each language**, and every Indic list must
+    be nine-tenths in its own Unicode block — which catches a file copied from another
+    language and never translated, since that parses and weights perfectly*
+  · **Blocked:** *the voices. Four languages (ta, gu, kn, or) have no permissively
+    licensed voice at all and are `"tts": null` in the manifest; the rest need the files
+    fetched. Recognise and display work; speaking does not*
+- [x] **W7.2** — `normalise.json` for all ten languages
+  · *`NormaliseSpec` + `models/rules/normalise.<lang>.json`. Week 3 shipped the engine and
+    Hindi's rules as Kotlin, which was the right order — the engine had to be proven
+    against a language whose numerals are exhaustively irregular before the format could
+    be designed*
+  · *Two numeral shapes, because the languages genuinely differ: the Indo-Aryan five list
+    all hundred values, English and the Dravidian four compose from twenty upward.
+    Forcing one shape on both costs either eight hundred hand-written words that can be
+    generated, or a generator emitting plausible non-words in five languages*
+  · *The loader is proved against the code it replaced, not against examples: the Hindi
+    file must agree with `HindiNumerals` on **every** value 0–100 000 and on all 1 440
+    times of day. A table off by one index reads every value in the eighties as the wrong
+    word and nothing crashes*
+  · *[TTS.md §1](TTS.md#three-extensions-added-in-week-7-w72) documents the three format
+    extensions*
+- [x] **W7.3** — Normalisation fixtures ≥ 60 cases × 10 languages, **100 % in CI**
   · *Adding a rule without its fixtures is a rejected review*
-- [ ] **W7.4** — `templates.json` in all ten languages, one deployment profile
-- [ ] **W7.5** — Deployment gazetteer loading (~200 place names, sectors, callsigns)
-- [ ] **W7.6** — RNNoise integration, recognition path only, **never** audio the user hears
-- [ ] **W7.7** — Per-language decision on noise suppression **from measurement, not
+  · *68 cases per language in `models/fixtures/`, plus three properties that need no
+    native speaker: **no digit survives**, every value below a lakh renders, every minute
+    of the day renders. Sixty hand-listed cases will not find a one-value gap in a
+    hundred-entry table; the property sweep will*
+  · *Writing the fixtures found a real defect. `20.29` normalised to `बीस.उनतीस`, leaving a
+    full stop for the phonemiser to read as a sentence break — a grid reference arriving
+    as two unrelated numbers. Fixed in all ten languages*
+  · *The fixture files are a **regression lock, not an oracle**: generated from the rule
+    files and read over by an engineer. `reviewed: false` on eight languages says so, and
+    the suite asserts which two are exempt*
+- [x] **W7.4** — `templates.json` in all ten languages, one deployment profile
+  · *24 operational sentences, `TemplateProfile` loading them into the `TemplateTable`
+    that already owned the digest and the matching rule*
+  · *A profile is **refused at load** unless every template carries all ten languages.
+    A row missing its Tamil text makes `render` return null and the Tamil operator hears
+    silence — not a garbled sentence they would query. Exactly the gap that survives
+    review, because the file looks fine and the sender's language is present*
+  · *Two tests worth naming: every language must match its **own** text back to its own
+    id, or a template can be received and never sent; and "Fire, evacuate immediately"
+    must not match "Do not evacuate, stay where you are" in **any** of the ten. Risk S-03
+    in its sharpest form, asserted per language because the margin differs per language*
+- [x] **W7.5** — Deployment gazetteer loading (~200 place names, sectors, callsigns)
+  · *`Gazetteer`. Separate from the domain lexicon because the two fail differently: a
+    missing domain word costs accuracy, a missing place name costs the one word in the
+    sentence that says where to go, and it is a proper noun no acoustic model has seen.
+    Weighted above the lexicon for that reason, not for frequency*
+  · *Sector numbers are generated from a range rather than listed, so a gazetteer stays
+    something a coordinator can write in a text editor under time pressure*
+- [~] **W7.6** — RNNoise integration, recognition path only, **never** audio the user hears
+  · *`RecognitionTap` is the only place a suppressor can be installed, and the playback
+    classes take none — the rule is enforced by the violation being inexpressible rather
+    than by a comment asking people not to. Synthesised speech is already clean, so a
+    suppressor can only remove the consonant detail that separates similar words; and a
+    speech-tuned suppressor is entitled to treat the alert tone as noise, which would make
+    the one signal that must never be missed get quieter the longer it plays*
+  · *320 samples at 16 kHz upsample by three to exactly two 480-sample RNNoise frames, so
+    a 20 ms hop needs no carry buffer. A happy accident of the hop size, not a design*
+  · *Disabled is a real implementation and byte-for-byte free — the measured answer for
+    some languages is "off", and a pass-through that quietly resampled twice would put a
+    cost on the configuration chosen to avoid one*
+  · **Blocked:** *`librnnoise_jni.so` is not built. RNNoise has no Android release
+    artefact and needs the NDK for `arm64-v8a`. `create()` returns null and the caller
+    falls back to no suppression: a handset that cannot suppress noise still recognises
+    speech. BSD-3-Clause, already in LICENSES.md*
+- [~] **W7.7** — Per-language decision on noise suppression **from measurement, not
   preference** — report WER with it on and off at each SNR
-- [ ] **W7.8** — Full WER run: 10 languages × 4 SNRs
-- [ ] **W7.9** — CTER with and without biasing, in the same table
+  · *`SuppressionPolicy`, deliberately separate from `AccuracyMatrix`: a decision taken
+    inside the measurement loop is not auditable. The rule is fixed **in advance** so it
+    cannot be adjusted once the numbers arrive — suppression goes on only if it improves
+    critical-term error at **both** adverse SNRs by more than a stated margin **and** does
+    not cost clean speech*
+  · *The second half catches the plausible mistake: a suppressor that pays for itself at
+    +5 dB and quietly costs accuracy in the quiet room where most messages are spoken*
+  · *Not measured is reported as **undecided**, never as disabled. The first reported as
+    the second is a decision dressed up as a result*
+  · **Blocked:** *the run. Needs the acoustic model and the evaluation corpus*
+- [~] **W7.8** — Full WER run: 10 languages × 4 SNRs
+  · *`AccuracyMatrix` runs all 160 cells — ten languages × four conditions × suppression ×
+    biasing — in one pass with one noise seed. Three separate runs would guarantee the
+    three tables disagree*
+  · *The audio for a given SNR is mixed **once** and shared across all four switch
+    settings, so the deltas are attributable to the switches and nothing else. Asserted*
+  · **Blocked:** *models and corpus. `Report.isMeasured` is what a caller asks before
+    quoting anything; an empty report is not a report of perfect accuracy*
+- [~] **W7.9** — CTER with and without biasing, in the same table
   · *The delta is directly attributable to an engineering decision the team made*
-- [ ] **W7.10** — MOS listening panel executed, 15 speakers per language
+  · *`CriticalTermScorer` implements the EVALUATION.md definition: reference occurrences
+    absent from the hypothesis, counted per occurrence rather than per sentence, with no
+    credit for near misses — आग and आठ differ by one character and mean fire and eight*
+  · *`Report.biasingDelta` puts the pair side by side so the delta is read off rather than
+    reconstructed from two documents*
+- [~] **W7.10** — MOS listening panel executed, 15 speakers per language
   · *Recruited in P0.10. **Report the actual panel size** — a MOS without one is not a
   measurement*
-- [ ] **W7.11** — Intelligibility test: native listeners transcribe synthesised output
+  · *`MosPanel` enforces the three rules EVALUATION.md states and people forget: the panel
+    size travels with every figure, nothing is reportable below fifteen listeners, and the
+    **listener is the unit of analysis, not the rating** — twenty ratings from one
+    enthusiast and one from a sceptic average to 3.0, not 4.81*
+  · *A listener who scored everything the same is named rather than dropped. Removing them
+    is a judgement about the data taken after seeing it*
+  · **Blocked:** *the panel. Needs synthesised audio and fifteen native speakers per
+    language*
+- [~] **W7.11** — Intelligibility test: native listeners transcribe synthesised output
+  · *`IntelligibilityPanel`. Word accuracy against the synthesised text, averaged across
+    listeners for the same reason MOS is, with the worst-scoring samples reported by name*
+  · *This is also what clears a numeral table's `reviewed` flag. A wrong numeral in a JSON
+    file is a spelling somebody has to notice; a wrong numeral in a synthesised sentence
+    is fifteen listeners writing down a different number*
+  · **Blocked:** *same panel as W7.10*
 - [ ] **W7.14** — Field test at range: Bluetooth 30 m, Wi-Fi 150 m
-- [ ] **W7.15** — Four-device relay soak, 1 h · **Done when** every message arrives exactly
+  · **Blocked:** *two handsets and an open space. Nothing about radio loss, collision or
+    the timing of the jitter window can be established in simulation, which is exactly why
+    this task is not covered by W7.15*
+- [x] **W7.15** — Four-device relay soak, 1 h · **Done when** every message arrives exactly
   once and the seen-set stays bounded
+  · *`RelaySoakTest`. An hour of traffic through four real `Relay` instances on a **chain**
+    topology, not a clique — in a clique every device hears every other directly and
+    relaying is never exercised. A message from 1 reaches 4 only by being relayed twice*
+  · *Exactly once at every device, no device handed its own transmission back, seen-set
+    under capacity throughout, and total transmissions under the storm ceiling. A second
+    case walks a full `SEQ` wrap, which is inside an eight-hour deployment*
+  · *One assumption is stated in the file rather than hidden: each message finishes
+    propagating before the next is sent, so the seen-set's eviction horizon is never the
+    thing under test*
 - [ ] **W7.16** — Eight-hour endurance soak: BLE, screen off, listening · *> 8 h drain*
-- [ ] **W7.17** — Memory soak 1 h: resident memory flat, no leak in ring or outbox
-- [ ] **W7.18** — Message log screen with frame sizes and delivery state
-- [ ] **W7.19** — Mode and transport screen
-- [ ] **W7.20** — Language screen — own script first, English gloss second, Odia CC-BY-NC
+  · **Blocked:** *a handset, eight hours and `batterystats`. The figure is a week-8
+    measurement — [W8.6](#week-8--evidence-and-rehearsal)*
+- [x] **W7.17** — Memory soak 1 h: resident memory flat, no leak in ring or outbox
+  · *`MemorySoakTest` asserts the property underneath "resident memory flat": every
+    structure that outlives a message has a ceiling, and an hour of traffic reaches it and
+    stops. A JVM heap figure here would measure the garbage collector rather than this
+    code; the resident figure is a week-8 measurement on the handset*
+  · *It found a real leak. `AlertDelivery.inFlight` had no ceiling — the class documented
+    that the caller must call `forget()`, which is true and which the engine does, but
+    "bounded provided every caller remembers" is not a bound. It now evicts finished
+    alerts itself, **and only finished ones**: `undelivered()` is how an operator learns a
+    message they believe went out did not, and dropping an unacknowledged alert to save a
+    few hundred bytes would trade the worst failure this interface has against nothing*
+- [x] **W7.18** — Message log screen with frame sizes and delivery state
+  · *A frame size on every row next to the text it carried. The compression claim is the
+    centre of this project, and a number on a slide is an assertion where a number on every
+    message is evidence the jury can generate themselves by sending one*
+  · *A template row shows the language it was **sent** in where that differs from the one
+    it was rendered in — that difference is cross-language delivery working, and it is
+    otherwise invisible*
+- [x] **W7.19** — Mode and transport screen
+  · *Each option states its consequence, not its name: "push-to-talk" means nothing to
+    someone choosing for the first time, and "one at a time, longest battery" does*
+- [x] **W7.20** — Language screen — own script first, English gloss second, Odia CC-BY-NC
   warning surfaced **in the product**
-- [ ] **W7.21** — Settings, storage (per-pack licence on the row), and about/licences
-- [ ] **W7.22** — All six degraded banners with reason strings
-- [ ] **W7.23** — Full TalkBack pass; text at 200 % with no truncation
+  · *A speaker of Odia is looking for **ଓଡ଼ିଆ**, not for "Odia" in Latin script. The English
+    gloss is second, for the operator setting up someone else's handset*
+  · *A non-commercial licence is on the row, at the moment of choosing — not only in a
+    document nobody reads*
+- [x] **W7.21** — Settings, storage (per-pack licence on the row), and about/licences
+  · *The licence sits beside the size because that is where the decision is made: an
+    operator freeing space is choosing which pack to delete, and "this one cannot be
+    deployed commercially anyway" is exactly what decides it*
+- [x] **W7.22** — All six degraded banners with reason strings
+  · *Each carries what happened, what the system is doing, and **what the operator should
+    do**. The third is the part usually missing from a status message and the only part
+    that changes what happens next*
+  · *A live region, so TalkBack speaks it on appearance rather than when someone navigates
+    to it. Amber for the three that clear themselves, red for the three needing a person —
+    an operator who cannot read still learns whether this needs them*
+- [~] **W7.23** — Full TalkBack pass; text at 200 % with no truncation
+  · *`Spoken` gives every on-screen symbol a spoken form, and imports no Compose so the
+    strings are asserted in an ordinary unit test. `●●○` reaches a speech engine as "black
+    circle black circle white circle", which is worse than unhelpful — it sounds like a
+    description of a picture rather than a confidence score*
+  · *Three real defects fixed. The degraded banner used `semantics{}`, which **merges**
+    with children, so TalkBack would have announced the banner and then read the icon and
+    both lines again as fragments — now `clearAndSetSemantics`, keeping the live region.
+    The message log row is one sentence and one swipe, with the replay control as a
+    sibling because clearing a subtree makes anything inside it unreachable. And two
+    `Modifier.size()` containers holding text, which look identical to `heightIn(min =)`
+    at the default font scale and truncate at 200 %*
+  · **Blocked:** *the pass itself. Swipe order, focus traps and whether an announcement
+    actually interrupts need a device and a person with the screen off*
 
 - [ ] **W7.G** — **GATE:** `scorecard.csv` complete for ten languages; soaks clean
+  · *Not met, and the missing half is one thing: **no measurement has been taken**. The
+    ten languages are enabled, the fixtures are green, the two soaks that run in memory
+    are clean, and every harness that turns audio into a number exists and is tested. What
+    is absent is the acoustic model, the evaluation corpus, the handset and the listening
+    panels — W7.7 through W7.11, W7.14 and W7.16*
 
 ---
 
