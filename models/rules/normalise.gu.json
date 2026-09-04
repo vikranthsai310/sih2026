@@ -1,0 +1,70 @@
+{
+  "language": "gu",
+  "version": 1,
+  "reviewed": false,
+  "note": "Gujarati numerals are irregular throughout the first hundred, so the table is exhaustive. Drafted by an engineer and NOT yet checked by a native speaker - task W7.11 clears this flag. There is no permissively licensed Gujarati voice, so this pack recognises and displays but never speaks; the rules still matter, because the same text is rendered into a template message a Hindi handset will speak.",
+
+  "units": {
+    "km": "કિલોમીટર",
+    "m": "મીટર",
+    "cm": "સેન્ટિમીટર",
+    "kg": "કિલોગ્રામ",
+    "g": "ગ્રામ",
+    "l": "લિટર",
+    "hr": "કલાક",
+    "h": "કલાક",
+    "min": "મિનિટ",
+    "s": "સેકન્ડ",
+    "%": "ટકા"
+  },
+
+  "callsignMarkers": ["સેક્ટર", "યુનિટ", "ચેનલ", "નોડ", "sector", "unit", "channel", "node"],
+
+  "numerals": {
+    "kind": "table",
+    "digits": ["શૂન્ય", "એક", "બે", "ત્રણ", "ચાર", "પાંચ", "છ", "સાત", "આઠ", "નવ"],
+    "words": [
+      "શૂન્ય", "એક", "બે", "ત્રણ", "ચાર", "પાંચ", "છ", "સાત", "આઠ", "નવ",
+      "દસ", "અગિયાર", "બાર", "તેર", "ચૌદ", "પંદર", "સોળ", "સત્તર", "અઢાર", "ઓગણીસ",
+      "વીસ", "એકવીસ", "બાવીસ", "તેવીસ", "ચોવીસ", "પચ્ચીસ", "છવ્વીસ", "સત્તાવીસ", "અઠ્ઠાવીસ", "ઓગણત્રીસ",
+      "ત્રીસ", "એકત્રીસ", "બત્રીસ", "તેત્રીસ", "ચોત્રીસ", "પાંત્રીસ", "છત્રીસ", "સાડત્રીસ", "અડત્રીસ", "ઓગણચાળીસ",
+      "ચાળીસ", "એકતાળીસ", "બેતાળીસ", "તેંતાળીસ", "ચુંમાળીસ", "પિસ્તાળીસ", "છેંતાળીસ", "સુડતાળીસ", "અડતાળીસ", "ઓગણપચાસ",
+      "પચાસ", "એકાવન", "બાવન", "ત્રેપન", "ચોપન", "પંચાવન", "છપ્પન", "સત્તાવન", "અઠ્ઠાવન", "ઓગણસાઠ",
+      "સાઠ", "એકસઠ", "બાસઠ", "ત્રેસઠ", "ચોસઠ", "પાંસઠ", "છાસઠ", "સડસઠ", "અડસઠ", "ઓગણોસિત્તેર",
+      "સિત્તેર", "એકોતેર", "બોતેર", "તોતેર", "ચુમોતેર", "પંચોતેર", "છોતેર", "સિત્યોતેર", "ઇઠ્યોતેર", "ઓગણાએંસી",
+      "એંસી", "એક્યાસી", "બ્યાસી", "ત્યાસી", "ચોર્યાસી", "પંચાસી", "છ્યાસી", "સિત્યાસી", "ઈઠ્યાસી", "નેવ્યાસી",
+      "નેવું", "એકાણું", "બાણું", "ત્રાણું", "ચોરાણું", "પંચાણું", "છન્નું", "સત્તાણું", "અઠ્ઠાણું", "નવ્વાણું"
+    ],
+    "scales": [
+      { "value": 10000000, "word": "કરોડ" },
+      { "value": 100000, "word": "લાખ" },
+      { "value": 1000, "word": "હજાર" },
+      { "value": 100, "word": "સો" }
+    ],
+    "negative": "ઋણ",
+    "decimalPoint": "દશાંશ"
+  },
+
+  "clock": {
+    "periods": [
+      { "from": 0, "to": 3, "word": "રાત્રે" },
+      { "from": 4, "to": 11, "word": "સવારે" },
+      { "from": 12, "to": 16, "word": "બપોરે" },
+      { "from": 17, "to": 19, "word": "સાંજે" },
+      { "from": 20, "to": 23, "word": "રાત્રે" }
+    ],
+    "onTheHour": "{period} {hour} વાગ્યે",
+    "withMinutes": "{period} {hour} વાગીને {minute} મિનિટ",
+    "twelveHour": true
+  },
+
+  "rules": [
+    { "id": "time-24h", "pattern": "\\b([01]?\\d|2[0-3]):([0-5]\\d)\\b", "kind": "time" },
+    { "id": "quantity-with-unit", "pattern": "\\b(\\d+(?:\\.\\d+)?)\\s*({units})\\b", "kind": "quantity", "flags": "i" },
+    { "id": "decimal-fraction", "pattern": "(?<!\\d)(\\d+\\.\\d+)(?!\\d)", "kind": "number" },
+    { "id": "callsign-context", "pattern": "\\b(\\p{L}+)\\s+(\\d{1,4})\\b", "kind": "callsign" },
+    { "id": "dialled-three-digits", "pattern": "(?<!\\d)(\\d{3})(?!\\d)", "kind": "digits" },
+    { "id": "long-identifier", "pattern": "(?<!\\d)(\\d{5,})(?!\\d)", "kind": "digits" },
+    { "id": "cardinal", "pattern": "(?<!\\d)(\\d+)(?!\\d)", "kind": "number" }
+  ]
+}

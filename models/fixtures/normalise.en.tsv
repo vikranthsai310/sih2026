@@ -1,0 +1,74 @@
+# Normalisation fixtures for en. Task W7.3.
+# input <TAB> expected. Generated from models/rules/normalise.en.json;
+# a regression lock, not an oracle -- see NormalisationFixtureTest.
+0	zero
+1	one
+7	seven
+9	nine
+10	ten
+11	eleven
+17	seventeen
+19	nineteen
+20	twenty
+21	twenty one
+40	forty
+49	forty nine
+50	fifty
+68	sixty eight
+70	seventy
+79	seventy nine
+88	eighty eight
+90	ninety
+99	ninety nine
+1000	one thousand
+2500	two thousand five hundred
+10000	one zero zero zero zero
+100000	one zero zero zero zero zero
+5 km	five kilometres
+250 kg	two hundred fifty kilograms
+12 m	twelve metres
+7 min	seven minutes
+45 s	forty five seconds
+3 hr	three hours
+100 %	one zero zero %
+2 l	two litres
+30 cm	thirty centimetres
+9 g	nine grams
+5km	five kilometres
+20 KM	twenty kilometres
+00:00	twelve o'clock at night
+05:30	five thirty in the morning
+09:00	nine o'clock in the morning
+12:00	twelve o'clock in the afternoon
+13:45	one forty five in the afternoon
+14:30	two thirty in the afternoon
+17:05	five five in the evening
+19:59	seven fifty nine in the evening
+21:15	nine fifteen at night
+23:59	eleven fifty nine at night
+sector 1	sector one
+sector 7	sector seven
+sector 17	sector seventeen
+sector 40	sector forty
+sector 99	sector ninety nine
+sector 1234	sector one thousand two hundred thirty four
+sector 12	sector twelve
+unit 8	unit eight
+108	one zero eight
+112	one one two
+100	one zero zero
+911	nine one one
+102	one zero two
+101	one zero one
+4820193	four eight two zero one nine three
+90210	nine zero two one zero
+1234567890	one two three four five six seven eight nine zero
+20260904	two zero two six zero nine zero four
+99999	nine nine nine nine nine
+100001	one zero zero zero zero one
+20.29 85.82	twenty point two nine eighty five point eight two
+26.85 80.94	twenty six point eight five eighty point nine four
+sector 17 14:30	sector seventeen two thirty in the afternoon
+14:30 5 km	two thirty in the afternoon five kilometres
+sector 4 250 kg	sector four two hundred fifty kilograms
+0 2	zero two

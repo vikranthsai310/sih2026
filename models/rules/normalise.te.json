@@ -1,0 +1,64 @@
+{
+  "language": "te",
+  "version": 1,
+  "reviewed": false,
+  "note": "Telugu composes regularly from twenty upward - ఇరవై ఒకటి is transparently twenty one - so the file lists twenty words instead of a hundred. Drafted by an engineer and NOT yet checked by a native speaker; task W7.11 clears this flag.",
+
+  "units": {
+    "km": "కిలోమీటర్లు",
+    "m": "మీటర్లు",
+    "cm": "సెంటీమీటర్లు",
+    "kg": "కిలోగ్రాములు",
+    "g": "గ్రాములు",
+    "l": "లీటర్లు",
+    "hr": "గంటలు",
+    "h": "గంటలు",
+    "min": "నిమిషాలు",
+    "s": "సెకన్లు",
+    "%": "శాతం"
+  },
+
+  "callsignMarkers": ["సెక్టర్", "యూనిట్", "ఛానల్", "నోడ్", "sector", "unit", "channel", "node"],
+
+  "numerals": {
+    "kind": "composed",
+    "digits": ["సున్నా", "ఒకటి", "రెండు", "మూడు", "నాలుగు", "ఐదు", "ఆరు", "ఏడు", "ఎనిమిది", "తొమ్మిది"],
+    "onesToNineteen": [
+      "సున్నా", "ఒకటి", "రెండు", "మూడు", "నాలుగు", "ఐదు", "ఆరు", "ఏడు", "ఎనిమిది", "తొమ్మిది",
+      "పది", "పదకొండు", "పన్నెండు", "పదమూడు", "పద్నాలుగు", "పదిహేను", "పదహారు", "పదిహేడు", "పద్దెనిమిది", "పంతొమ్మిది"
+    ],
+    "tens": ["ఇరవై", "ముప్పై", "నలభై", "యాభై", "అరవై", "డెబ్బై", "ఎనభై", "తొంభై"],
+    "joiner": " ",
+    "scales": [
+      { "value": 10000000, "word": "కోటి" },
+      { "value": 100000, "word": "లక్ష" },
+      { "value": 1000, "word": "వెయ్యి" },
+      { "value": 100, "word": "వంద" }
+    ],
+    "negative": "రుణ",
+    "decimalPoint": "దశాంశం"
+  },
+
+  "clock": {
+    "periods": [
+      { "from": 0, "to": 3, "word": "రాత్రి" },
+      { "from": 4, "to": 11, "word": "ఉదయం" },
+      { "from": 12, "to": 16, "word": "మధ్యాహ్నం" },
+      { "from": 17, "to": 19, "word": "సాయంత్రం" },
+      { "from": 20, "to": 23, "word": "రాత్రి" }
+    ],
+    "onTheHour": "{period} {hour} గంటలకు",
+    "withMinutes": "{period} {hour} గంటల {minute} నిమిషాలకు",
+    "twelveHour": true
+  },
+
+  "rules": [
+    { "id": "time-24h", "pattern": "\\b([01]?\\d|2[0-3]):([0-5]\\d)\\b", "kind": "time" },
+    { "id": "quantity-with-unit", "pattern": "\\b(\\d+(?:\\.\\d+)?)\\s*({units})\\b", "kind": "quantity", "flags": "i" },
+    { "id": "decimal-fraction", "pattern": "(?<!\\d)(\\d+\\.\\d+)(?!\\d)", "kind": "number" },
+    { "id": "callsign-context", "pattern": "\\b(\\p{L}+)\\s+(\\d{1,4})\\b", "kind": "callsign" },
+    { "id": "dialled-three-digits", "pattern": "(?<!\\d)(\\d{3})(?!\\d)", "kind": "digits" },
+    { "id": "long-identifier", "pattern": "(?<!\\d)(\\d{5,})(?!\\d)", "kind": "digits" },
+    { "id": "cardinal", "pattern": "(?<!\\d)(\\d+)(?!\\d)", "kind": "number" }
+  ]
+}

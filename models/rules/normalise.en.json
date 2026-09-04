@@ -1,0 +1,64 @@
+{
+  "language": "en",
+  "version": 1,
+  "reviewed": true,
+  "note": "The first composed language, and the one whose composition nobody has to take on trust. English builds every value from twenty upward out of two words, so listing a hundred of them would be a hundred chances to mistype one. Western scale, not Indian: this pack is read by international responders, and a figure spoken in lakhs to someone expecting thousands is a misreading waiting to happen. Times of five past the hour read as 'two five', not 'two oh five' - a known rough edge, kept because inserting a filler word correctly is a per-language rule and English is not the language this system is judged on.",
+
+  "units": {
+    "km": "kilometres",
+    "m": "metres",
+    "cm": "centimetres",
+    "kg": "kilograms",
+    "g": "grams",
+    "l": "litres",
+    "hr": "hours",
+    "h": "hours",
+    "min": "minutes",
+    "s": "seconds",
+    "%": "percent"
+  },
+
+  "callsignMarkers": ["sector", "unit", "channel", "node", "grid", "team", "post"],
+
+  "numerals": {
+    "kind": "composed",
+    "digits": ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"],
+    "onesToNineteen": [
+      "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+      "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"
+    ],
+    "tens": ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"],
+    "joiner": " ",
+    "scales": [
+      { "value": 1000000000, "word": "billion" },
+      { "value": 1000000, "word": "million" },
+      { "value": 1000, "word": "thousand" },
+      { "value": 100, "word": "hundred" }
+    ],
+    "negative": "minus",
+    "decimalPoint": "point"
+  },
+
+  "clock": {
+    "periods": [
+      { "from": 0, "to": 3, "word": "at night" },
+      { "from": 4, "to": 11, "word": "in the morning" },
+      { "from": 12, "to": 16, "word": "in the afternoon" },
+      { "from": 17, "to": 19, "word": "in the evening" },
+      { "from": 20, "to": 23, "word": "at night" }
+    ],
+    "onTheHour": "{hour} o'clock {period}",
+    "withMinutes": "{hour} {minute} {period}",
+    "twelveHour": true
+  },
+
+  "rules": [
+    { "id": "time-24h", "pattern": "\\b([01]?\\d|2[0-3]):([0-5]\\d)\\b", "kind": "time" },
+    { "id": "quantity-with-unit", "pattern": "\\b(\\d+(?:\\.\\d+)?)\\s*({units})\\b", "kind": "quantity", "flags": "i" },
+    { "id": "decimal-fraction", "pattern": "(?<!\\d)(\\d+\\.\\d+)(?!\\d)", "kind": "number" },
+    { "id": "callsign-context", "pattern": "\\b(\\p{L}+)\\s+(\\d{1,4})\\b", "kind": "callsign" },
+    { "id": "dialled-three-digits", "pattern": "(?<!\\d)(\\d{3})(?!\\d)", "kind": "digits" },
+    { "id": "long-identifier", "pattern": "(?<!\\d)(\\d{5,})(?!\\d)", "kind": "digits" },
+    { "id": "cardinal", "pattern": "(?<!\\d)(\\d+)(?!\\d)", "kind": "number" }
+  ]
+}

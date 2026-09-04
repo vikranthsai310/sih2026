@@ -1,0 +1,64 @@
+{
+  "language": "kn",
+  "version": 1,
+  "reviewed": false,
+  "note": "Kannada composes from twenty upward. Formal orthography fuses the two words - twenty-one is written ಇಪ್ಪತ್ತೊಂದು, not ಇಪ್ಪತ್ತು ಒಂದು - and this file emits the spaced form deliberately: what the phonemiser receives is orthography, and a spaced pair pronounces as two clear words rather than as a fusion this file would have to spell correctly ninety times. Whether that costs intelligibility is a question for the listening panel, not for an engineer's judgement; task W7.11 answers it and clears this flag. There is no permissively licensed Kannada voice, so this pack recognises and displays but never speaks.",
+
+  "units": {
+    "km": "ಕಿಲೋಮೀಟರ್",
+    "m": "ಮೀಟರ್",
+    "cm": "ಸೆಂಟಿಮೀಟರ್",
+    "kg": "ಕಿಲೋಗ್ರಾಂ",
+    "g": "ಗ್ರಾಂ",
+    "l": "ಲೀಟರ್",
+    "hr": "ಗಂಟೆ",
+    "h": "ಗಂಟೆ",
+    "min": "ನಿಮಿಷ",
+    "s": "ಸೆಕೆಂಡ್",
+    "%": "ಶೇಕಡಾ"
+  },
+
+  "callsignMarkers": ["ಸೆಕ್ಟರ್", "ಯೂನಿಟ್", "ಚಾನೆಲ್", "ನೋಡ್", "sector", "unit", "channel", "node"],
+
+  "numerals": {
+    "kind": "composed",
+    "digits": ["ಸೊನ್ನೆ", "ಒಂದು", "ಎರಡು", "ಮೂರು", "ನಾಲ್ಕು", "ಐದು", "ಆರು", "ಏಳು", "ಎಂಟು", "ಒಂಬತ್ತು"],
+    "onesToNineteen": [
+      "ಸೊನ್ನೆ", "ಒಂದು", "ಎರಡು", "ಮೂರು", "ನಾಲ್ಕು", "ಐದು", "ಆರು", "ಏಳು", "ಎಂಟು", "ಒಂಬತ್ತು",
+      "ಹತ್ತು", "ಹನ್ನೊಂದು", "ಹನ್ನೆರಡು", "ಹದಿಮೂರು", "ಹದಿನಾಲ್ಕು", "ಹದಿನೈದು", "ಹದಿನಾರು", "ಹದಿನೇಳು", "ಹದಿನೆಂಟು", "ಹತ್ತೊಂಬತ್ತು"
+    ],
+    "tens": ["ಇಪ್ಪತ್ತು", "ಮೂವತ್ತು", "ನಲವತ್ತು", "ಐವತ್ತು", "ಅರವತ್ತು", "ಎಪ್ಪತ್ತು", "ಎಂಬತ್ತು", "ತೊಂಬತ್ತು"],
+    "joiner": " ",
+    "scales": [
+      { "value": 10000000, "word": "ಕೋಟಿ" },
+      { "value": 100000, "word": "ಲಕ್ಷ" },
+      { "value": 1000, "word": "ಸಾವಿರ" },
+      { "value": 100, "word": "ನೂರು" }
+    ],
+    "negative": "ಋಣ",
+    "decimalPoint": "ದಶಮಾಂಶ"
+  },
+
+  "clock": {
+    "periods": [
+      { "from": 0, "to": 3, "word": "ರಾತ್ರಿ" },
+      { "from": 4, "to": 11, "word": "ಬೆಳಿಗ್ಗೆ" },
+      { "from": 12, "to": 16, "word": "ಮಧ್ಯಾಹ್ನ" },
+      { "from": 17, "to": 19, "word": "ಸಂಜೆ" },
+      { "from": 20, "to": 23, "word": "ರಾತ್ರಿ" }
+    ],
+    "onTheHour": "{period} {hour} ಗಂಟೆಗೆ",
+    "withMinutes": "{period} {hour} ಗಂಟೆ {minute} ನಿಮಿಷಕ್ಕೆ",
+    "twelveHour": true
+  },
+
+  "rules": [
+    { "id": "time-24h", "pattern": "\\b([01]?\\d|2[0-3]):([0-5]\\d)\\b", "kind": "time" },
+    { "id": "quantity-with-unit", "pattern": "\\b(\\d+(?:\\.\\d+)?)\\s*({units})\\b", "kind": "quantity", "flags": "i" },
+    { "id": "decimal-fraction", "pattern": "(?<!\\d)(\\d+\\.\\d+)(?!\\d)", "kind": "number" },
+    { "id": "callsign-context", "pattern": "\\b(\\p{L}+)\\s+(\\d{1,4})\\b", "kind": "callsign" },
+    { "id": "dialled-three-digits", "pattern": "(?<!\\d)(\\d{3})(?!\\d)", "kind": "digits" },
+    { "id": "long-identifier", "pattern": "(?<!\\d)(\\d{5,})(?!\\d)", "kind": "digits" },
+    { "id": "cardinal", "pattern": "(?<!\\d)(\\d+)(?!\\d)", "kind": "number" }
+  ]
+}

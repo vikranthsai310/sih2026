@@ -57,7 +57,25 @@ class NormalisationRules(
     val cardinal: (Long) -> String,
     val time: (Int, Int) -> String,
     val ordered: List<NormalisationRule>,
-)
+    /** दशमलव, point, ದಶಮಾಂಶ. Defaults to the glyph, which no synthesiser can say. */
+    val decimalPoint: String = ".",
+) {
+    /**
+     * Reads a numeric literal, with or without a fractional part.
+     *
+     * A grid reference is the commonest decimal this system carries and the one that
+     * matters most, so the fractional part is read **digit by digit** — 20.29 is
+     * *twenty point two nine*, never *twenty point twenty-nine*. Reading it as a quantity
+     * would turn 20.29 and 20.290 into different-sounding places.
+     */
+    fun spoken(literal: String): String {
+        val dot = literal.indexOf('.')
+        if (dot < 0) return cardinal(literal.toLong())
+        val whole = literal.substring(0, dot)
+        val fraction = literal.substring(dot + 1)
+        return "${cardinal(whole.toLong())} $decimalPoint ${digitwise(fraction)}"
+    }
+}
 
 /** Hindi rules. The reference set; every other language follows this shape. */
 object HindiRules {

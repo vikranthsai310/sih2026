@@ -1,0 +1,65 @@
+{
+  "language": "ml",
+  "version": 1,
+  "reviewed": false,
+  "note": "Malayalam composes from twenty upward with a linking form - ഇരുപത് becomes ഇരുപത്തി before a ones digit - which is what tensCombining holds. Formal orthography fuses the pair (ഇരുപത്തിയൊന്ന്); this file emits the spaced form for the same reason as Kannada. Drafted by an engineer and NOT yet checked by a native speaker; task W7.11 clears this flag.",
+
+  "units": {
+    "km": "കിലോമീറ്റർ",
+    "m": "മീറ്റർ",
+    "cm": "സെന്റിമീറ്റർ",
+    "kg": "കിലോഗ്രാം",
+    "g": "ഗ്രാം",
+    "l": "ലിറ്റർ",
+    "hr": "മണിക്കൂർ",
+    "h": "മണിക്കൂർ",
+    "min": "മിനിറ്റ്",
+    "s": "സെക്കൻഡ്",
+    "%": "ശതമാനം"
+  },
+
+  "callsignMarkers": ["സെക്ടർ", "യൂണിറ്റ്", "ചാനൽ", "നോഡ്", "sector", "unit", "channel", "node"],
+
+  "numerals": {
+    "kind": "composed",
+    "digits": ["പൂജ്യം", "ഒന്ന്", "രണ്ട്", "മൂന്ന്", "നാല്", "അഞ്ച്", "ആറ്", "ഏഴ്", "എട്ട്", "ഒമ്പത്"],
+    "onesToNineteen": [
+      "പൂജ്യം", "ഒന്ന്", "രണ്ട്", "മൂന്ന്", "നാല്", "അഞ്ച്", "ആറ്", "ഏഴ്", "എട്ട്", "ഒമ്പത്",
+      "പത്ത്", "പതിനൊന്ന്", "പന്ത്രണ്ട്", "പതിമൂന്ന്", "പതിനാല്", "പതിനഞ്ച്", "പതിനാറ്", "പതിനേഴ്", "പതിനെട്ട്", "പത്തൊമ്പത്"
+    ],
+    "tens": ["ഇരുപത്", "മുപ്പത്", "നാൽപത്", "അമ്പത്", "അറുപത്", "എഴുപത്", "എൺപത്", "തൊണ്ണൂറ്"],
+    "tensCombining": ["ഇരുപത്തി", "മുപ്പത്തി", "നാൽപത്തി", "അമ്പത്തി", "അറുപത്തി", "എഴുപത്തി", "എൺപത്തി", "തൊണ്ണൂറ്റി"],
+    "joiner": " ",
+    "scales": [
+      { "value": 10000000, "word": "കോടി" },
+      { "value": 100000, "word": "ലക്ഷം" },
+      { "value": 1000, "word": "ആയിരം" },
+      { "value": 100, "word": "നൂറ്" }
+    ],
+    "negative": "മൈനസ്",
+    "decimalPoint": "ദശാംശം"
+  },
+
+  "clock": {
+    "periods": [
+      { "from": 0, "to": 3, "word": "രാത്രി" },
+      { "from": 4, "to": 11, "word": "രാവിലെ" },
+      { "from": 12, "to": 16, "word": "ഉച്ചയ്ക്ക്" },
+      { "from": 17, "to": 19, "word": "വൈകുന്നേരം" },
+      { "from": 20, "to": 23, "word": "രാത്രി" }
+    ],
+    "onTheHour": "{period} {hour} മണിക്ക്",
+    "withMinutes": "{period} {hour} മണി {minute} മിനിറ്റിന്",
+    "twelveHour": true
+  },
+
+  "rules": [
+    { "id": "time-24h", "pattern": "\\b([01]?\\d|2[0-3]):([0-5]\\d)\\b", "kind": "time" },
+    { "id": "quantity-with-unit", "pattern": "\\b(\\d+(?:\\.\\d+)?)\\s*({units})\\b", "kind": "quantity", "flags": "i" },
+    { "id": "decimal-fraction", "pattern": "(?<!\\d)(\\d+\\.\\d+)(?!\\d)", "kind": "number" },
+    { "id": "callsign-context", "pattern": "\\b(\\p{L}+)\\s+(\\d{1,4})\\b", "kind": "callsign" },
+    { "id": "dialled-three-digits", "pattern": "(?<!\\d)(\\d{3})(?!\\d)", "kind": "digits" },
+    { "id": "long-identifier", "pattern": "(?<!\\d)(\\d{5,})(?!\\d)", "kind": "digits" },
+    { "id": "cardinal", "pattern": "(?<!\\d)(\\d+)(?!\\d)", "kind": "number" }
+  ]
+}

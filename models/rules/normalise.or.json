@@ -1,0 +1,70 @@
+{
+  "language": "or",
+  "version": 1,
+  "reviewed": false,
+  "note": "Odia numerals are irregular throughout the first hundred, so the table is exhaustive. Drafted by an engineer and NOT yet checked by a native speaker - task W7.11 clears this flag. Odia is the language with the smallest published speech corpus of the ten and the one whose recognition confidence is expected to be worst, which is precisely why its numeral table must not also be guesswork.",
+
+  "units": {
+    "km": "କିଲୋମିଟର",
+    "m": "ମିଟର",
+    "cm": "ସେଣ୍ଟିମିଟର",
+    "kg": "କିଲୋଗ୍ରାମ",
+    "g": "ଗ୍ରାମ",
+    "l": "ଲିଟର",
+    "hr": "ଘଣ୍ଟା",
+    "h": "ଘଣ୍ଟା",
+    "min": "ମିନିଟ୍",
+    "s": "ସେକେଣ୍ଡ",
+    "%": "ପ୍ରତିଶତ"
+  },
+
+  "callsignMarkers": ["ସେକ୍ଟର", "ୟୁନିଟ୍", "ଚ୍ୟାନେଲ", "ନୋଡ୍", "sector", "unit", "channel", "node"],
+
+  "numerals": {
+    "kind": "table",
+    "digits": ["ଶୂନ୍ୟ", "ଏକ", "ଦୁଇ", "ତିନି", "ଚାରି", "ପାଞ୍ଚ", "ଛଅ", "ସାତ", "ଆଠ", "ନଅ"],
+    "words": [
+      "ଶୂନ୍ୟ", "ଏକ", "ଦୁଇ", "ତିନି", "ଚାରି", "ପାଞ୍ଚ", "ଛଅ", "ସାତ", "ଆଠ", "ନଅ",
+      "ଦଶ", "ଏଗାର", "ବାର", "ତେର", "ଚଉଦ", "ପନ୍ଦର", "ଷୋହଳ", "ସତର", "ଅଠର", "ଊଣେଇଶ",
+      "କୋଡ଼ିଏ", "ଏକୋଇଶି", "ବାଇଶି", "ତେଇଶି", "ଚବିଶି", "ପଚିଶି", "ଛବିଶି", "ସତାଇଶି", "ଅଠାଇଶି", "ଅଣତିରିଶି",
+      "ତିରିଶି", "ଏକତିରିଶି", "ବତିଶି", "ତେତିଶି", "ଚଉତିରିଶି", "ପଞ୍ଚତିରିଶି", "ଛତିଶି", "ସଁଇତିରିଶି", "ଅଠତିରିଶି", "ଅଣଚାଳିଶି",
+      "ଚାଳିଶି", "ଏକଚାଳିଶି", "ବୟାଳିଶି", "ତେୟାଳିଶି", "ଚଉରାଳିଶି", "ପଞ୍ଚଚାଳିଶି", "ଛୟାଳିଶି", "ସତଚାଳିଶି", "ଅଠଚାଳିଶି", "ଅଣଚାଶ",
+      "ପଚାଶ", "ଏକାବନ", "ବାଉନ", "ତେପନ", "ଚଉବନ", "ପଞ୍ଚାବନ", "ଛପନ", "ସତାବନ", "ଅଠାବନ", "ଅଣଷଠି",
+      "ଷାଠିଏ", "ଏକଷଠି", "ବାଷଠି", "ତେଷଠି", "ଚଉଷଠି", "ପଞ୍ଚଷଠି", "ଛଷଠି", "ସତଷଠି", "ଅଠଷଠି", "ଅଣସ୍ତରି",
+      "ସତୁରି", "ଏକସ୍ତରି", "ବାସ୍ତରି", "ତେସ୍ତରି", "ଚଉସ୍ତରି", "ପଞ୍ଚସ୍ତରି", "ଛଅସ୍ତରି", "ସତସ୍ତରି", "ଅଠସ୍ତରି", "ଅଣାଅଶୀ",
+      "ଅଶୀ", "ଏକାଅଶୀ", "ବୟାଅଶୀ", "ତେୟାଅଶୀ", "ଚଉରାଅଶୀ", "ପଞ୍ଚାଅଶୀ", "ଛୟାଅଶୀ", "ସତାଅଶୀ", "ଅଠାଅଶୀ", "ଅଣାନବେ",
+      "ନବେ", "ଏକାନବେ", "ବୟାନବେ", "ତେୟାନବେ", "ଚଉରାନବେ", "ପଞ୍ଚାନବେ", "ଛୟାନବେ", "ସତାନବେ", "ଅଠାନବେ", "ଅନେଶତ"
+    ],
+    "scales": [
+      { "value": 10000000, "word": "କୋଟି" },
+      { "value": 100000, "word": "ଲକ୍ଷ" },
+      { "value": 1000, "word": "ହଜାର" },
+      { "value": 100, "word": "ଶହ" }
+    ],
+    "negative": "ଋଣ",
+    "decimalPoint": "ଦଶମିକ"
+  },
+
+  "clock": {
+    "periods": [
+      { "from": 0, "to": 3, "word": "ରାତି" },
+      { "from": 4, "to": 11, "word": "ସକାଳ" },
+      { "from": 12, "to": 16, "word": "ଅପରାହ୍ନ" },
+      { "from": 17, "to": 19, "word": "ସନ୍ଧ୍ୟା" },
+      { "from": 20, "to": 23, "word": "ରାତି" }
+    ],
+    "onTheHour": "{period} {hour}ଟା",
+    "withMinutes": "{period} {hour}ଟା {minute} ମିନିଟ୍",
+    "twelveHour": true
+  },
+
+  "rules": [
+    { "id": "time-24h", "pattern": "\\b([01]?\\d|2[0-3]):([0-5]\\d)\\b", "kind": "time" },
+    { "id": "quantity-with-unit", "pattern": "\\b(\\d+(?:\\.\\d+)?)\\s*({units})\\b", "kind": "quantity", "flags": "i" },
+    { "id": "decimal-fraction", "pattern": "(?<!\\d)(\\d+\\.\\d+)(?!\\d)", "kind": "number" },
+    { "id": "callsign-context", "pattern": "\\b(\\p{L}+)\\s+(\\d{1,4})\\b", "kind": "callsign" },
+    { "id": "dialled-three-digits", "pattern": "(?<!\\d)(\\d{3})(?!\\d)", "kind": "digits" },
+    { "id": "long-identifier", "pattern": "(?<!\\d)(\\d{5,})(?!\\d)", "kind": "digits" },
+    { "id": "cardinal", "pattern": "(?<!\\d)(\\d+)(?!\\d)", "kind": "number" }
+  ]
+}

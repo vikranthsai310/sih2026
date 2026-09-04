@@ -1,0 +1,65 @@
+{
+  "language": "ta",
+  "version": 1,
+  "reviewed": false,
+  "note": "Tamil composes from twenty upward, but the tens word changes shape before a ones digit - இருபது becomes இருபத்தி in இருபத்தி ஒன்று - which is what tensCombining exists for. Drafted by an engineer and NOT yet checked by a native speaker; task W7.11 clears this flag. There is no permissively licensed Tamil voice, so this pack recognises and displays but never speaks.",
+
+  "units": {
+    "km": "கிலோமீட்டர்",
+    "m": "மீட்டர்",
+    "cm": "சென்டிமீட்டர்",
+    "kg": "கிலோகிராம்",
+    "g": "கிராம்",
+    "l": "லிட்டர்",
+    "hr": "மணி நேரம்",
+    "h": "மணி நேரம்",
+    "min": "நிமிடம்",
+    "s": "வினாடி",
+    "%": "சதவீதம்"
+  },
+
+  "callsignMarkers": ["செக்டர்", "யூனிட்", "சேனல்", "நோடு", "sector", "unit", "channel", "node"],
+
+  "numerals": {
+    "kind": "composed",
+    "digits": ["பூஜ்யம்", "ஒன்று", "இரண்டு", "மூன்று", "நான்கு", "ஐந்து", "ஆறு", "ஏழு", "எட்டு", "ஒன்பது"],
+    "onesToNineteen": [
+      "பூஜ்யம்", "ஒன்று", "இரண்டு", "மூன்று", "நான்கு", "ஐந்து", "ஆறு", "ஏழு", "எட்டு", "ஒன்பது",
+      "பத்து", "பதினொன்று", "பன்னிரண்டு", "பதின்மூன்று", "பதினான்கு", "பதினைந்து", "பதினாறு", "பதினேழு", "பதினெட்டு", "பத்தொன்பது"
+    ],
+    "tens": ["இருபது", "முப்பது", "நாற்பது", "ஐம்பது", "அறுபது", "எழுபது", "எண்பது", "தொண்ணூறு"],
+    "tensCombining": ["இருபத்தி", "முப்பத்தி", "நாற்பத்தி", "ஐம்பத்தி", "அறுபத்தி", "எழுபத்தி", "எண்பத்தி", "தொண்ணூற்றி"],
+    "joiner": " ",
+    "scales": [
+      { "value": 10000000, "word": "கோடி" },
+      { "value": 100000, "word": "லட்சம்" },
+      { "value": 1000, "word": "ஆயிரம்" },
+      { "value": 100, "word": "நூறு" }
+    ],
+    "negative": "கழித்தல்",
+    "decimalPoint": "புள்ளி"
+  },
+
+  "clock": {
+    "periods": [
+      { "from": 0, "to": 3, "word": "இரவு" },
+      { "from": 4, "to": 11, "word": "காலை" },
+      { "from": 12, "to": 16, "word": "மதியம்" },
+      { "from": 17, "to": 19, "word": "மாலை" },
+      { "from": 20, "to": 23, "word": "இரவு" }
+    ],
+    "onTheHour": "{period} {hour} மணி",
+    "withMinutes": "{period} {hour} மணி {minute} நிமிடம்",
+    "twelveHour": true
+  },
+
+  "rules": [
+    { "id": "time-24h", "pattern": "\\b([01]?\\d|2[0-3]):([0-5]\\d)\\b", "kind": "time" },
+    { "id": "quantity-with-unit", "pattern": "\\b(\\d+(?:\\.\\d+)?)\\s*({units})\\b", "kind": "quantity", "flags": "i" },
+    { "id": "decimal-fraction", "pattern": "(?<!\\d)(\\d+\\.\\d+)(?!\\d)", "kind": "number" },
+    { "id": "callsign-context", "pattern": "\\b(\\p{L}+)\\s+(\\d{1,4})\\b", "kind": "callsign" },
+    { "id": "dialled-three-digits", "pattern": "(?<!\\d)(\\d{3})(?!\\d)", "kind": "digits" },
+    { "id": "long-identifier", "pattern": "(?<!\\d)(\\d{5,})(?!\\d)", "kind": "digits" },
+    { "id": "cardinal", "pattern": "(?<!\\d)(\\d+)(?!\\d)", "kind": "number" }
+  ]
+}

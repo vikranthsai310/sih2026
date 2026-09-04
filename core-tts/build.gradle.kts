@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -26,6 +27,10 @@ dependencies {
     // app module carries it instead, so it is packaged exactly once.
     compileOnly(files(rootProject.file("libs/sherpa-onnx-1.13.7.aar")))
     implementation(libs.kotlin.coroutines)
+    // normalise.<lang>.json is parsed on the JVM in the fixture suite as well as on
+    // device, so the parser must not reach for android.jar: org.json returns stubs under
+    // unit test and every fixture would then pass against nothing.
+    implementation(libs.kotlinx.serialization)
     // TODO(W1.23): sherpa-onnx is NOT on Maven Central under the coordinates the
     //  catalog assumed, and not under com.k2fsa.sherpa.onnx:sherpa-onnx-android either.
     //  The upstream repo carries a jitpack.yml, so it is probably distributed through
@@ -38,4 +43,7 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     testLogging { events("passed", "failed", "skipped") }
+    // Fixture regeneration is opt-in and has to reach the test JVM, which does not
+    // inherit the Gradle daemon's system properties.
+    systemProperty("fixtures.regenerate", System.getProperty("fixtures.regenerate") ?: "false")
 }
