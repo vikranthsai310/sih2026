@@ -21,14 +21,14 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 82 of 205 complete, 15 in progress, nothing blocked.** `./gradlew build` is
-green end to end — compilation, ktlint, Android Lint and the coverage gate — and **470
+**Progress: 86 of 205 complete, 18 in progress, nothing blocked.** `./gradlew build` is
+green end to end — compilation, ktlint, Android Lint and the coverage gate — and **487
 tests pass** across all seven modules: CRC, frame codec, script packer, templates, replay
 window, AEAD, clock sync, pre-trigger ring, energy gate, endpointer, sliding-window
 decoding, normalisation, clause splitting, the latency log, the manifest, atomic pack
 installation, resumable downloads, the language switch, the WER scorer, the noise mixer,
 the scorecard, contextual biasing, floor control, alert delivery, relaying,
-fragmentation and the epoch counter. `core-proto` holds
+fragmentation, the epoch counter, pairing codes and the transmit key. `core-proto` holds
 94.2 % line coverage.
 
 **The sherpa-onnx AAR is fetched and the whole native stack now builds.** The debug APK is
@@ -608,11 +608,18 @@ parallel with week 1.**
     leave a handset transmitting after a knock in a pocket, silencing everyone else
     until the 12 s stale-hold expiry. Auto-repeat is filtered, and losing focus
     releases the floor*
-  · **The screen-off half is NOT done.** *An `Activity` key override never sees volume
-    keys once the screen is off or another app is on top. That needs a `MediaSession`
-    taking media-button events in the foreground service, and this is not a substitute
-    for it — the task says "working with the screen off" and that is the part that
-    matters to Meena*
+  · *`VolumeKeyCapture` now covers the screen-off half — and the mechanism is not the
+    obvious one. **Media-button events are a dead end**: `onMediaButtonEvent` delivers
+    `KEYCODE_MEDIA_*` and headset hook, never the volume keys. The platform routes volume
+    keys to the active media session only when that session declares **remote** playback
+    with a `VolumeProvider`*
+  · **Honest limitation.** *A `VolumeProvider` receives adjustments, not key up and down.
+    A hold is therefore inferred: the first adjustment opens the floor and 400 ms of
+    silence closes it. The floor is released up to 400 ms after the operator lets go —
+    dead air on the channel, not a lost word, since the endpointer has already finished.
+    The alternative is an accessibility service, which asks the operator to grant a
+    permission reading "this app can watch everything you do" for a few hundred
+    milliseconds*
   · *Rule 4. Operators wear gloves and rarely look at the screen*
 - [ ] **W5.5** — Half duplex: speaker muted while transmitting; 150 ms endpoint on release
 - [ ] **W5.6** — Full duplex: continuous VAD-gated streaming both directions
@@ -666,15 +673,26 @@ parallel with week 1.**
 
 ### Alert screens
 
-- [ ] **W5.17** — Alert compose: six template buttons + hold-to-speak
+- [x] **W5.17** — Alert compose: six template buttons + hold-to-speak
   · *[WIREFRAMES.md §10](WIREFRAMES.md#10-alert-compose). Icon **plus** word, never a word alone*
-- [ ] **W5.18** — Confirm-before-send: text spoken aloud on open, **RETAKE and SEND exactly
+  · *`AlertComposeScreen`. Icon first and larger, because it is the primary carrier for an
+    operator who cannot read the word beneath it*
+- [x] **W5.18** — Confirm-before-send: text spoken aloud on open, **RETAKE and SEND exactly
   equal in size**
   · *A confirmation that makes the safe option smaller is not a confirmation*
-- [ ] **W5.19** — Incoming alert full screen, **no swipe-to-dismiss** — a swipe is something
+  · *Both buttons take `weight(1f)` and the same minimum height, so they are **equal by
+    construction** rather than by two numbers that could drift apart in a later edit*
+  · *The text is spoken from `LaunchedEffect` on open, not from a button — the operator
+    who most needs it is the one who would not know to ask*
+- [x] **W5.19** — Incoming alert full screen, **no swipe-to-dismiss** — a swipe is something
   a pocket can do
-- [ ] **W5.20** — "Test alert on this device" in settings
+  · *`IncomingAlertScreen`. Dismissal requires the ACKNOWLEDGE target, which is also what
+    drives `3 of 6 units` on the sender — so an alert nobody acknowledged looks different
+    from one everybody did*
+- [x] **W5.20** — "Test alert on this device" in settings
   · *Vendor audio policy varies; also lets demo step 5 be rehearsed solo*
+  · *`TestAlertButton`. A unit that has never announced an alert on **this model of
+    phone** has not been tested, whatever the documentation says*
 
 ### Instrumented tests — on the target handset, not an emulator
 
@@ -699,7 +717,20 @@ parallel with week 1.**
 - [ ] **W6.2** — Stabilised partials; `PARTIAL` flag; receiver may begin early synthesis
   · *Depends on W3.13 — partials come from completed decode windows, not from the model*
 - [ ] **W6.3** — Adaptive endpointing
-- [ ] **W6.4** — `BleLink`: GATT, MTU negotiated to 247, ~244 usable
+- [~] **W6.4** — `BleLink`: GATT, MTU negotiated to 247, ~244 usable
+  · *BLE is the transport for **waiting**; RFCOMM is the transport for **talking**. A unit
+    spends most of its day waiting, and that is where the eight-hour standby figure comes
+    from*
+  · ***The negotiated MTU is not guaranteed*** *— some handsets refuse and stay at 23. So
+    `mtu` is read after connection rather than assumed, and the `Fragmenter` is built per
+    connection from what was actually agreed*
+  · *`WRITE_TYPE_DEFAULT`, acknowledged. `NO_RESPONSE` is faster and drops silently under
+    congestion; the CRC catches corruption but nothing catches a frame that never arrived*
+  · *The CCC descriptor is written, not just the local notification flag — forgetting it
+    is the classic BLE bug where everything looks connected and nothing arrives*
+  · *Android Lint caught a real defect: the API 33 `writeCharacteristic` returns a
+    `BluetoothStatusCodes` value, not a GATT status. Both are 0 for success, so the wrong
+    comparison would have worked by accident*
 - [x] **W6.5** — Fragmentation for BLE and serial: chunks of `mtu - 12`, 2 s reassembly
   timeout, **AEAD verified after reassembly**
   · *`Fragmenter` + `Reassembler`. **Reassembly never decrypts** — a fragment is a slice
@@ -714,7 +745,21 @@ parallel with week 1.**
   · *Bounded in size (64 fragments) **and in time** (2 s): without the timeout a sender
     that dies mid-message leaks its fragments for the life of the process, and a hostile
     peer could hold memory open by sending one fragment of many thousands of messages*
-- [ ] **W6.6** — `WifiLink`: hosted network, TCP 38173, UDP discovery 38174
+- [~] **W6.6** — `WifiLink`: hosted network, TCP 38173, UDP discovery 38174
+  · *`TCP_NODELAY` on both ends. Without it Nagle holds a 44-byte frame waiting for more
+    data to coalesce, adding up to 40 ms to an 800 ms budget — a latency bug that would
+    look like a slow model*
+  · *UDP beacon on 38174 so a joining unit never has to be told an address by a person
+    reading it off a screen*
+  · ***No `INTERNET` permission is needed***, *because sockets bound to a local address do
+    not require one — only `java.net.URL` and friends do. Constraint C2 survives, and the
+    built APK is checked*
+  · *Two limitations found reviewing it, neither exploitable but both worth fixing before
+    the transport gate: the listener **binds every interface**, so on a handset also joined
+    to a home or campus network the port is reachable from it; and it accepts **one**
+    connection, so a hostile connection on such a network could occupy the slot and keep
+    the real peer out. Frames are still AEAD-authenticated, so nothing can be injected —
+    the exposure is denial of service, not forgery*
   · *Hosted network is primary. `WifiP2pManager` is optional — risk T-09*
 - [ ] **W6.8** — **Same integration suite runs green against all three transports**
 - [ ] **W6.9** — Enable AES-GCM on every transport; tag length by transport class
@@ -736,8 +781,29 @@ parallel with week 1.**
     durable, which silently reopens the window the whole design closes. It is called
     twice per process, so the cost is irrelevant*
   · *The instrumented kill-and-reboot test remains*
-- [ ] **W6.11** — Pairing screen: QR generate and scan, `FLAG_SECURE`, key straight to
+- [~] **W6.11** — Pairing screen: QR generate and scan, `FLAG_SECURE`, key straight to
   Android Keystore, decoded string never written to disk
+  · *`PairingCode` (23 tests), `KeystoreVault`, `PairingScreen`*
+  · *The code **fails closed**: expired is refused, and so is a forged code claiming a
+    lifetime longer than the 120 s rule allows — the limit is enforced where it is
+    **scanned**, not merely where it is generated*
+  · *`decode` returns null for everything malformed and says nothing about why. A camera
+    reads whatever is put in front of it, and a parser that explains its rejections is an
+    oracle*
+  · *`toString` redacts the key and a test asserts it. **The likeliest way key material
+    escapes is not an attacker but a developer printing an object** — risk S-04*
+  · *`KeystoreVault` deliberately offers no way to read the key back as bytes. Not because
+    a determined caller could not, but because an API that hands out raw key bytes is one
+    that will eventually appear in a log line*
+  · *Camera capture and the manual-entry fallback still need wiring to the screen*
+  · **The one thing not to forget when wiring it.** *`pairingWindowFlags` exists but
+    nothing sets it yet, because there is no pairing activity. The QR code on screen **is**
+    the key; without `FLAG_SECURE` it lands in the recents thumbnail, in screenshots and in
+    screen recordings. The hosting activity must set it in `onCreate` before the screen is
+    ever shown*
+  · *Known limitation: the encoded code is a `String` while it is displayed, and a Java
+    `String` cannot be wiped. `FLAG_SECURE` and the 120 s expiry are what bound that
+    exposure; the key itself is zeroed via `destroy()` once it reaches Keystore*
   · *[WIREFRAMES.md §3](WIREFRAMES.md#3-pairing)*
 - [ ] **W6.12** — `KEYID` derived as `SHA-256(key)[0]`, never configured, never shown
 - [x] **W6.13** — Relay: `TTL` decrement, 512-entry LRU seen-set on `(SRC, EPOCH, SEQ)`,
