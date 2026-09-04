@@ -18,6 +18,9 @@ import kotlin.random.Random
  * result, so any figure in the report can be reproduced exactly.
  */
 class NoiseMixer(private val seed: Int = DEFAULT_SEED) {
+    /** Recorded beside every figure, so any run can be reproduced exactly. */
+    val seedUsed: Int get() = seed
+
     enum class Noise {
         /** Voices, a market, a relief camp. The hardest case for a recogniser. */
         CROWD,
