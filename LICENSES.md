@@ -107,12 +107,19 @@ conclusion about the whole submission; a team that discloses one draws a differe
 ### Meta MMS — CC-BY-NC
 
 - **Used for:** gap-filling only, where no permissively licensed model exists for a
-  language. Expected to apply to **Odia** if the Coqui training path does not complete.
+  language. **Verified 2026-09-04:** Piper has no voice for **Tamil, Gujarati, Kannada or
+  Odia**, so this applies to four languages rather than the one previously assumed.
 - **Consequence:** **non-commercial**. Any language pack containing an MMS model is marked
   non-commercial in `models/manifest.json`, the application displays that marking, and the
   pack is **excluded from any deployability claim**.
-- **Preferred resolution:** train a Coqui VITS Odia voice (MPL-2.0) on the IIT Madras
-  IndicTTS data and drop MMS entirely. This is the week-4 assignment under risk T-05.
+- **Preferred resolution:** train Coqui VITS voices (MPL-2.0) on the AI4Bharat IndicTTS
+  data for those four languages and drop MMS entirely. At roughly two GPU-days each that
+  is a real commitment, which is why the third option below is stated rather than hidden.
+- **The honest third option:** ship those four languages **recognise-only**. A pack with
+  no voice is declared `"tts": null` in the manifest and the language is still offered —
+  it recognises, it transmits, and a receiving handset in a language that *does* have a
+  voice speaks it aloud through the template path. That is a smaller loss than it sounds
+  and a much smaller one than shipping a non-commercial dependency without saying so.
 
 ## 7. Evaluation data
 

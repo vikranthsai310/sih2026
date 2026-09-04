@@ -1,0 +1,214 @@
+{
+  "manifestVersion": 1,
+  "shared": {
+    "family": "IndicConformer",
+    "licence": "Permissive",
+    "files": ["encoder.int8.onnx", "decoder.onnx", "joiner.onnx"],
+    "bytes": 125829120,
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "numThreads": 2
+  },
+  "packs": [
+    {
+      "lang": "hi",
+      "index": 1,
+      "displayName": "हिन्दी",
+      "script": "Devanagari",
+      "blockBase": "U+0900",
+      "vocabulary": {
+        "files": ["tokens.hi.txt", "alert-lexicon.hi.txt"],
+        "bytes": 262144,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tts": {
+        "family": "Piper",
+        "licence": "MIT",
+        "files": ["hi_IN-pratham-medium.onnx", "hi_IN-pratham-medium.onnx.json"],
+        "bytes": 63963136,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "sampleRate": 22050
+      },
+      "rules": { "files": ["normalise.hi.json"], "version": 3 },
+      "confidenceLow": -1.8,
+      "confidenceHigh": -0.6
+    },
+    {
+      "lang": "bn",
+      "index": 2,
+      "displayName": "বাংলা",
+      "script": "Bengali",
+      "blockBase": "U+0980",
+      "vocabulary": {
+        "files": ["tokens.bn.txt", "alert-lexicon.bn.txt"],
+        "bytes": 262144,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tts": {
+        "family": "Piper",
+        "licence": "MIT",
+        "files": ["bn_IN-medium.onnx", "bn_IN-medium.onnx.json"],
+        "bytes": 63963136,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "sampleRate": 22050
+      },
+      "rules": { "files": ["normalise.bn.json"], "version": 1 },
+      "confidenceLow": -1.8,
+      "confidenceHigh": -0.6
+    },
+    {
+      "lang": "mr",
+      "index": 3,
+      "displayName": "मराठी",
+      "script": "Devanagari",
+      "blockBase": "U+0900",
+      "vocabulary": {
+        "files": ["tokens.mr.txt", "alert-lexicon.mr.txt"],
+        "bytes": 262144,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tts": {
+        "family": "Piper",
+        "licence": "MIT",
+        "files": ["mr_IN-medium.onnx", "mr_IN-medium.onnx.json"],
+        "bytes": 63963136,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "sampleRate": 22050
+      },
+      "rules": { "files": ["normalise.mr.json"], "version": 1 },
+      "confidenceLow": -1.8,
+      "confidenceHigh": -0.6
+    },
+    {
+      "lang": "te",
+      "index": 4,
+      "displayName": "తెలుగు",
+      "script": "Telugu",
+      "blockBase": "U+0C00",
+      "vocabulary": {
+        "files": ["tokens.te.txt", "alert-lexicon.te.txt"],
+        "bytes": 262144,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tts": {
+        "family": "Piper",
+        "licence": "MIT",
+        "files": ["te_IN-medium.onnx", "te_IN-medium.onnx.json"],
+        "bytes": 63963136,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "sampleRate": 22050
+      },
+      "rules": { "files": ["normalise.te.json"], "version": 1 },
+      "confidenceLow": -1.8,
+      "confidenceHigh": -0.6
+    },
+    {
+      "lang": "ml",
+      "index": 8,
+      "displayName": "മലയാളം",
+      "script": "Malayalam",
+      "blockBase": "U+0D00",
+      "vocabulary": {
+        "files": ["tokens.ml.txt", "alert-lexicon.ml.txt"],
+        "bytes": 262144,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tts": {
+        "family": "Piper",
+        "licence": "MIT",
+        "files": ["ml_IN-meera-medium.onnx", "ml_IN-meera-medium.onnx.json"],
+        "bytes": 63963136,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "sampleRate": 22050
+      },
+      "rules": { "files": ["normalise.ml.json"], "version": 1 },
+      "confidenceLow": -1.8,
+      "confidenceHigh": -0.6
+    },
+    {
+      "lang": "ta",
+      "index": 5,
+      "displayName": "தமிழ்",
+      "script": "Tamil",
+      "blockBase": "U+0B80",
+      "vocabulary": {
+        "files": ["tokens.ta.txt", "alert-lexicon.ta.txt"],
+        "bytes": 262144,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tts": null,
+      "rules": { "files": ["normalise.ta.json"], "version": 1 },
+      "confidenceLow": -1.8,
+      "confidenceHigh": -0.6
+    },
+    {
+      "lang": "gu",
+      "index": 6,
+      "displayName": "ગુજરાતી",
+      "script": "Gujarati",
+      "blockBase": "U+0A80",
+      "vocabulary": {
+        "files": ["tokens.gu.txt", "alert-lexicon.gu.txt"],
+        "bytes": 262144,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tts": null,
+      "rules": { "files": ["normalise.gu.json"], "version": 1 },
+      "confidenceLow": -1.8,
+      "confidenceHigh": -0.6
+    },
+    {
+      "lang": "kn",
+      "index": 7,
+      "displayName": "ಕನ್ನಡ",
+      "script": "Kannada",
+      "blockBase": "U+0C80",
+      "vocabulary": {
+        "files": ["tokens.kn.txt", "alert-lexicon.kn.txt"],
+        "bytes": 262144,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tts": null,
+      "rules": { "files": ["normalise.kn.json"], "version": 1 },
+      "confidenceLow": -1.8,
+      "confidenceHigh": -0.6
+    },
+    {
+      "lang": "or",
+      "index": 9,
+      "displayName": "ଓଡ଼ିଆ",
+      "script": "Odia",
+      "blockBase": "U+0B00",
+      "vocabulary": {
+        "files": ["tokens.or.txt", "alert-lexicon.or.txt"],
+        "bytes": 262144,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tts": null,
+      "rules": { "files": ["normalise.or.json"], "version": 1 },
+      "confidenceLow": -1.8,
+      "confidenceHigh": -0.6
+    },
+    {
+      "lang": "en",
+      "index": 0,
+      "displayName": "English",
+      "script": "Latin",
+      "vocabulary": {
+        "files": ["tokens.en.txt", "alert-lexicon.en.txt"],
+        "bytes": 262144,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "tts": {
+        "family": "Piper",
+        "licence": "MIT",
+        "files": ["en_US-lessac-medium.onnx", "en_US-lessac-medium.onnx.json"],
+        "bytes": 63963136,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "sampleRate": 22050
+      },
+      "rules": { "files": ["normalise.en.json"], "version": 1 },
+      "confidenceLow": -1.8,
+      "confidenceHigh": -0.6
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+# Hindi negation terms — task W4.14, risk S-03.
+#
+# These carry the highest weight in the whole biasing list (4.0). "मत निकलो" heard as
+# "अब निकलो" is a fluent, plausible instruction that means the opposite of what was
+# said, and it will be acted on without question. A spurious negation is an obvious
+# confusion that gets queried; a dropped one is not.
+#
+# One phrase per line. An explicit weight may follow a tab.
+
+नहीं
+ना
+मत
+नही
+न
+बिना
+कभी नहीं
+बिल्कुल नहीं
+मना
+मना है
+रुको
+रुक जाओ
+मत जाओ
+मत आओ
+मत भेजो
+मत निकलो
+मत करो
+नहीं है
+नहीं जाना
+नहीं भेजना
+इंतज़ार करो
+प्रतीक्षा करो
+सुरक्षित नहीं
+साफ़ नहीं
+संभव नहीं

@@ -25,6 +25,27 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r tools/requirements.txt
 ```
 
+### sherpa-onnx — fetch the AAR
+
+```bash
+tools/fetch_sherpa.sh
+```
+
+**sherpa-onnx is not on Maven Central.** Verified 2026-09-04 against the Central search
+API: it returns no k2-fsa artifact under any coordinates. The only sherpa artifact there
+is `com.bihe0832.android:lib-sherpa-onnx`, an unrelated third-party wrapper this project
+does not use. Anything suggesting `com.k2fsa.sherpa.onnx:sherpa-onnx-android` will not
+resolve — several search results assert it does, and they are wrong.
+
+The official build ships as a release asset on GitHub. The script downloads
+`sherpa-onnx-1.13.7.aar` (47 MB) into `libs/` and **verifies its SHA-256 before putting it
+in place**; on a mismatch it installs nothing. That check is not ceremony — the AAR
+carries native code that runs inside the application, so accepting whatever the network
+returned would be a supply-chain hole.
+
+`libs/` is not tracked in version control. Every developer and every clean build runs the
+script once.
+
 ## 2. Target hardware
 
 | Item | Requirement |

@@ -21,13 +21,18 @@ Tick a box only when *Done when* is true, not when the code compiles.
 
 `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` cut
 
-**Progress: 55 of 205 complete, 3 in progress, 1 blocked.** `./gradlew build` is green
-end to end — compilation, ktlint, Android Lint and the coverage gate — and **231 tests
-pass** across `core-proto`, `core-audio`, `core-asr`, `core-tts`, `core-link` and
-`bench`: CRC, frame codec, script packer, templates, replay window, AEAD, clock sync,
-pre-trigger ring, energy gate, endpointer, sliding-window decoding, normalisation, clause
-splitting and the latency log. `core-proto` holds 95.3 % line coverage. The debug APK is
-10.1 MB and `aapt2` confirms it carries no `INTERNET` and no location permission.
+**Progress: 66 of 205 complete, 8 in progress, nothing blocked.** `./gradlew build` is
+green end to end — compilation, ktlint, Android Lint and the coverage gate — and **340
+tests pass** across all seven modules: CRC, frame codec, script packer, templates, replay
+window, AEAD, clock sync, pre-trigger ring, energy gate, endpointer, sliding-window
+decoding, normalisation, clause splitting, the latency log, the manifest, atomic pack
+installation, resumable downloads, the language switch, the WER scorer, the noise mixer,
+the scorecard and contextual biasing. `core-proto` holds 95.3 % line coverage. The debug
+APK is 10.1 MB and `aapt2` confirms it carries no `INTERNET` and no location permission.
+
+> **Nothing is blocked any more.** Q3 is answered — sherpa-onnx is distributed as a GitHub
+> release asset, not a Maven artifact — so W1.23 moved from `[!]` to `[~]`. What remains
+> in weeks 3 and 4 needs the two handsets and the model downloads, not a decision.
 
 > **What is left in week 1 needs hardware.** The audio capture wrapper, the recogniser
 > binding, the Silero and Vosk models and gate W1.G all require the target handset, and
@@ -181,11 +186,17 @@ splitting and the latency log. `core-proto` holds 95.3 % line coverage. The debu
   · *`BoundedFrameQueue`. Six tests including a two-thread race; a full queue drops
     the oldest and counts it rather than blocking capture*
 - [ ] **W1.22** — Bundle `silero_vad.onnx` (1.8 MB) in base assets
-- [!] **W1.23** — sherpa-onnx AAR dependency; verify it loads on the target handset
-  · **Blocked.** sherpa-onnx is not on Maven Central under the coordinates assumed,
-    nor as `com.k2fsa.sherpa.onnx:sherpa-onnx-android`. Upstream carries a
-    `jitpack.yml`, so it is likely JitPack or a downloaded `.aar`. The dependency
-    is parked with a note in `core-asr`; nothing written so far needs it
+- [~] **W1.23** — sherpa-onnx AAR dependency; verify it loads on the target handset
+  · *Open question **Q3 is answered**. sherpa-onnx is **not on Maven Central under any
+    coordinates** — verified 2026-09-04 against the Central search API, which returns no
+    k2-fsa artifact at all. The only sherpa artifact there is
+    `com.bihe0832.android:lib-sherpa-onnx`, an unrelated third-party wrapper*
+  · *The official build ships as a **GitHub release asset**: `sherpa-onnx-1.13.7.aar`,
+    49 113 869 bytes. `tools/fetch_sherpa.sh` downloads it into `libs/` and **verifies
+    its SHA-256 before installing** — the AAR carries native code that runs inside the
+    app, so accepting whatever the network returned would be a supply-chain hole*
+  · *Still `[~]`: nothing has been loaded on a handset yet, which is the other half of
+    this task*
 - [ ] **W1.24** — Tier 1 Silero VAD: 512-sample window, threshold 0.5, min speech 250 ms,
   min silence 100 ms. Runs only when tier 0 has opened
 - [ ] **W1.25** — `tools/fetch_models.py` — download, SHA-256 verify, atomic install
@@ -428,45 +439,118 @@ parallel with week 1.**
 
 **Gate W4: five languages recognised; `bench` produces a `scorecard.csv`.**
 
-- [ ] **W4.1** — `tools/export_indicconformer.py` — NeMo → ONNX
+- [~] **W4.1** — `tools/export_indicconformer.py` — NeMo → ONNX
   · *Risk T-07: if this fails, Vosk from W1.26 keeps the schedule intact. Three weeks of
   slack sit behind it*
-- [ ] **W4.2** — `onnxruntime.quantization.preprocess` + `quantize_dynamic` int8,
+  · *Script written; it cannot be run here — NeMo pulls a full PyTorch stack. It writes an
+    `export.json` receipt with the size and SHA-256 of every file it produced, so the
+    manifest is filled from the tool rather than by hand, which is exactly where a wrong
+    digest would come from*
+  · *No `--lang` option, deliberately: the model is multilingual, so "the Hindi model" is
+    not a thing that exists*
+- [~] **W4.2** — `onnxruntime.quantization.preprocess` + `quantize_dynamic` int8,
   **encoder only** — quantising decoder and joiner hurts accuracy for no size gain
-- [ ] **W4.3** — `tools/verify_quantisation.py`
+  · *`tools/quantise.py`. Refuses to describe its output as usable and prints the
+    verification command instead*
+- [~] **W4.3** — `tools/verify_quantisation.py`
   · **Done when** WER delta vs float32 is < 1.5 % relative, **per language**
   · *Mandatory. The whole efficiency argument rests on this claim; it must be
   re-established per language, not assumed*
-- [ ] **W4.4** — `models/manifest.json` schema: **one shared acoustic-model entry plus a
+  · *Written. **Exits non-zero when the regression exceeds the threshold**, so it gates a
+    release rather than merely printing a number. Its tokeniser mirrors the Kotlin
+    `WerScorer`; where they disagree the Kotlin one is authoritative, because that is the
+    one that produces the figures in the report*
+- [x] **W4.4** — `models/manifest.json` schema: **one shared acoustic-model entry plus a
   per-language vocabulary and voice entry** — the acoustic model is not per language
   · *[MODELS.md §1](MODELS.md#1-delivery) and §3. Risk T-17*
-- [ ] **W4.5** — `core-models`: manifest loader, SHA-256 verify, **atomic install** (temp
+  · *Written, all ten languages, plus the `Manifest` parser in `core-models`. MODELS.md §3
+    still showed the pre-correction per-language `asr` block, contradicting §1's own
+    correction; the schema there is now the one the code actually reads*
+  · *A test asserts every manifest index matches the wire encoding in `core-proto`. If
+    those disagree, two handsets decode the same frame as different languages*
+  · *Hashes are validated on parse — 64 lowercase hex characters or the manifest is
+    refused, so a placeholder fails while reading the index rather than after a 120 MB
+    download*
+- [x] **W4.5** — `core-models`: manifest loader, SHA-256 verify, **atomic install** (temp
   file then rename — a partial pack must never be loadable), resumable download
   · *The ~120 MB shared model download must resume; it will be interrupted on a weak
   connection far more often than a 60 MB voice*
-- [ ] **W4.6** — Language switch: unload outgoing, load incoming, blocked while floor held
-- [ ] **W4.7** — Pack licence is a **load-time precondition** — a pack with no licence field
+  · *`PackInstaller` + `ResumePlan`. **A test proves the guarantee directly**: a download
+    that dies midway leaves the destination absent and no partial file behind, and a
+    failed replacement leaves the previously installed pack intact*
+  · *A truncated ONNX model does not fail cleanly — it may load and emit nonsense, and
+    nonsense spoken aloud with confidence is the worst output this system can produce*
+- [x] **W4.6** — Language switch: unload outgoing, load incoming, blocked while floor held
+  · *`LanguageSwitch`. The ordering is mandatory, not incidental: loading before unloading
+    needs both models resident on a handset chosen for being cheap, which is the likeliest
+    way to be killed by the out-of-memory reaper — during a language switch, in front of a
+    jury*
+  · *A missing pack is reported **ahead of** a held floor, so a device that simply lacks
+    the language says so rather than blaming a transmission that is not the problem*
+- [x] **W4.7** — Pack licence is a **load-time precondition** — a pack with no licence field
   fails verification and does not load
-- [ ] **W4.8** — `bench` WER scorer: NFC, punctuation strip, case fold, whitespace collapse,
+  · *Checked before a single byte is written, not at load: discovering an unlicensed pack
+    after a 120 MB download is too late*
+- [x] **W4.8** — `bench` WER scorer: NFC, punctuation strip, case fold, whitespace collapse,
   numerals compared in spoken-word form
   · **The single source of truth. No figure is ever computed by hand**
-- [ ] **W4.9** — Noise mixer: crowd / wind / engine / siren at +20, +10, +5 dB SNR, **fixed
+  · *`WerScorer`, 20 tests. Substitutions, deletions and insertions counted separately;
+    WER may exceed 100 %, because a recogniser that hallucinates a long sentence from a
+    short one genuinely does, and clamping would hide the worst failure mode there is*
+  · *The numeral rule is applied to **both** sides, so it cannot flatter the result
+    depending on which side happens to hold the digits*
+  · *`corpusWer` pools edits rather than averaging per-sentence rates — a mean of rates
+    over-weights short sentences, and on the fixture in the test it reads five times too
+    high*
+- [x] **W4.9** — Noise mixer: crowd / wind / engine / siren at +20, +10, +5 dB SNR, **fixed
   seed** so results reproduce
+  · *`NoiseMixer`. A test measures the SNR of each mix back out and asserts it lands within
+    0.5 dB of what was asked for — a mixer that does not achieve its stated ratio makes
+    every noise-robustness figure decorative*
+  · *Clipping is counted and reported rather than hidden: a mix that clips heavily is
+    measuring the mixer rather than the recogniser*
+  · *Seed 26173 by default, recorded in every scorecard row*
 - [ ] **W4.10** — IndicSUPERB / Kathbath subsets downloaded for five languages
-- [ ] **W4.11** — `scorecard.csv` writer with the full schema, recording device and build
+- [x] **W4.11** — `scorecard.csv` writer with the full schema, recording device and build
+  · *`ScorecardWriter`. A row without a device or a build is **refused** — a scorecard that
+    does not name its hardware is not evidence. A mean opinion score without its panel
+    size is refused for the same reason*
+  · *An unmeasured figure is written empty; a measured zero is written `0.0`. A results
+    file must never confuse "perfect" with "never ran"*
   · *[EVALUATION.md §6](EVALUATION.md#6-instrumentation)*
-- [ ] **W4.12** — **Confirm the Piper Odia voices exist** (Debjani, Manas) in the official
+- [x] **W4.12** — **Confirm the Piper Odia voices exist** (Debjani, Manas) in the official
   `rhasspy/piper-voices` repository — **do this in week 1, it takes ten minutes**
-  · *Risk T-05, downgraded to Low by verification. If confirmed, drop Meta MMS entirely and
-  remove its CC-BY-NC disclosure from `LICENSES.md`. Only if it is absent does the old plan
-  apply: MMS as a disclosed stopgap, then a Coqui VITS voice on IIT Madras data (~2 GPU-days)*
-- [ ] **W4.13** — `alert-lexicon.txt` per language: ~300 domain terms
-- [ ] **W4.14** — **Negation terms weighted high** — "not", "do not", "नहीं"
+  · **Answered 2026-09-04, and the answer is no.** *The `rhasspy/piper-voices` repository
+    tree has **no `or` directory**, and `piper/VOICES.md` lists no Odia voice. The names
+    Debjani and Manas came from a search summary, not the repository, and were wrong*
+  · **The gap is wider than Odia.** *Piper has no Tamil, Gujarati or Kannada either. It
+    covers six of our ten: en, hi, bn, mr, te, ml*
+  · *Risk **T-05 re-escalated to High and re-opened**. Meta MMS and its CC-BY-NC disclosure
+    cannot be dropped — and would now apply to four languages, not one. `LICENSES.md`
+    records a third option honestly: ship those four recognise-only, which is a smaller
+    loss than it sounds and much smaller than an undisclosed non-commercial dependency*
+- [~] **W4.13** — `alert-lexicon.txt` per language: ~300 domain terms
+  · *`BiasingLexicon` plus `models/lexicon/alert-lexicon.hi.txt` — ~130 Hindi terms across
+    distress, medical, hazards, logistics, units, places and radio procedure*
+  · *Hindi only. The remaining nine need a speaker of each language, not a translation
+    engine — a wrong term in this list biases the decoder **towards** a word nobody says*
+- [x] **W4.14** — **Negation terms weighted high** — "not", "do not", "नहीं"
   · *Risk S-03. "Do not evacuate" becoming "now evacuate" is the most dangerous single
   failure this system can produce*
-- [ ] **W4.15** — Roster display names injected into biasing at runtime
-- [ ] **W4.16** — Confidence thresholds calibrated per language, stored in the manifest —
+  · *`models/lexicon/negation.hi.txt` at weight **4.0** against 1.5 for domain terms and
+    2.5 for roster names. A test asserts the **negation floor exceeds the domain ceiling**
+    across the shipped files, so the ordering cannot be undone silently*
+  · *The asymmetry is deliberate: a spurious "not" is an obvious confusion that gets
+    queried, while a dropped one is a fluent instruction meaning the opposite*
+- [x] **W4.15** — Roster display names injected into biasing at runtime
+  · *`BiasingLexicon.withRoster`. Unit names are proper nouns, usually absent from any
+    training corpus, and are exactly what a message is addressed to*
+  · *A roster name never lowers a weight already assigned, so a call sign colliding with a
+    negation term cannot demote it*
+- [x] **W4.16** — Confidence thresholds calibrated per language, stored in the manifest —
   **not hard-coded**. A threshold right for Hindi is wrong for Odia
+  · *`Pack.confidenceLow` / `confidenceHigh`, refused if inverted. Calibration itself is
+    week 7; the values in the manifest are placeholders and are marked as such*
 
 - [ ] **W4.G** — **GATE:** `scorecard.csv` exists with WER at four SNRs for five languages
 

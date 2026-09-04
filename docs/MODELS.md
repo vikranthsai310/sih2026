@@ -52,9 +52,21 @@ models/
 
 `models/manifest.json` is tracked in version control; the binaries it points at are not.
 
+**The acoustic model is one shared entry, not one per language.** This is the schema
+consequence of the correction in section 1, and getting it the other way round would mean
+1.2 GB of downloads for something a device needs once — risk T-17.
+
 ```json
 {
   "manifestVersion": 1,
+  "shared": {
+    "family": "IndicConformer",
+    "licence": "Permissive",
+    "files": ["encoder.int8.onnx", "decoder.onnx", "joiner.onnx"],
+    "bytes": 125829120,
+    "sha256": "…",
+    "numThreads": 2
+  },
   "packs": [
     {
       "lang": "hi",
@@ -62,29 +74,22 @@ models/
       "displayName": "हिन्दी",
       "script": "Devanagari",
       "blockBase": "U+0900",
-      "asr": {
-        "family": "IndicConformer",
-        "licence": "Permissive",
-        "files": ["encoder.int8.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"],
-        "bytes": 34603008,
-        "sha256": "…",
-        "beamSize": 4,
-        "numThreads": 2,
-        "hotwordsScore": 1.5,
-        "confidenceLow": -1.8,
-        "confidenceHigh": -0.6
+      "vocabulary": {
+        "files": ["tokens.hi.txt", "alert-lexicon.hi.txt"],
+        "bytes": 262144,
+        "sha256": "…"
       },
       "tts": {
         "family": "Piper",
         "licence": "MIT",
-        "files": ["voice.onnx"],
-        "bytes": 26214400,
+        "files": ["hi_IN-pratham-medium.onnx", "hi_IN-pratham-medium.onnx.json"],
+        "bytes": 63963136,
         "sha256": "…",
-        "sampleRate": 22050,
-        "speakerCount": 4
+        "sampleRate": 22050
       },
-      "rules": { "files": ["normalise.json"], "version": 3 },
-      "totalBytes": 62914560
+      "rules": { "files": ["normalise.hi.json"], "version": 3 },
+      "confidenceLow": -1.8,
+      "confidenceHigh": -0.6
     }
   ]
 }
@@ -92,7 +97,16 @@ models/
 
 `confidenceLow` and `confidenceHigh` are calibrated per language in week 7 and live in the
 manifest rather than in code, because a threshold that is right for Hindi is not right for
-Odia.
+Odia (task W4.16).
+
+**`"tts": null` is a valid and expected value.** Four languages — Tamil, Gujarati, Kannada
+and Odia — have no published Piper voice, verified against the repository tree on
+2026-09-04. Such a pack is still offered: it recognises and it displays, it simply cannot
+speak. Risk T-05.
+
+Every hash is validated on parse: 64 lowercase hexadecimal characters, or the manifest is
+refused. A placeholder that fails at install time instead looks like a corrupt download
+rather than a bad manifest, and by then the bytes are already on disk.
 
 ## 4. Lifecycle
 

@@ -375,10 +375,12 @@ Recorded rather than left implicit. Each blocks something specific.
 | --- | --- | --- | --- |
 | Q1 | Who owns each of the six roles? | Every weekly gate review; every risk needs exactly one owner | Team |
 | Q2 | Which entry-tier handset is the target device? | **Every reportable number in the project** — risk P-02, task P0.2 | Team |
-| Q3 | How is sherpa-onnx actually distributed? Not on Maven Central under the coordinates tried; upstream carries a `jitpack.yml` | The recogniser and synthesiser bindings — task W1.23 | Models |
-| Q4 | Do the Piper Odia voices exist in the official repository? | Whether Meta MMS and its CC-BY-NC disclosure can be dropped — risk T-05 | Synthesis |
+| ~~Q3~~ | ~~How is sherpa-onnx actually distributed?~~ **Answered 2026-09-04.** Not on Maven Central under *any* coordinates — the Central search API returns no k2-fsa artifact at all. It ships as a GitHub release asset, `sherpa-onnx-1.13.7.aar`, fetched and checksum-verified by `tools/fetch_sherpa.sh` | — | Closed |
+| ~~Q4~~ | ~~Do the Piper Odia voices exist?~~ **Answered 2026-09-04: no**, and the gap is wider — Piper has no Tamil, Gujarati or Kannada voice either, covering six of our ten languages. Meta MMS **cannot** be dropped, and would apply to four languages. Risk T-05 re-escalated to High | Now a work item, not a question | Synthesis |
 | Q5 | Can the language-pack downloader live outside the shipped manifest, so no `INTERNET` permission ever ships? | Constraint C2 in its strongest form; the fallback is sideloading | Application |
 | Q6 | Can 150 listening-panel speakers be recruited — 15 per language? | Mean opinion score, and therefore part of the accuracy criterion — risk P-05 | Evaluation |
 | Q7 | Does the sliding-window decoder actually recover the 400 ms it is budgeted to? | The revised 800–1200 ms latency target — risk T-16, task W3.13 | ASR |
 
-Q2 and Q3 are the two that block the most. Everything else can proceed around them.
+**Q2 — which handset — is now the one that blocks the most**, since it gates every
+reportable number in the project. Q3 and Q4 are closed; Q4's answer created work rather
+than removing it, which is the more useful kind of answer to get early.
