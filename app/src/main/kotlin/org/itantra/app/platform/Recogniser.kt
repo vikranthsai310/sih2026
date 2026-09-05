@@ -30,12 +30,34 @@ package org.itantra.app.platform
  * screen's listening states have a contract to be written against.
  */
 interface Recogniser {
-    /** What was heard, and how much of it should be believed. */
+    /** What was heard, how much of it should be believed, and what it cost. */
     data class Result(
         val text: String,
         /** The recogniser's own score, 0..1, where it offers one. */
         val confidence: Float?,
-    )
+        /**
+         * Wall time spent inside the decoder, summed over every window of this utterance.
+         *
+         * Not the wait the operator experienced — most of it happens while they are still
+         * speaking. It is the numerator of the real-time factor, which is the figure the
+         * problem statement asks for by name.
+         */
+        val decodeMillis: Long? = null,
+        /** Audio actually captured and decoded, the denominator of that factor. */
+        val audioMillis: Long? = null,
+    ) {
+        /**
+         * Decode time over audio duration. Below 1.0 means the machine keeps up with speech.
+         *
+         * Reported rather than derived elsewhere so there is one definition of it.
+         */
+        val realTimeFactor: Double?
+            get() {
+                val decode = decodeMillis ?: return null
+                val audio = audioMillis ?: return null
+                return if (audio > 0) decode.toDouble() / audio.toDouble() else null
+            }
+    }
 
     interface Listener {
         /**

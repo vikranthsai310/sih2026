@@ -64,6 +64,12 @@ class SherpaSpeech(
     /** Window texts so far, for band C′ only. The final stitch is the decoder's. */
     private val partials = ArrayList<String>()
 
+    /** Nanoseconds spent inside the decoder this utterance, across every window. */
+    private var decodeNanos = 0L
+
+    /** Samples handed to the decoder this utterance. The audio the factor is measured over. */
+    private var decodedSamples = 0L
+
     override fun isReady(languageCode: String): Boolean = store.hasPack(languageCode)
 
     /**
@@ -100,7 +106,21 @@ class SherpaSpeech(
             }.getOrNull() ?: return null
 
         recogniser = built
-        windows = built.windowedDecoder()
+        // Built here rather than through windowedDecoder() so every call can be timed. The
+        // real-time factor is a measurement of the decoder, and measuring it anywhere else
+        // would be measuring the queue in front of it.
+        windows =
+            SlidingWindowDecoder(
+                sampleRate = SherpaRecogniser.SAMPLE_RATE,
+                decode = { pcm ->
+                    val began = System.nanoTime()
+                    try {
+                        built.decode(pcm)
+                    } finally {
+                        decodeNanos += System.nanoTime() - began
+                    }
+                },
+            )
         loadedFor = languageCode
         return built
     }
@@ -139,6 +159,8 @@ class SherpaSpeech(
         settled.set(false)
         synchronized(pending) { pending.clear() }
         partials.clear()
+        decodeNanos = 0L
+        decodedSamples = 0L
 
         val started =
             capture.start(
@@ -208,6 +230,7 @@ class SherpaSpeech(
     private fun drainInto(decoder: SlidingWindowDecoder) {
         val block = takePending()
         if (block.isEmpty()) return
+        decodedSamples += block.size
         val texts = runCatching { decoder.onSpeech(block) }.getOrDefault(emptyList())
         if (texts.isEmpty()) return
         partials += texts
@@ -243,7 +266,16 @@ class SherpaSpeech(
                     } else {
                         // IndicConformer gives no per-utterance score, so none is claimed.
                         // A confidence invented here would be read as the model's.
-                        settle { it.onResult(Recogniser.Result(text, confidence = null)) }
+                        settle {
+                            it.onResult(
+                                Recogniser.Result(
+                                    text = text,
+                                    confidence = null,
+                                    decodeMillis = decodeNanos / 1_000_000,
+                                    audioMillis = decodedSamples * 1_000 / SAMPLE_RATE,
+                                ),
+                            )
+                        }
                     }
                 }
             }

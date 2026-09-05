@@ -2,6 +2,8 @@ package org.itantra.app.engine
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.os.Process
+import android.os.SystemClock
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -122,6 +124,10 @@ class MessageEngine(
 
     /** Rebuilt on a language change; null when that language ships no lexicon. */
     private var corrector: LexiconCorrector? = null
+
+    /** Process CPU and wall clock at the press, so the utterance's share can be differenced. */
+    private var cpuAtPressMillis = 0L
+    private var wallAtPressMillis = 0L
 
     private val _traces = MutableStateFlow<List<UtteranceTrace>>(emptyList())
 
@@ -321,6 +327,8 @@ class MessageEngine(
 
         val heard = CompletableDeferred<Recogniser.Result?>()
         pendingSpeech = heard
+        cpuAtPressMillis = Process.getElapsedCpuTime()
+        wallAtPressMillis = SystemClock.elapsedRealtime()
 
         _state.value =
             _state.value.copy(
@@ -446,7 +454,7 @@ class MessageEngine(
         _state.value =
             _state.value.copy(
                 messages = (listOf(entry) + _state.value.messages).take(MAX_ON_SCREEN),
-                metrics = metricsFrom(clock, sent.wireBytes, recognised = heard != null),
+                metrics = metricsFrom(clock, sent.wireBytes, heard),
                 queued = session.queuedCount,
                 partial = null,
                 speechNote = speechNote(heard),
@@ -521,10 +529,10 @@ class MessageEngine(
     private fun metricsFrom(
         clock: UtteranceClock?,
         wireBytes: Int,
-        recognised: Boolean,
+        heard: Recogniser.Result?,
     ): BandFMetrics {
         val previous = _state.value.metrics
-        if (clock == null || !recognised) {
+        if (clock == null || heard == null) {
             // Caught on a real handset: a press where the recogniser answered "language pack
             // not installed" still reported STT 79 ms, because the clock had been running
             // and the marks were read regardless. Seventy-nine milliseconds to *decline* was
@@ -538,6 +546,8 @@ class MessageEngine(
                 sttMillis = null,
                 linkMillis = null,
                 totalMillis = null,
+                realTimeFactor = null,
+                cpuPercent = null,
                 lastFrameBytes = wireBytes,
             )
         }
@@ -548,8 +558,34 @@ class MessageEngine(
             sttMillis = if (final != null && endpoint != null) final - endpoint else null,
             linkMillis = if (tx != null && final != null) tx - final else null,
             totalMillis = if (tx != null && endpoint != null) tx - endpoint else null,
+            realTimeFactor = heard.realTimeFactor,
+            cpuPercent = cpuSincePress(),
             lastFrameBytes = wireBytes,
         )
+    }
+
+    /**
+     * Processor time this utterance used, as a percentage of one core.
+     *
+     * `Process.getElapsedCpuTime` is this process's own CPU milliseconds, so no assumption
+     * about the kernel's tick rate is needed and nothing else on the handset is counted.
+     * Divided by elapsed wall time from the press, which is the interval an operator would
+     * point at.
+     *
+     * It can exceed 100 %, and that is not an error: the decoder runs four threads, so
+     * 260 % means two and a half cores were busy. Presented as it is rather than divided by
+     * the core count, because "how much of this handset was this using" is the question, and
+     * a figure quietly scaled by a core count nobody can see is not an answer to it.
+     *
+     * This is **not** the Efficiency criterion's number. That one asks for CPU during *idle
+     * listening*, which is a different measurement in a different state and belongs in the
+     * bench scorecard.
+     */
+    private fun cpuSincePress(): Double? {
+        if (wallAtPressMillis == 0L) return null
+        val wall = SystemClock.elapsedRealtime() - wallAtPressMillis
+        val cpu = Process.getElapsedCpuTime() - cpuAtPressMillis
+        return if (wall > 0 && cpu >= 0) cpu * 100.0 / wall else null
     }
 
     /** What the screen says about the last attempt at speech. Null when it simply worked. */
