@@ -126,6 +126,7 @@ class MessageEngine(
             mode = "PTT",
             audience = "ALL UNITS",
             language = displayNameFor(Language.HINDI),
+            languageCode = Language.HINDI.code,
         )
 
     // ── the net ──────────────────────────────────────────────────────────────
@@ -144,6 +145,10 @@ class MessageEngine(
             started = true
             scope.launch { receiveLoop() }
             startRefreshTicker()
+            // On first run this is what downloads the model for the starting language,
+            // rather than waiting for the operator to discover its absence by pressing
+            // transmit and getting a template.
+            ensurePackFor(language)
         }
         if (bluetoothNet != null) return
 
@@ -473,36 +478,44 @@ class MessageEngine(
         }
 
     /**
-     * Cycles the language this unit renders in.
+     * Chosen from the band B menu or the language screen.
      *
-     * The point of the control on two handsets: set them differently and the same template
-     * byte arrives as Hindi on one and Tamil on the other. Nothing translates — both hold
-     * the same table in ten languages, which is the whole of the mechanism.
+     * Choosing a language also **asks the platform for its speech model**, which is the fix
+     * for the failure this most often produced on a handset: Hindi answered "language pack
+     * not installed" and nothing in the application could do anything about it.
      */
-    fun onLanguageCycle() {
-        val all = Language.entries
-        language = all[(all.indexOf(language) + 1) % all.size]
-        refresh()
-    }
-
-    /** Chosen from the language screen, where cycling ten of them one tap at a time is not a control. */
     fun onLanguageChosen(code: String) {
         language = Language.entries.firstOrNull { it.code == code } ?: return
+        ensurePackFor(language)
         refresh()
     }
 
-    /** The languages this unit can render, and whether it can also speak them. */
-    fun languageOptions(): List<LanguageOption> =
-        Language.entries.map {
-            LanguageOption(
-                code = it.code,
-                nativeName = displayNameFor(it),
-                englishName = it.name.lowercase().replaceFirstChar(Char::uppercase),
-                // No Piper voices are present, so no language can be spoken aloud on any
-                // handset built from this repository. Reported rather than assumed.
-                canSpeak = false,
-            )
+    /** Asks for the on-device model, and says on screen what the answer was. */
+    private fun ensurePackFor(target: Language) {
+        val speech = speech ?: return
+        speech.ensurePack(SpeechInput.tagFor(target.code)) { state ->
+            if (target != language) return@ensurePack
+            _state.value =
+                _state.value.copy(
+                    languages = languageOptions(),
+                    speechNote =
+                        when (state) {
+                            SpeechInput.Pack.DOWNLOADING ->
+                                "Fetching the ${displayNameFor(target)} speech model. " +
+                                    "Templates until it lands."
+
+                            SpeechInput.Pack.UNAVAILABLE ->
+                                "This handset has no ${displayNameFor(target)} speech model. " +
+                                    "Transmit sends a template."
+
+                            else -> null
+                        },
+                )
         }
+    }
+
+    /** The languages this unit can render, and what it can do with each of them. */
+    fun languageOptions(): List<LanguageOption> = languageOptions(speech)
 
     /**
      * A condition that does not clear itself when the net recovers.
@@ -523,6 +536,8 @@ class MessageEngine(
                 peerCount = mesh.connectedCount,
                 linkUp = mesh.state.value == LinkState.CONNECTED,
                 language = displayNameFor(language),
+                languageCode = language.code,
+                languages = languageOptions(),
                 queued = session.queuedCount,
                 degraded = sticky ?: netTrouble(),
             )
@@ -550,7 +565,7 @@ class MessageEngine(
         }
     }
 
-    private companion object {
+    companion object {
         const val MAX_ON_SCREEN = 20
 
         /** How often the screen re-reads the roster. Cheap, and the numbers are live. */
@@ -570,6 +585,33 @@ class MessageEngine(
 
         /** Enough for the 100-utterance run docs/EVALUATION.md section 4 asks for. */
         const val MAX_TRACES = 200
+
+        /**
+         * The ten languages, with what this handset can do with each.
+         *
+         * On the companion so that the screen has a list to show **before** the engine
+         * exists — the band B menu is drawn from the moment the application opens, and a
+         * chevron that opens an empty menu is worse than one that does nothing. With a null
+         * recogniser the rows are still correct; they simply say nothing about speech.
+         */
+        fun languageOptions(speech: SpeechInput?): List<LanguageOption> =
+            Language.entries.map {
+                LanguageOption(
+                    code = it.code,
+                    nativeName = displayNameFor(it),
+                    englishName = it.name.lowercase().replaceFirstChar(Char::uppercase),
+                    // No Piper voices are present, so no language can be spoken aloud on any
+                    // handset built from this repository. Reported rather than assumed.
+                    canSpeak = false,
+                    recognition =
+                        when (speech?.packStateFor(SpeechInput.tagFor(it.code))) {
+                            SpeechInput.Pack.INSTALLED -> "installed on this handset"
+                            SpeechInput.Pack.DOWNLOADING -> "downloading"
+                            SpeechInput.Pack.UNAVAILABLE -> "not available on this handset"
+                            else -> null
+                        },
+                )
+            }
 
         /** Each language in its own script — a speaker of Odia is looking for ଓଡ଼ିଆ. */
         fun displayNameFor(language: Language): String =

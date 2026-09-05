@@ -5,8 +5,12 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.speech.RecognitionListener
+import android.speech.RecognitionSupport
+import android.speech.RecognitionSupportCallback
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 
 /**
  * The microphone, turned into words, entirely on the handset.
@@ -61,6 +65,23 @@ class SpeechInput(private val context: Context) {
         fun onNothingHeard(reason: String)
     }
 
+    /** Whether a language can be recognised on this handset, right now. */
+    enum class Pack {
+        /** The on-device model is present. Holding transmit will produce words. */
+        INSTALLED,
+
+        /** Not present, but the platform says it can fetch it. A download has been asked for. */
+        DOWNLOADING,
+
+        /** The platform has no on-device model for this language, and will not get one. */
+        UNAVAILABLE,
+
+        /** Not asked yet, or this Android is too old to be asked. */
+        UNKNOWN,
+    }
+
+    private val packs = ConcurrentHashMap<String, Pack>()
+
     private var recogniser: SpeechRecognizer? = null
     private var listener: Listener? = null
 
@@ -78,6 +99,81 @@ class SpeechInput(private val context: Context) {
         get() =
             onDevicePreferred ||
                 runCatching { SpeechRecognizer.isRecognitionAvailable(context) }.getOrDefault(false)
+
+    /** What is known about [languageTag] without asking the platform again. */
+    fun packStateFor(languageTag: String): Pack = packs[languageTag] ?: Pack.UNKNOWN
+
+    /**
+     * Asks whether this language can be recognised on the device, and downloads it if not.
+     *
+     * This is the fix for the commonest failure on a real handset: Hindi produced
+     * "language pack not installed" and there was nothing the operator could do about it
+     * from inside the application. `triggerModelDownload` is the platform's own answer, and
+     * it exists precisely so an application does not have to send people into Settings.
+     *
+     * Below Android 13 neither API exists, so the state stays [Pack.UNKNOWN] and a press
+     * simply finds out the hard way. That is honest: the handset cannot be asked.
+     *
+     * @param onChange called on the main looper whenever the answer changes.
+     */
+    fun ensurePack(
+        languageTag: String,
+        onChange: (Pack) -> Unit = { },
+    ) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || !available) {
+            packs[languageTag] = Pack.UNKNOWN
+            onChange(Pack.UNKNOWN)
+            return
+        }
+        val engine =
+            runCatching { SpeechRecognizer.createOnDeviceSpeechRecognizer(context) }.getOrNull()
+                ?: run {
+                    packs[languageTag] = Pack.UNKNOWN
+                    onChange(Pack.UNKNOWN)
+                    return
+                }
+
+        val intent = recogniseIntent(languageTag)
+        runCatching {
+            engine.checkRecognitionSupport(
+                intent,
+                Executors.newSingleThreadExecutor(),
+                object : RecognitionSupportCallback {
+                    override fun onSupportResult(support: RecognitionSupport) {
+                        val installed =
+                            support.installedOnDeviceLanguages.any { it.equals(languageTag, true) }
+                        val gettable =
+                            support.supportedOnDeviceLanguages.any { it.equals(languageTag, true) }
+                        val state =
+                            when {
+                                installed -> Pack.INSTALLED
+                                gettable -> {
+                                    // The download is the platform's, and it continues after
+                                    // this object is destroyed.
+                                    runCatching { engine.triggerModelDownload(intent) }
+                                    Pack.DOWNLOADING
+                                }
+
+                                else -> Pack.UNAVAILABLE
+                            }
+                        packs[languageTag] = state
+                        onChange(state)
+                        runCatching { engine.destroy() }
+                    }
+
+                    override fun onError(error: Int) {
+                        packs[languageTag] = Pack.UNKNOWN
+                        onChange(Pack.UNKNOWN)
+                        runCatching { engine.destroy() }
+                    }
+                },
+            )
+        }.onFailure {
+            packs[languageTag] = Pack.UNKNOWN
+            onChange(Pack.UNKNOWN)
+            runCatching { engine.destroy() }
+        }
+    }
 
     /**
      * Opens the microphone.
@@ -108,23 +204,29 @@ class SpeechInput(private val context: Context) {
         recogniser = engine
         engine.setRecognitionListener(callbacks(onDevice))
 
-        val intent =
-            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(
-                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                )
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag)
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                // A preference on the general recogniser and redundant on the on-device one.
-                // Set in both cases: it costs nothing and it is the flag that stops a
-                // networked fallback where one is possible at all.
-                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            }
-
-        return runCatching { engine.startListening(intent) }.isSuccess
+        return runCatching { engine.startListening(recogniseIntent(languageTag)) }.isSuccess
     }
+
+    /**
+     * One builder for both callers.
+     *
+     * `checkRecognitionSupport` answers about the request it is given, so a check that
+     * differs in any extra from the request actually made is answering a different question.
+     */
+    private fun recogniseIntent(languageTag: String): Intent =
+        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+            )
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            // A preference on the general recogniser and redundant on the on-device one.
+            // Set in both cases: it costs nothing and it is the flag that stops a networked
+            // fallback where one is possible at all.
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
 
     /**
      * Ends the utterance and asks for the final transcription.

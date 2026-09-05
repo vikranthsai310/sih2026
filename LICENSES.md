@@ -93,16 +93,33 @@ conclusion about the whole submission; a team that discloses one draws a differe
 
 - **Used for:** phonemisation, invoked through sherpa-onnx with its data directory shipped
   in the base installer (~10 MB, shared across all languages).
-- **Consequence:** GPL-3.0 is copyleft. Distributing the application with espeak-ng
-  bundled obliges us to offer the complete corresponding source of the combined work under
-  GPL-3.0. **For an open-source hackathon submission this is entirely acceptable** — the
-  source is public anyway.
+- **Confirmed present, not assumed.** This was previously written as a forward-looking note,
+  on the reading that espeak-ng arrives with the *voices* and no voices ship yet. That is
+  wrong. espeak-ng is compiled into `libsherpa-onnx-jni.so`, which is in the installer
+  today, with no model files involved:
+
+  ```
+  grep -a 'espeak' libsherpa-onnx-jni.so
+  ESPEAK_DATA_PATH · espeak-ng · espeak-ng-data · (its own runtime error strings)
+  ```
+
+  Its exported symbols are hidden, as a static link's usually are, but its data-path
+  constant and its own diagnostics are in the shipped binary. The obligation is live now.
+- **Consequence:** GPL-3.0 is copyleft. Under §5 the installer as a whole is a combined work
+  conveyed under GPL-3.0, and under §4 every recipient must be given the licence and an
+  offer of the corresponding source. **For an open-source hackathon submission this is
+  entirely acceptable** — the source is public anyway. Apache-2.0 is one-way compatible with
+  GPL-3.0, so the project licence in §Project licence stands for the source while the
+  *binary* is conveyed under GPL-3.0.
 - **Constraint on the future:** any closed-source or commercially licensed derivative
   would have to replace espeak-ng. A rule-based Indic G2P module is the substitution path,
   and Indic scripts being largely phonetic makes that far more tractable than it would be
   for English.
-- **Obligation discharged by:** shipping the licence text in the app's about screen and
-  publishing the source.
+- **Obligation discharged by:** `assets/licences/GPL-3.0.txt`, verbatim from gnu.org and
+  readable in the app at ☰ → LICENCES → espeak-ng, under a notice naming the combined work
+  and the source repository. Until this was written the section said the licence text would
+  be shipped in the about screen and **no licence text was in the application at all** — the
+  statement was a plan recorded as though it were a fact.
 
 ### Meta MMS — CC-BY-NC
 
@@ -120,6 +137,14 @@ conclusion about the whole submission; a team that discloses one draws a differe
   it recognises, it transmits, and a receiving handset in a language that *does* have a
   voice speaks it aloud through the template path. That is a smaller loss than it sounds
   and a much smaller one than shipping a non-commercial dependency without saying so.
+
+**Decided: the third option, and MMS is not a dependency.** `models/manifest.json` already
+declares `"tts": null` for `ta`, `gu`, `kn` and `or`; no pack references an MMS model and no
+MMS file is fetched, so **nothing non-commercial is in any build of this project**. The
+application's licence screen lists MMS under *considered, not used*, with that reason, and
+does not colour it as a restriction — because it is not one. It stays listed rather than
+deleted so that a reader asking "what did you do about the four languages Piper cannot
+speak?" finds the answer instead of finding nothing.
 
 ## 7. Evaluation data
 
@@ -143,7 +168,11 @@ application.
 > the shipped manifest declares no `INTERNET` permission, so the property is enforced by
 > the platform rather than asserted by us.
 >
-> Two components carry restrictive licences — espeak-ng under GPL-3.0 and Meta MMS under
+> One component carries a restrictive licence: espeak-ng under GPL-3.0, statically linked
+> into the sherpa-onnx native library and therefore in every installer. Meta MMS was
+> considered and is not used. Historically this paragraph read:
+>
+> > Two components carry restrictive licences — espeak-ng under GPL-3.0 and Meta MMS under
 > CC-BY-NC — and both are disclosed above, with their consequences, rather than left to be
 > discovered.
 

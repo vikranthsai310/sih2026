@@ -23,8 +23,14 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -82,7 +88,7 @@ fun OperatingScreen(
     onTransmitChange: (Boolean) -> Unit,
     onAlert: () -> Unit,
     onPosition: () -> Unit,
-    onLanguage: () -> Unit,
+    onLanguageSelected: (String) -> Unit,
     onMenu: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -96,7 +102,7 @@ fun OperatingScreen(
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
         StatusBand(state, onMenu)
-        ModeBand(state, onLanguage)
+        ModeBand(state, onLanguageSelected)
 
         // Band C. `weight` rather than a fixed height, so it grows with the screen and
         // still satisfies rule 1 on a taller handset.
@@ -130,7 +136,12 @@ data class OperatingState(
     val transportName: String,
     val mode: String,
     val audience: String,
+    /** This unit's language in its own script, for band B. */
     val language: String,
+    /** Its code, so the menu can mark which row is current without matching on script. */
+    val languageCode: String = "",
+    /** Every language this profile carries, for the band B menu. */
+    val languages: List<LanguageOption> = emptyList(),
     val transmitting: Boolean = false,
     /** The running hypothesis while the operator is still speaking. */
     val partial: String? = null,
@@ -239,8 +250,9 @@ private fun StatusBand(
 @Composable
 private fun ModeBand(
     state: OperatingState,
-    onLanguage: () -> Unit,
+    onLanguageSelected: (String) -> Unit,
 ) {
+    var open by remember { mutableStateOf(false) }
     Row(
         Modifier
             .fillMaxWidth()
@@ -260,17 +272,55 @@ private fun ModeBand(
         // A `Box` rather than the minimum height on the `Text` itself: a 64 dp tall text
         // node draws its glyphs at the top of that box, which put the language a third of a
         // line above the mode beside it and read as a rendering fault.
-        Box(
-            Modifier
-                .heightIn(min = Tokens.TouchTarget)
-                .clickable { onLanguage() }
-                .padding(horizontal = Tokens.Grid)
-                .semantics(mergeDescendants = true) {
-                    contentDescription = "Language ${state.language}. Change."
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("▾ ${state.language}", fontSize = Tokens.Body, color = Tokens.Ink)
+        Box {
+            Box(
+                Modifier
+                    .heightIn(min = Tokens.TouchTarget)
+                    .clickable { open = true }
+                    .padding(horizontal = Tokens.Grid)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "Language ${state.language}. Change."
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("▾ ${state.language}", fontSize = Tokens.Body, color = Tokens.Ink)
+            }
+
+            // The chevron promised a menu and delivered a cycle: each tap advanced one
+            // language, so reaching Odia from Hindi was eight taps through eight scripts an
+            // operator did not want, with no way back but to go round again. It also made
+            // the control unusable without sight, since nothing announced the destination
+            // before arriving at it.
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                state.languages.forEach { option ->
+                    val current = option.code == state.languageCode
+                    DropdownMenuItem(
+                        onClick = {
+                            open = false
+                            onLanguageSelected(option.code)
+                        },
+                        text = {
+                            Column(
+                                Modifier.semantics(mergeDescendants = true) {
+                                    contentDescription =
+                                        option.nativeName + ", " + option.englishName +
+                                        if (current) ". Current." else ""
+                                },
+                            ) {
+                                Text(
+                                    // Own script first and largest: a speaker of Odia is
+                                    // looking for ଓଡ଼ିଆ, not for "or".
+                                    (if (current) "✓ " else "") + option.nativeName,
+                                    fontSize = Tokens.Body,
+                                    fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
+                                    color = Tokens.Ink,
+                                )
+                                Text(option.englishName, fontSize = Tokens.Instrument, color = Tokens.Muted)
+                            }
+                        },
+                    )
+                }
+            }
         }
     }
     Divider()

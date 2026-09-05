@@ -102,14 +102,15 @@ class MainActivity : ComponentActivity() {
                         transports = transports(),
                         packs = installedPacks(),
                         licences = licences(),
+                        distributionNotice = DISTRIBUTION_NOTICE,
                     ),
                 actions =
                     AppActions(
                         onTransmitChange = { running?.onTransmit(it) },
                         onAlert = { running?.onAlert() },
                         onPosition = { },
-                        onLanguageCycle = { running?.onLanguageCycle() },
                         onLanguageChosen = { running?.onLanguageChosen(it) },
+                        readLicence = ::readLicence,
                     ),
             )
         }
@@ -141,34 +142,70 @@ class MainActivity : ComponentActivity() {
      */
     private fun installedPacks(): List<PackRow> = emptyList()
 
-    /** What is actually inside the APK, and the two things deliberately kept out of it. */
+    /**
+     * What is inside the installer, and what was looked at and left out.
+     *
+     * The two are separated because the screen previously showed them in one list, so
+     * `espeak-ng GPL-3.0` and `Meta MMS CC-BY-NC` sat side by side in red and read as two
+     * restrictive dependencies this application ships. One of them it does ship — see
+     * [DISTRIBUTION_NOTICE] — and the other it does not use at all.
+     */
     private fun licences() =
         listOf(
             LicenceRow(
                 "k2-fsa / sherpa-onnx",
                 "Apache-2.0",
-                "Recognition and synthesis library. Bundled; its models are not published yet",
+                "Recognition and synthesis library. Its acoustic models are not published yet",
+                licenceFile = "Apache-2.0.txt",
             ),
-            LicenceRow("microsoft / onnxruntime", "MIT", "Inference engine beneath sherpa-onnx"),
-            LicenceRow("AndroidX, Jetpack Compose", "Apache-2.0", "Interface toolkit"),
-            LicenceRow("JetBrains kotlinx", "Apache-2.0", "Coroutines and serialisation"),
-            LicenceRow("zxing / core", "Apache-2.0", "QR encoding, for pairing (W6.11)"),
+            LicenceRow(
+                "espeak-ng, inside libsherpa-onnx-jni.so",
+                "GPL-3.0",
+                "Phonemisation, statically linked into the sherpa-onnx native library. " +
+                    "Copyleft, and the reason for the notice above",
+                licenceFile = "GPL-3.0.txt",
+            ),
+            LicenceRow(
+                "microsoft / onnxruntime",
+                "MIT",
+                "Inference engine beneath sherpa-onnx",
+            ),
+            LicenceRow(
+                "AndroidX, Jetpack Compose",
+                "Apache-2.0",
+                "Interface toolkit",
+                licenceFile = "Apache-2.0.txt",
+            ),
+            LicenceRow(
+                "JetBrains kotlinx",
+                "Apache-2.0",
+                "Coroutines and serialisation",
+                licenceFile = "Apache-2.0.txt",
+            ),
+            LicenceRow(
+                "zxing / core",
+                "Apache-2.0",
+                "QR encoding, for pairing (W6.11)",
+                licenceFile = "Apache-2.0.txt",
+            ),
             LicenceRow(
                 "Android SpeechRecognizer",
                 "Platform service",
                 "On-device recognition, standing in for the models named above",
             ),
             LicenceRow(
-                "espeak-ng",
-                "GPL-3.0",
-                "NOT shipped. Phonemisation would make this application copyleft",
-            ),
-            LicenceRow(
                 "Meta MMS",
                 "CC-BY-NC",
-                "NOT shipped. Non-commercial, and this is a competition entry",
+                "Considered for Tamil, Gujarati, Kannada and Odia, where no permissive voice " +
+                    "exists. Not used: those four ship recognise-only instead, so nothing " +
+                    "non-commercial is in this build",
+                shipped = false,
             ),
         )
+
+    /** Verbatim, from `assets/licences/`. */
+    private fun readLicence(file: String): String? =
+        runCatching { assets.open("licences/$file").bufferedReader().use { it.readText() } }.getOrNull()
 
     /**
      * Retries the two things an operator most often leaves and comes back from: switching
@@ -290,11 +327,30 @@ class MainActivity : ComponentActivity() {
             mode = "PTT",
             audience = "ALL UNITS",
             language = "हिन्दी",
+            languageCode = "hi",
+            // The band B menu is drawn from the first frame, before any permission answer.
+            languages = MessageEngine.languageOptions(null),
             degraded =
                 if (permissionRefused) EngineState.Degraded.Reason.PERMISSION_DENIED else null,
         )
 
     private companion object {
         const val PROFILE_ASSET = "templates.json"
+
+        /**
+         * The GPL-3.0 notice, shown because this build earns it.
+         *
+         * espeak-ng is compiled into `libsherpa-onnx-jni.so`, which ships in the installer —
+         * its data-path constant and its own runtime error strings are in the binary. Under
+         * GPL-3.0 section 5 that makes the whole installer a combined work conveyed under
+         * GPL-3.0, and section 4 obliges this build to carry the licence and offer the
+         * corresponding source. `LICENSES.md` section 6 said this obligation would be
+         * "discharged by shipping the licence text in the app's about screen", and no
+         * licence text was in the application at all. Now it is.
+         */
+        const val DISTRIBUTION_NOTICE =
+            "This build links espeak-ng (GPL-3.0) inside libsherpa-onnx-jni.so, so the " +
+                "installer as a whole is conveyed under GPL-3.0. Complete corresponding " +
+                "source: github.com/vikranthsai310/sih2026"
     }
 }

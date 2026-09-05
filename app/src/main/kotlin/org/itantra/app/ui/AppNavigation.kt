@@ -69,6 +69,16 @@ enum class Destination(val title: String) {
     MODE("MODE & TRANSPORT"),
     STORAGE("STORAGE"),
     LICENCES("LICENCES"),
+
+    /**
+     * A licence, in full.
+     *
+     * Three taps from the operating screen, where rule 8 asks for two. The rule is about
+     * screens an operator uses under pressure; the GNU General Public License is a legal
+     * document that has to be *carried*, not navigated to quickly, and burying it one level
+     * under LICENCES is where a reader will look for it.
+     */
+    LICENCE_TEXT("LICENCE"),
 }
 
 /** Everything the shell needs from the engine, so this file holds no Android and no net. */
@@ -79,6 +89,8 @@ data class AppState(
     val transports: List<TransportOption> = emptyList(),
     val packs: List<PackRow> = emptyList(),
     val licences: List<LicenceRow> = emptyList(),
+    /** The sentence GPL-3.0 obliges this build to show. Null when nothing copyleft ships. */
+    val distributionNotice: String? = null,
 )
 
 /** What the shell can ask the engine to do. */
@@ -86,8 +98,9 @@ data class AppActions(
     val onTransmitChange: (Boolean) -> Unit,
     val onAlert: () -> Unit,
     val onPosition: () -> Unit,
-    val onLanguageCycle: () -> Unit,
     val onLanguageChosen: (String) -> Unit,
+    /** Reads an asset under `licences/`. Null when the file is missing. */
+    val readLicence: (String) -> String?,
 )
 
 @Composable
@@ -97,12 +110,11 @@ fun ItantraApp(
     modifier: Modifier = Modifier,
 ) {
     var where by remember { mutableStateOf(Destination.OPERATING) }
+    var licence by remember { mutableStateOf<LicenceRow?>(null) }
 
     // The system gesture and the control on screen must do the same thing. An operator who
     // swipes back and lands outside the application has left the net.
-    BackHandler(enabled = where != Destination.OPERATING) {
-        where = if (where == Destination.MENU) Destination.OPERATING else Destination.MENU
-    }
+    BackHandler(enabled = where != Destination.OPERATING) { where = back(where) }
 
     if (where == Destination.OPERATING) {
         OperatingScreen(
@@ -110,20 +122,14 @@ fun ItantraApp(
             onTransmitChange = actions.onTransmitChange,
             onAlert = actions.onAlert,
             onPosition = actions.onPosition,
-            onLanguage = actions.onLanguageCycle,
+            onLanguageSelected = actions.onLanguageChosen,
             onMenu = { where = Destination.MENU },
             modifier = modifier,
         )
         return
     }
 
-    SubScreen(
-        title = where.title,
-        onBack = {
-            where = if (where == Destination.MENU) Destination.OPERATING else Destination.MENU
-        },
-        modifier = modifier,
-    ) {
+    SubScreen(title = where.title, onBack = { where = back(where) }, modifier = modifier) {
         when (where) {
             Destination.MENU -> MenuScreen(onOpen = { where = it })
 
@@ -133,7 +139,7 @@ fun ItantraApp(
             Destination.LANGUAGE ->
                 LanguageScreen(
                     languages = state.languages,
-                    selected = selectedLanguage(state),
+                    selected = state.operating.languageCode,
                     onSelect = actions.onLanguageChosen,
                 )
 
@@ -150,21 +156,38 @@ fun ItantraApp(
 
             Destination.STORAGE -> StorageScreen(packs = state.packs, onDelete = { })
 
-            Destination.LICENCES -> AboutScreen(components = state.licences)
+            Destination.LICENCES ->
+                AboutScreen(
+                    components = state.licences,
+                    distributionNotice = state.distributionNotice,
+                    onOpenLicence = {
+                        licence = it
+                        where = Destination.LICENCE_TEXT
+                    },
+                )
+
+            Destination.LICENCE_TEXT ->
+                licence?.let { row ->
+                    LicenceTextScreen(
+                        title = row.licence,
+                        text =
+                            row.licenceFile?.let(actions.readLicence)
+                                ?: "This licence text is not bundled with this build.",
+                    )
+                }
 
             Destination.OPERATING -> Unit
         }
     }
 }
 
-/**
- * Band B carries the language in its own script, which is what the operator recognises; the
- * language screen selects on the code. Matching one to the other here keeps
- * [OperatingState] free of a second representation of the same fact.
- */
-private fun selectedLanguage(state: AppState): String =
-    state.languages.firstOrNull { it.nativeName == state.operating.language }?.code
-        ?: state.languages.firstOrNull()?.code.orEmpty()
+/** One step towards the operating screen, wherever we are. */
+private fun back(from: Destination): Destination =
+    when (from) {
+        Destination.OPERATING, Destination.MENU -> Destination.OPERATING
+        Destination.LICENCE_TEXT -> Destination.LICENCES
+        else -> Destination.MENU
+    }
 
 /**
  * A back row and the screen beneath it.

@@ -144,6 +144,9 @@ fun LanguageScreen(
                             color = Danger,
                         )
                     }
+                    language.recognition?.let {
+                        Text("Speech in: $it", fontSize = 12.sp, color = Muted)
+                    }
                     if (language.nonCommercialVoice) {
                         Text(
                             "Voice licensed for non-commercial use only (CC-BY-NC)",
@@ -161,8 +164,17 @@ data class LanguageOption(
     val code: String,
     val nativeName: String,
     val englishName: String,
+    /** Whether a **voice** exists to speak arriving messages aloud. Synthesis, not recognition. */
     val canSpeak: Boolean,
     val nonCommercialVoice: Boolean = false,
+    /**
+     * Whether this handset can **recognise** speech in this language, said in words.
+     *
+     * Separate from [canSpeak] because they fail independently and for different reasons:
+     * a language can be understood and not spoken back, which is the state every language
+     * is in on this build.
+     */
+    val recognition: String? = null,
 ) {
     fun availability(): String =
         when {
@@ -253,26 +265,115 @@ data class PackRow(
 @Composable
 fun AboutScreen(
     components: List<LicenceRow>,
+    /** The one sentence a GPL-3.0 obligation is discharged by. Null when nothing is copyleft. */
+    distributionNotice: String? = null,
+    onOpenLicence: (LicenceRow) -> Unit = { },
     modifier: Modifier = Modifier,
 ) {
+    val (inBuild, considered) = components.partition { it.shipped }
     Column(modifier.fillMaxSize().background(Paper).padding(16.dp)) {
         Text("LICENCES", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
         Spacer(Modifier.height(12.dp))
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(components) { row ->
-                Column {
-                    Text(row.component, fontSize = 16.sp, color = Ink)
+            if (distributionNotice != null) {
+                item {
+                    // Not a footnote. GPL-3.0 obliges the distributor to say this, and a
+                    // reader looking for it should find it before the list rather than after.
                     Text(
-                        row.licence,
+                        distributionNotice,
                         fontSize = 13.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = if (row.isRestrictive) Danger else Muted,
+                        color = Ink,
+                        modifier = Modifier.padding(bottom = 4.dp),
                     )
-                    if (row.note != null) {
-                        Text(row.note, fontSize = 12.sp, color = Muted)
-                    }
                 }
+            }
+
+            item { SectionHeading("IN THIS BUILD") }
+            items(inBuild) { row -> LicenceEntry(row, onOpenLicence) }
+
+            if (considered.isNotEmpty()) {
+                item { SectionHeading("CONSIDERED, NOT USED") }
+                items(considered) { row -> LicenceEntry(row, onOpenLicence) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeading(text: String) {
+    Text(
+        text,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        color = Muted,
+        modifier = Modifier.padding(top = 12.dp),
+    )
+}
+
+@Composable
+private fun LicenceEntry(
+    row: LicenceRow,
+    onOpen: (LicenceRow) -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .then(if (row.licenceFile != null) Modifier.clickable { onOpen(row) } else Modifier)
+            .semantics {
+                contentDescription =
+                    buildString {
+                        append(row.component)
+                        append(". ")
+                        append(row.licence)
+                        append(". ")
+                        append(if (row.shipped) "In this build. " else "Not used. ")
+                        row.note?.let { append(it) }
+                        if (row.licenceFile != null) append(" Tap to read the licence.")
+                    }
+            },
+    ) {
+        Text(row.component, fontSize = 16.sp, color = if (row.shipped) Ink else Muted)
+        Text(
+            // A restrictive licence is only worth a warning colour when the thing is
+            // actually here. Colouring an unused candidate red says the opposite of what
+            // the row means.
+            if (row.licenceFile != null) "${row.licence}  ›" else row.licence,
+            fontSize = 13.sp,
+            fontFamily = FontFamily.Monospace,
+            color = if (row.isRestrictive && row.shipped) Danger else Muted,
+        )
+        if (row.note != null) {
+            Text(row.note, fontSize = 12.sp, color = Muted)
+        }
+    }
+}
+
+/**
+ * A licence, in full and verbatim.
+ *
+ * GPL-3.0 section 4 obliges anyone conveying the work to give every recipient a copy of the
+ * licence along with it. `LICENSES.md` section 6 named that obligation and said it would be
+ * discharged "by shipping the licence text in the app's about screen" — and no licence text
+ * was in the application at all. This is that, read from `assets/licences/`.
+ */
+@Composable
+fun LicenceTextScreen(
+    title: String,
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier.fillMaxSize().background(Paper).padding(16.dp)) {
+        Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Spacer(Modifier.height(12.dp))
+        LazyColumn {
+            item {
+                Text(
+                    text,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = Ink,
+                )
             }
         }
     }
@@ -282,6 +383,17 @@ data class LicenceRow(
     val component: String,
     val licence: String,
     val note: String? = null,
+    /**
+     * Whether this component is actually inside the installer.
+     *
+     * The distinction is the whole point of the screen. A reader who sees `GPL-3.0` in red
+     * beside `CC-BY-NC` in red, in one undivided list, concludes that the application ships
+     * both -- which was true of neither, and is a worse impression than the truth in one
+     * case and a better one than the truth in the other.
+     */
+    val shipped: Boolean = true,
+    /** An asset under `licences/`, when the licence obliges this build to carry its text. */
+    val licenceFile: String? = null,
 ) {
     val isRestrictive: Boolean
         get() =
