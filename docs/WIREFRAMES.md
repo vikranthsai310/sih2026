@@ -7,7 +7,7 @@ decisions, not visual design — the palette is high-contrast monochrome
 > ## Rendered canvas
 >
 > **[`iTantra Screens.html`](iTantra%20Screens.html)** is the same seventeen screens drawn
-> properly — a self-contained Claude Design canvas, openable in any browser, no build step
+> properly — a self-contained design canvas, openable in any browser, no build step
 > and no network. Use it to *look at* the interface; use this document to *build* it.
 >
 > The canvas numbers the screens **01–17**. This document numbers its sections 1–20, with

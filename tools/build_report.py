@@ -1,25 +1,34 @@
 import io
+import os
 import subprocess
 import sys
 
 import fitz
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-D = r'C:\Users\DELL\AppData\Local\Temp\claude\D--Downloads-PROJECTS-SIH2026\dd5256fc-5e29-4899-bff1-2a9972911c8a\scratchpad'
-PDF = r'D:\Downloads\PROJECTS\SIH2026\docs\Taraketu_iTantra_Report.pdf'
 
-src = open(D + r'\report4.html', encoding='utf-8').read()
+# Working directory holding report4.html and logo.b64. Override with argv[1] or
+# REPORT_BUILD_DIR; defaults to build/report beside this checkout.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+D = (sys.argv[1] if len(sys.argv) > 1
+     else os.environ.get('REPORT_BUILD_DIR') or os.path.join(ROOT, 'build', 'report'))
+PDF = os.path.join(ROOT, 'docs', 'Taraketu_iTantra_Report.pdf')
+
+REPORT = os.path.join(D, 'report4.html')
+RENDER = os.path.join(D, 'render4.html')
+
+src = open(REPORT, encoding='utf-8').read()
 if '__LOGO__' in src:
-    src = src.replace('__LOGO__', open(D + r'\logo.b64').read().strip())
-    open(D + r'\report4.html', 'w', encoding='utf-8').write(src)
-open(D + r'\render4.html', 'w', encoding='utf-8').write(src)
+    src = src.replace('__LOGO__', open(os.path.join(D, 'logo.b64')).read().strip())
+    open(REPORT, 'w', encoding='utf-8').write(src)
+open(RENDER, 'w', encoding='utf-8').write(src)
 
 subprocess.run([r'C:\Program Files\Google\Chrome\Application\chrome.exe',
                 '--headless', '--disable-gpu', '--no-sandbox',
                 '--run-all-compositor-stages-before-draw',
                 '--virtual-time-budget=15000', '--no-pdf-header-footer',
                 '--print-to-pdf=' + PDF,
-                'file:///' + (D + r'\render4.html').replace('\\', '/')],
+                'file:///' + RENDER.replace('\\', '/')],
                capture_output=True)
 
 d = fitz.open(PDF)
