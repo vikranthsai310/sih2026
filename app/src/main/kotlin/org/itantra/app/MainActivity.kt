@@ -15,12 +15,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
 import org.itantra.app.engine.MessageEngine
 import org.itantra.app.platform.DataStoreEpochStore
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.PushToTalkKey
 import org.itantra.app.ui.OperatingScreen
+import org.itantra.audio.EngineState
 import org.itantra.proto.TemplateProfile
 
 /**
@@ -33,19 +36,36 @@ import org.itantra.proto.TemplateProfile
  * neither. The week-2 bring-up screen that used to live here — a text field and two
  * Bluetooth buttons — was deleted in W3.12 and is not coming back.
  *
+ * ## Why the engine is Compose state
+ *
+ * It is created *after* the permission answer, which arrives long after the first
+ * composition. Held in a plain field it was invisible to Compose: the screen composed once
+ * against `null`, fell back to [startingState], and stayed there for the life of the
+ * process — showing `node 00`, `0 units` and `NO LINK` on a handset whose net was up. Every
+ * control was live and every one of them was talking to an engine the screen could not see.
+ *
+ * `mutableStateOf` is the whole fix, and the bug is worth naming because nothing about the
+ * symptom points at it.
+ *
  * ## What works on two or more handsets today
  *
  * Install on every unit, bond them in Android's Bluetooth settings, and open the app. Each
- * one derives a node id, dials the units below it and listens for the ones above, and the
- * transmit control sends a template code over the real path: matched, sealed with the
- * transport's tag length, framed, transmitted, verified, replay-checked and rendered in the
- * **receiver's** language.
+ * one listens for connections and dials the units it is paired with, and the transmit
+ * control sends a template code over the real path: matched, sealed with the transport's tag
+ * length, framed, transmitted, verified, replay-checked and rendered in the **receiver's**
+ * language.
  *
  * What is absent is speech at either end, because there are no model files. Band F's frame
  * size is real; its latency figures stay as dashes until there is a recogniser to measure.
  */
 class MainActivity : ComponentActivity() {
-    private var engine: MessageEngine? = null
+    /** Compose state, not a field. See the class comment — this was a real defect. */
+    private var engine by mutableStateOf<MessageEngine?>(null)
+
+    /** Set once the operator has said no, since Android will not ask a second time. */
+    private var permissionRefused by mutableStateOf(false)
+
+    private val identity by lazy { NodeIdentity.of(installationId(), unitName()) }
 
     private val transmitKey =
         PushToTalkKey(
@@ -57,26 +77,37 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             // Bluetooth cannot be enumerated until it is granted, so the net is built after
             // the answer rather than before the question.
-            startEngine()
+            permissionRefused = !startEngine()
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val started = startEngine()
-        if (!started) permissions.launch(requiredPermissions())
+        if (!startEngine()) permissions.launch(requiredPermissions())
 
         setContent {
-            val current = engine?.state?.collectAsState()
+            val running = engine
+            val state = running?.state?.collectAsState()?.value ?: startingState()
             OperatingScreen(
-                state = current?.value ?: placeholderState(),
-                onTransmitChange = { engine?.onTransmit(it) },
-                onAlert = { engine?.onAlert() },
+                state = state,
+                onTransmitChange = { running?.onTransmit(it) },
+                onAlert = { running?.onAlert() },
                 onPosition = { },
-                onLanguage = { engine?.onLanguageCycle() },
+                onLanguage = { running?.onLanguageCycle() },
                 onMenu = { },
             )
         }
+    }
+
+    /**
+     * Retries the two things an operator most often leaves and comes back from: switching
+     * Bluetooth on, and pairing the other handset. Both are fixed in Settings, and returning
+     * here is the only signal that they might have been.
+     */
+    override fun onResume() {
+        super.onResume()
+        val running = engine
+        if (running == null) startEngine() else running.restartIfIdle()
     }
 
     /** @return false when a permission is still needed, so the caller can ask for it. */
@@ -85,7 +116,6 @@ class MainActivity : ComponentActivity() {
         if (!hasBluetoothPermission()) return false
 
         val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
-        val identity = NodeIdentity.of(installationId(), unitName())
 
         engine =
             MessageEngine(
@@ -170,18 +200,26 @@ class MainActivity : ComponentActivity() {
             checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
             PackageManager.PERMISSION_GRANTED
 
-    /** Shown for the moment between launch and the permission answer. */
-    private fun placeholderState() =
+    /**
+     * Shown between launch and the permission answer, and for good if it was refused.
+     *
+     * It carries the real node id rather than a zero: the id comes from the installation
+     * id and needs no permission, and `node 00` is a value [NodeIdentity] cannot produce —
+     * so seeing one on screen means the engine is missing, which is not a fact worth
+     * hiding behind a plausible-looking placeholder.
+     */
+    private fun startingState() =
         org.itantra.app.ui.OperatingState(
-            unitName = unitName(),
-            nodeId = 0,
+            unitName = identity.displayName,
+            nodeId = identity.src,
             peerCount = 0,
             linkUp = false,
             transportName = "bluetooth",
             mode = "PTT",
             audience = "ALL UNITS",
             language = "हिन्दी",
-            degraded = org.itantra.audio.EngineState.Degraded.Reason.LINK_DOWN,
+            degraded =
+                if (permissionRefused) EngineState.Degraded.Reason.PERMISSION_DENIED else null,
         )
 
     private companion object {

@@ -1,15 +1,12 @@
 package org.itantra.link
 
 import android.annotation.SuppressLint
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,40 +21,43 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.itantra.proto.StreamFramer
 import java.io.IOException
-import java.util.UUID
 
 /**
- * Bluetooth Classic over RFCOMM — the default transport.
+ * One connected Bluetooth Classic peer, over RFCOMM — the default transport.
  *
- * RFCOMM is a virtual serial cable. It is primary because it is a reliable, ordered
- * byte stream needing no additional protocol work, and because it is the same profile
- * a radio modem presents: the code that talks to another phone is the code that would
- * talk to a radio.
+ * RFCOMM is a virtual serial cable. It is primary because it is a reliable, ordered byte
+ * stream needing no additional protocol work, and because it is the same profile a radio
+ * modem presents: the code that talks to another phone is the code that would talk to a
+ * radio.
  *
- * **Two mistakes this class exists to avoid.**
+ * ## One socket, already open
  *
- * `cancelDiscovery()` before `connect()` is not optional — leaving discovery running
- * cuts throughput by roughly an order of magnitude, and is a common cause of "it
- * worked on the bench and failed on stage".
+ * This class deliberately does **not** dial, accept, or reconnect. It is handed a socket
+ * that is already connected and pumps it until it dies. Everything about *finding* peers —
+ * who dials, who listens, retrying, and the roster of units on the net — belongs to
+ * [BluetoothNet], because those decisions involve every peer at once and cannot be made
+ * correctly one connection at a time.
  *
- * A stream preserves byte order but **not** message boundaries, so reads are fed
- * through [StreamFramer] rather than assumed to be whole frames. Omitting that is
- * risk **T-08**.
+ * That split is not cosmetic. The previous shape of this class took a `Role` and a target
+ * device, and a host-role instance called `accept()` — which accepts *whoever* connects,
+ * not the device it was constructed for. On a net of three units the link labelled "peer B"
+ * would routinely be the socket to peer C, and one accept per bonded device meant several
+ * server sockets on the same service UUID at once.
+ *
+ * ## The mistake this class still exists to avoid
+ *
+ * A stream preserves byte order but **not** message boundaries, so reads are fed through
+ * [StreamFramer] rather than assumed to be whole frames. Writing 44 bytes then 38 may be
+ * read as 20 then 62. Omitting that is risk **T-08**.
  *
  * See `docs/TRANSPORT.md` section 2.
  */
 @SuppressLint("MissingPermission") // BLUETOOTH_CONNECT is requested by the app before use
 class RfcommLink(
-    private val adapter: BluetoothAdapter,
-    private val role: Role,
-    /** For [Role.CLIENT]: the already-bonded device to dial. */
-    private val target: BluetoothDevice? = null,
+    private val socket: BluetoothSocket,
     private val scope: CoroutineScope,
+    override val name: String = "bluetooth",
 ) : Link {
-    enum class Role { HOST, CLIENT }
-
-    override val name: String get() = "bluetooth-${role.name.lowercase()}"
-
     /** RFCOMM has no MTU as such; this bounds one write. */
     override val mtu: Int = 1024
 
@@ -74,32 +74,28 @@ class RfcommLink(
     override val state: StateFlow<LinkState> get() = _state.asStateFlow()
     override val metrics: StateFlow<LinkMetrics> get() = _metrics.asStateFlow()
 
-    private var socket: BluetoothSocket? = null
-    private var server: BluetoothServerSocket? = null
     private var readerJob: Job? = null
     private val writeLock = Mutex()
-    private val backoff = Backoff()
 
+    /**
+     * Starts reading. The socket is already open, so this cannot fail to connect — it can
+     * only later fail to stay connected, which is [LinkState.DEGRADED] and the net's cue to
+     * drop this peer and dial again.
+     */
     override suspend fun connect() {
-        readerJob?.cancel()
+        if (readerJob?.isActive == true) return
+        _state.value = LinkState.CONNECTED
         readerJob =
             scope.launch(Dispatchers.IO) {
-                while (isActive) {
-                    try {
-                        _state.value = LinkState.DISCOVERING
-                        val s = openSocket()
-                        socket = s
-                        _state.value = LinkState.CONNECTED
-                        backoff.reset()
-                        pump(s)
-                    } catch (e: IOException) {
-                        // Recoverable by definition: the service keeps trying, so this
-                        // is DEGRADED rather than ERROR.
-                        _state.value = LinkState.DEGRADED
-                    } finally {
-                        closeQuietly()
-                    }
-                    if (isActive) delay(backoff.nextDelayMillis())
+                try {
+                    pump()
+                } catch (e: IOException) {
+                    // The peer walked out of range or closed. Recoverable by definition,
+                    // so DEGRADED rather than ERROR — but recovered by BluetoothNet
+                    // redialling, not by this object retrying inside itself.
+                } finally {
+                    _state.value = LinkState.DEGRADED
+                    runCatching { socket.close() }
                 }
             }
     }
@@ -107,60 +103,42 @@ class RfcommLink(
     override suspend fun disconnect() {
         readerJob?.cancel()
         readerJob = null
-        closeQuietly()
+        // Closing is what unblocks a read parked in the kernel; cancelling the coroutine
+        // alone leaves the thread sitting in InputStream.read forever.
+        runCatching { socket.close() }
         _state.value = LinkState.IDLE
     }
 
     override suspend fun send(frame: ByteArray) {
-        val s = socket ?: return
+        if (_state.value != LinkState.CONNECTED) return
         withContext(Dispatchers.IO) {
             writeLock.withLock {
                 try {
-                    s.outputStream.write(frame)
-                    s.outputStream.flush()
+                    socket.outputStream.write(frame)
+                    socket.outputStream.flush()
                     _metrics.update {
                         it.copy(framesSent = it.framesSent + 1, bytesSent = it.bytesSent + frame.size)
                     }
                 } catch (e: IOException) {
                     _metrics.update { it.copy(framesLost = it.framesLost + 1) }
                     _state.value = LinkState.DEGRADED
+                    runCatching { socket.close() }
                 }
             }
         }
     }
 
-    private fun openSocket(): BluetoothSocket =
-        when (role) {
-            Role.HOST -> {
-                val srv = adapter.listenUsingRfcommWithServiceRecord(SERVICE_NAME, SERVICE_UUID)
-                server = srv
-                val accepted = srv.accept()
-                // One peer at a time; release the listener so the port is not held.
-                runCatching { srv.close() }
-                server = null
-                accepted
-            }
-
-            Role.CLIENT -> {
-                val device = requireNotNull(target) { "CLIENT role needs a target device" }
-                // Leaving discovery running cripples throughput. Not optional.
-                adapter.cancelDiscovery()
-                device.createRfcommSocketToServiceRecord(SERVICE_UUID).apply { connect() }
-            }
-        }
-
     /**
      * Reads until the socket closes, feeding every read through the framer.
      *
-     * A short read is normal and expected: writing 44 bytes then 38 may be read as 20
-     * then 62.
+     * A short read is normal and expected.
      */
-    private suspend fun pump(s: BluetoothSocket) {
+    private suspend fun pump() {
         val framer = StreamFramer()
         val buffer = ByteArray(READ_BUFFER)
-        val input = s.inputStream
+        val input = socket.inputStream
 
-        while (scope.isActive) {
+        while (currentCoroutineContext().isActive) {
             val read = input.read(buffer)
             if (read < 0) throw IOException("peer closed the connection")
             if (read == 0) continue
@@ -177,17 +155,7 @@ class RfcommLink(
         }
     }
 
-    private fun closeQuietly() {
-        runCatching { socket?.close() }
-        runCatching { server?.close() }
-        socket = null
-        server = null
-    }
-
     companion object {
-        /** Stable service identifier; both ends must agree. */
-        val SERVICE_UUID: UUID = UUID.fromString("8ce255c0-200a-11e0-ac64-0800200c9a66")
-        const val SERVICE_NAME = "iTantra"
         private const val READ_BUFFER = 2048
     }
 }

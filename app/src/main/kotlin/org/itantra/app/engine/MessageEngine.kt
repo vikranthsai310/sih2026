@@ -12,9 +12,9 @@ import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.ui.LoggedMessage
 import org.itantra.app.ui.OperatingState
 import org.itantra.audio.EngineState
+import org.itantra.link.BluetoothNet
 import org.itantra.link.LinkState
 import org.itantra.link.MeshLink
-import org.itantra.link.RfcommLink
 import org.itantra.link.Session
 import org.itantra.proto.EpochCounter
 import org.itantra.proto.Language
@@ -61,6 +61,11 @@ class MessageEngine(
 ) {
     private val mesh = MeshLink(scope)
 
+    private var bluetoothNet: BluetoothNet? = null
+
+    /** Guards the loops that must exist exactly once, however often [start] is called. */
+    private var started = false
+
     private val session =
         Session(
             link = mesh,
@@ -97,49 +102,74 @@ class MessageEngine(
     // ── the net ──────────────────────────────────────────────────────────────
 
     /**
-     * Brings up a link to every bonded handset.
+     * Brings the net up: one listener, and a dial loop per bonded handset.
      *
-     * One side of each pair dials and the other listens, decided by comparing node ids so
-     * neither has to be told. A handset that is not bonded in Android's Bluetooth settings
-     * is not reachable — pairing at the operating-system level is a prerequisite the
-     * pre-flight checklist already names.
+     * The roster belongs to [BluetoothNet] rather than to this class, because who dials, who
+     * listens and when to retry are decisions about the whole net. This method's only job is
+     * to say whether there is a radio to run it on, and to make the answer visible: a
+     * handset with Bluetooth switched off and a handset with nobody paired both used to
+     * show `NO LINK` and "reconnecting automatically", which is true of neither.
      */
     fun start() {
-        val bluetooth = adapter ?: return degrade(EngineState.Degraded.Reason.LINK_DOWN)
-        val devices = runCatching { bondedDevices() }.getOrDefault(emptyList())
-
-        for (device in devices) {
-            val peerId = runCatching { device.address }.getOrNull() ?: continue
-            val theirSrc = NodeIdentity.srcFor(peerId)
-
-            // A unit whose id collides with ours would drop our frames as its own. Better
-            // to leave it out of the net and say so than to appear connected and silent.
-            if (identity.collidesWith(theirSrc)) continue
-
-            val role =
-                if (identity.dials(theirSrc)) RfcommLink.Role.CLIENT else RfcommLink.Role.HOST
-            mesh.addPeer(
-                peerId,
-                RfcommLink(
-                    adapter = bluetooth,
-                    role = role,
-                    target = if (role == RfcommLink.Role.CLIENT) device else null,
-                    scope = scope,
-                ),
-            )
+        if (!started) {
+            started = true
+            scope.launch { receiveLoop() }
+            startRefreshTicker()
         }
+        if (bluetoothNet != null) return
+
+        val bluetooth = adapter
+        if (bluetooth == null || !isEnabled(bluetooth)) {
+            // Not a link failure, and nothing retries its way out of a radio that is off.
+            // refresh() says which of the two it is; the tick above notices when the
+            // operator comes back from Settings having fixed it.
+            refresh()
+            return
+        }
+
+        val net = BluetoothNet(bluetooth, scope, mesh, bondedDevices)
+        bluetoothNet = net
+        net.start()
 
         scope.launch {
             mesh.connect()
             watchLink()
         }
-        scope.launch { receiveLoop() }
         refresh()
     }
 
+    /**
+     * Called when the operator returns to the application, which is how the two commonest
+     * problems get fixed: Bluetooth switched on, or another handset paired.
+     *
+     * [start] is idempotent, so this is a retry rather than a second engine.
+     */
+    fun restartIfIdle() = start()
+
+    /**
+     * Peers appear and vanish without the mesh's own state changing — two units down to one
+     * is still CONNECTED — and a StateFlow conflates that away, so the screen would keep
+     * showing a count that had stopped being true. A tick is the honest way to display a
+     * number that changes for reasons nothing emits.
+     */
+    private fun startRefreshTicker() {
+        scope.launch {
+            while (true) {
+                delay(REFRESH_MILLIS)
+                refresh()
+            }
+        }
+    }
+
     fun stop() {
+        bluetoothNet?.stop()
+        bluetoothNet = null
+        started = false
         scope.launch { mesh.disconnect() }
     }
+
+    private fun isEnabled(bluetooth: BluetoothAdapter): Boolean =
+        runCatching { bluetooth.isEnabled }.getOrDefault(false)
 
     private suspend fun watchLink() {
         mesh.state.collect { linkState ->
@@ -266,7 +296,16 @@ class MessageEngine(
         refresh()
     }
 
+    /**
+     * A condition that does not clear itself when the net recovers.
+     *
+     * Sustained forgery is the only one so far, and it must survive a [refresh] — the link
+     * coming back is not evidence that the attempt stopped.
+     */
+    private var sticky: EngineState.Degraded.Reason? = null
+
     private fun degrade(reason: EngineState.Degraded.Reason) {
+        sticky = reason
         _state.value = _state.value.copy(degraded = reason)
     }
 
@@ -277,17 +316,37 @@ class MessageEngine(
                 linkUp = mesh.state.value == LinkState.CONNECTED,
                 language = displayNameFor(language),
                 queued = session.queuedCount,
-                degraded =
-                    when {
-                        mesh.peerCount == 0 -> EngineState.Degraded.Reason.LINK_DOWN
-                        mesh.state.value != LinkState.CONNECTED -> EngineState.Degraded.Reason.LINK_DOWN
-                        else -> null
-                    },
+                degraded = sticky ?: netTrouble(),
             )
+    }
+
+    /**
+     * What is wrong with the net, distinguished so the banner can say what to do.
+     *
+     * The three states used to be one. "Link down — reconnecting" on a handset with the
+     * radio switched off, or with nothing paired, is advice for a situation that will never
+     * resolve, and it is the single most likely thing to be on screen when this application
+     * is first opened.
+     */
+    private fun netTrouble(): EngineState.Degraded.Reason? {
+        val bluetooth = adapter
+        if (bluetooth == null || !isEnabled(bluetooth)) {
+            return EngineState.Degraded.Reason.BLUETOOTH_OFF
+        }
+        if (mesh.connectedCount > 0) return null
+        val paired = bluetoothNet?.candidateCount ?: 0
+        return if (paired == 0) {
+            EngineState.Degraded.Reason.NO_PEERS
+        } else {
+            EngineState.Degraded.Reason.LINK_DOWN
+        }
     }
 
     private companion object {
         const val MAX_ON_SCREEN = 20
+
+        /** How often the screen re-reads the roster. Cheap, and the numbers are live. */
+        const val REFRESH_MILLIS = 1_000L
 
         /** Each language in its own script — a speaker of Odia is looking for ଓଡ଼ିଆ. */
         fun displayNameFor(language: Language): String =

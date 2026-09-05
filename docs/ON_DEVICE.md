@@ -44,21 +44,29 @@ and a table mismatch is a safety defect rather than an inconvenience — see
 1. **Bond the handsets in Android's Bluetooth settings**, every pair, before launching.
    RFCOMM connects to bonded devices only; the app does not pair them for you (that is
    W6.11).
-2. Grant **Nearby devices** and **Microphone** when asked. Microphone is not used yet and is
-   requested once so the permission flow is exercised.
-3. Bluetooth on, aeroplane mode **on** if you want to prove there is no network involved.
+2. **Give the handsets different Bluetooth names** if they share one — two phones of the
+   same model out of the box often do. The name is what the two units use to agree which
+   of them dials and which listens, so with identical names both dial, both connect, and
+   one of the two sockets is thrown away. It still works; it is simply wasteful. See
+   `PeerPreference`.
+3. Grant **Nearby devices** and **Microphone** when asked. Microphone is not used yet and is
+   requested once so the permission flow is exercised. If you refuse, Android will not ask
+   again — the banner then points you at Settings, which is the only route back.
+4. Bluetooth on, aeroplane mode **on** if you want to prove there is no network involved.
 
 ## 4. What you should see
 
 | On screen | Meaning |
 | --- | --- |
-| `BASE · node 07` | This unit's id, derived from the installation id. **Every handset must show a different number** |
+| `BASE · node 07` | This unit's id, derived from the installation id. **Every handset must show a different number**. `node 00` is a value the id derivation cannot produce, so it means the engine never started |
 | `● LINK OK` | At least one peer is connected |
-| `2 units` | Peers currently reachable |
+| `2 units` | Peers currently reachable, re-read once a second |
+| A coloured banner | Something is wrong *and* what to do about it. The four you will meet first are Bluetooth off, nobody paired, permission refused, and reconnecting — they look identical without the banner, and only one of them fixes itself |
 | Band F `29 B 3310×` | The last frame's real size, and its ratio against three seconds of audio |
 
-Press **PUSH TO TALK** on one handset. Within about a second the sentence appears in band E
-on the others, and band F shows the frame size on both.
+Hold **PUSH TO TALK** on one handset and let go. It sends on release, the way a real
+walkie-talkie does. Within about a second the sentence appears in band E on the others, and
+band F shows the frame size on both.
 
 ### The one worth showing a jury
 
@@ -72,18 +80,21 @@ asserted.
 
 ### Three or more handsets
 
-Bluetooth Classic carries one RFCOMM connection per socket, so with three or more units not
-every pair will hold a direct link. That is not a failure — it is where **relay** earns its
-place. A message from C that cannot reach A directly arrives via B, and the seen-set stops
-it looping. Watch band A: a unit can show `LINK OK` with fewer peers than there are handsets
-in the room and still receive everything.
+Every unit listens on one service socket and dials the units it is paired with, so a net of
+four is six connections and no configuration. Where two units cannot reach each other
+directly, **relay** carries the message: a frame from C that cannot reach A arrives via B,
+and the seen-set stops it looping. Watch band A — a unit can show `LINK OK` with fewer peers
+than there are handsets in the room and still receive everything.
 
 ## 5. What will not work, and why
 
 | Symptom | Cause |
 | --- | --- |
-| `NO LINK` forever | The handsets are not bonded in Bluetooth settings, or the permission was denied |
-| Two handsets show the **same** node number | A 1-in-254 id collision. Both drop each other's frames as their own transmission. Clear app data on one to re-derive |
+| `Bluetooth is off` | Exactly that. Turn it on and return to the app — it retries on resume |
+| `No other unit paired` | Nothing bonded that could be a handset. Pair the other phone in Bluetooth settings |
+| `Link down — reconnecting` | Bonded, but not answering: the other handset is out of range or does not have iTantra open. This one really does retry by itself |
+| `Nearby devices permission refused` | Android will not ask twice. Settings → Apps → iTantra → Permissions |
+| Two handsets show the **same** node number | A 1-in-254 id collision. Both drop each other's frames as their own transmission, so the net reads `LINK OK` and stays silent. Nothing detects this yet — clear app data on one handset to re-derive its id |
 | Nothing is spoken aloud | Expected. No voice models — see §1 |
 | Band F latency shows `—` | Expected. Nothing measures a stage yet |
 | A message appears twice | Should not happen; the replay window and relay seen-set both prevent it. If it does, capture the frame and add it to the fuzz corpus (C.7) |

@@ -3,18 +3,23 @@ package org.itantra.app.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,9 +28,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -78,7 +85,15 @@ fun OperatingScreen(
     onMenu: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxSize().background(Tokens.Paper)) {
+    Column(
+        modifier
+            .fillMaxSize()
+            .background(Tokens.Paper)
+            // `targetSdk 35` draws edge to edge on Android 15 with no opt-out, so without
+            // this band A sits under the status bar and band F under the gesture pill —
+            // the two bands the layout guarantees are always visible.
+            .windowInsetsPadding(WindowInsets.safeDrawing),
+    ) {
         StatusBand(state, onMenu)
         ModeBand(state, onLanguage)
 
@@ -164,16 +179,16 @@ private fun StatusBand(
             .padding(horizontal = Tokens.ScreenMargin),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            "☰",
-            fontSize = Tokens.Icon,
-            color = Tokens.Ink,
-            modifier =
-                Modifier
-                    .heightIn(min = Tokens.TouchTarget)
-                    .width(Tokens.TouchTarget)
-                    .semantics { contentDescription = "Menu" },
-        )
+        Box(
+            Modifier
+                .heightIn(min = Tokens.TouchTarget)
+                .width(Tokens.TouchTarget)
+                .clickable { onMenu() }
+                .semantics(mergeDescendants = true) { contentDescription = "Menu" },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("☰", fontSize = Tokens.Icon, color = Tokens.Ink)
+        }
         Column(Modifier.weight(1f)) {
             Text(
                 "${state.unitName} · node ${"%02d".format(state.nodeId)}",
@@ -230,16 +245,22 @@ private fun ModeBand(
         )
         // The language in its own script, never a code. A speaker of Odia is looking for
         // ଓଡ଼ିଆ, and "or" means nothing to anyone.
-        Text(
-            "▾ ${state.language}",
-            fontSize = Tokens.Body,
-            color = Tokens.Ink,
-            modifier =
-                Modifier
-                    .heightIn(min = Tokens.TouchTarget)
-                    .clickable { onLanguage() }
-                    .semantics { contentDescription = "Language ${state.language}. Change." },
-        )
+        //
+        // A `Box` rather than the minimum height on the `Text` itself: a 64 dp tall text
+        // node draws its glyphs at the top of that box, which put the language a third of a
+        // line above the mode beside it and read as a rendering fault.
+        Box(
+            Modifier
+                .heightIn(min = Tokens.TouchTarget)
+                .clickable { onLanguage() }
+                .padding(horizontal = Tokens.Grid)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "Language ${state.language}. Change."
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("▾ ${state.language}", fontSize = Tokens.Body, color = Tokens.Ink)
+        }
     }
     Divider()
 }
@@ -266,9 +287,31 @@ private fun TransmitBand(
             .padding(Tokens.ScreenMargin)
             .background(if (transmitting) Tokens.Ink else Tokens.Paper, RoundedCornerShape(12.dp))
             .border(3.dp, Tokens.Ink, RoundedCornerShape(12.dp))
-            .semantics {
+            // Held, not tapped. `clickable` would fire once on release and never report the
+            // press, which is the wrong shape for a control whose whole meaning is "the
+            // floor is mine for as long as my thumb is down".
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        onTransmitChange(true)
+                        // Returns on release *and* on cancellation — a thumb that slides
+                        // off the control must give the floor back, or the unit transmits
+                        // silence until the application is restarted.
+                        tryAwaitRelease()
+                        onTransmitChange(false)
+                    },
+                )
+            }
+            .semantics(mergeDescendants = true) {
                 contentDescription =
                     if (transmitting) "Transmitting. Release to send." else "Push to talk."
+                // A press-and-hold gesture is unreachable through a screen reader, so the
+                // same message goes out on a double tap. Rule 7 and task W7.23.
+                onClick(label = "Send") {
+                    onTransmitChange(true)
+                    onTransmitChange(false)
+                    true
+                }
             },
         contentAlignment = Alignment.Center,
     ) {
@@ -340,7 +383,17 @@ private fun SecondaryBand(
     onPosition: () -> Unit,
 ) {
     Divider()
-    Row(Modifier.fillMaxWidth().heightIn(min = Tokens.SecondaryAction)) {
+    // `IntrinsicSize.Min` rather than nothing, and this is not a style preference.
+    //
+    // A `Column` measures its non-weighted children first, handing each one all the space
+    // the weighted children have not taken yet. The `fillMaxHeight` on the 1 dp rule below
+    // took that literally: it grew to the whole remaining screen, this row grew with it,
+    // and bands C, E and F were left with zero height. The transmit control, the traffic
+    // list and the instrumentation strip all vanished behind a hairline divider.
+    //
+    // Measuring the row at its minimum intrinsic height bounds it to its content, and keeps
+    // rule 9 — no fixed height on anything containing text, so it still grows at 200 %.
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         SecondaryAction("⚠", "ALERT", Tokens.Alert, Modifier.weight(1f), onAlert)
         Box(Modifier.width(1.dp).fillMaxHeight().background(Tokens.Rule))
         SecondaryAction("⌖", "POSITION", Tokens.Ink, Modifier.weight(1f), onPosition)
@@ -358,8 +411,10 @@ private fun SecondaryAction(
 ) {
     Row(
         modifier
+            .fillMaxHeight()
             .heightIn(min = Tokens.SecondaryAction)
-            .semantics { contentDescription = label },
+            .clickable(onClick = onClick)
+            .semantics(mergeDescendants = true) { contentDescription = label },
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {

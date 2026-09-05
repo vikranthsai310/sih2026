@@ -27,13 +27,27 @@ import java.security.MessageDigest
  * Zero and 255 are avoided: `SRC 0` reads as "unset" in a hex dump and 255 is the natural
  * broadcast-looking value, so both are the ones a reader would misinterpret first.
  *
- * ## A collision is possible and is not silently ignored
+ * ## A collision is possible, and is currently not detected
  *
  * Two devices in 254 have about a 0.4 % chance of colliding, and by six units it is 6 %.
- * That is too high to shrug at, which is why [collidesWith] exists and the engine watches
- * for a peer announcing this unit's own id. The real fix is assignment at pairing —
- * task W6.11 — and until that exists this is the honest approximation rather than a
- * pretence that one byte of hash is unique.
+ * When it happens, `Session.receive` drops the other unit's frames as `NOT_FOR_US` —
+ * "own transmission" — because that is how a broadcast net stops a unit relaying itself
+ * into a loop. The net shows `LINK OK` and nothing ever arrives.
+ *
+ * There is no automatic check for it, and there was one that did not work: it compared this
+ * unit's id, derived from the installation id, against a peer's id derived from that peer's
+ * MAC address. Two different inputs, so the comparison meant nothing. Telling them apart
+ * properly needs the sequence numbers this unit has actually sent — a frame carrying our
+ * `SRC` and a `SEQ` we never used is a collision, and one carrying a `SEQ` we did use is
+ * our own frame relayed back. That is not built yet.
+ *
+ * The real fix is assignment at pairing, task **W6.11**. Until then `docs/ON_DEVICE.md`
+ * names the symptom and the workaround, which is honest rather than solved.
+ *
+ * ## This is not what decides who dials
+ *
+ * It was, and it was wrong for the same reason. See
+ * [org.itantra.link.PeerPreference].
  */
 class NodeIdentity(
     val src: Int,
@@ -42,20 +56,6 @@ class NodeIdentity(
     init {
         require(src in MIN_SRC..MAX_SRC) { "src must be $MIN_SRC..$MAX_SRC, was $src" }
     }
-
-    /**
-     * Which of two units listens and which dials, decided without negotiation.
-     *
-     * RFCOMM needs exactly one side to accept and one to connect. Both dialling leaves
-     * nobody listening; both listening leaves nobody dialling; and negotiating it needs a
-     * channel, which is the thing being established. Comparing ids is deterministic, needs
-     * no messages, and gives the same answer on both handsets.
-     *
-     * @return true if **this** unit should dial [other]
-     */
-    fun dials(other: Int): Boolean = src > other
-
-    fun collidesWith(other: Int): Boolean = src == other
 
     companion object {
         const val MIN_SRC = 1

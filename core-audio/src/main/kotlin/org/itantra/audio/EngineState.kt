@@ -36,6 +36,22 @@ sealed interface EngineState {
     data class Degraded(val reason: Reason) : EngineState {
         enum class Reason(val message: String) {
             MICROPHONE_UNAVAILABLE("Microphone in use by a call"),
+
+            /**
+             * The radio itself is off, which no amount of reconnecting fixes.
+             *
+             * Separated from [LINK_DOWN] because the two look identical on screen and need
+             * opposite responses: one is waited out, the other needs a person to act. An
+             * operator told "reconnecting automatically" while Bluetooth is switched off
+             * waits for something that will never happen.
+             */
+            BLUETOOTH_OFF("Bluetooth is off"),
+
+            /** The radio is up and nothing is on the net yet — nobody bonded, or nobody else running. */
+            NO_PEERS("No other unit paired"),
+
+            /** Without BLUETOOTH_CONNECT there is no radio to fail on, so this is its own state. */
+            PERMISSION_DENIED("Nearby devices permission refused"),
             LINK_DOWN("Link down — reconnecting"),
             THERMAL("Thermal — reduced to 1 thread"),
             STORAGE_FULL("Storage full"),

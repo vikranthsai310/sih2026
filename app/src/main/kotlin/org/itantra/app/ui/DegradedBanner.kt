@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.sp
 import org.itantra.audio.EngineState
 
 /**
- * The six degraded states, each with what it means and what to do. Task **W7.22**.
+ * Every degraded state, each with what it means and what to do. Task **W7.22**.
  *
  * ## Why every one of them has a reason string
  *
@@ -90,6 +90,36 @@ fun adviceFor(reason: EngineState.Degraded.Reason): DegradedAdvice =
                 icon = "🎤",
                 doThis = "End the call to start listening again. Receiving still works.",
                 recoversItself = true,
+            )
+
+        EngineState.Degraded.Reason.BLUETOOTH_OFF ->
+            DegradedAdvice(
+                icon = "⏻",
+                // The one instruction that is a single tap away, named exactly as the
+                // platform names it. "Enable the radio" sends people looking for a setting
+                // that is not called that.
+                doThis = "Turn Bluetooth on in Settings, then come back.",
+                recoversItself = false,
+            )
+
+        EngineState.Degraded.Reason.NO_PEERS ->
+            DegradedAdvice(
+                icon = "⇢",
+                // Bonding is a prerequisite this application deliberately does not do for
+                // the operator — W6.11 — so the banner has to say so, or the screen reads
+                // as broken when it is merely alone.
+                doThis = "Pair the other handset in Bluetooth settings and open iTantra on it.",
+                recoversItself = false,
+            )
+
+        EngineState.Degraded.Reason.PERMISSION_DENIED ->
+            DegradedAdvice(
+                icon = "⛔",
+                // Named where Android actually puts it. Once refused, the request
+                // dialog does not reappear, so pointing at Settings is the only
+                // instruction that works.
+                doThis = "Allow Nearby devices in Settings, Apps, iTantra, Permissions.",
+                recoversItself = false,
             )
 
         EngineState.Degraded.Reason.LINK_DOWN ->
