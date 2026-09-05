@@ -143,6 +143,14 @@ data class OperatingState(
     /** Every language this profile carries, for the band B menu. */
     val languages: List<LanguageOption> = emptyList(),
     val transmitting: Boolean = false,
+    /**
+     * Whether the microphone is open *yet*.
+     *
+     * Distinct from [transmitting], and the distinction is where messages were being lost:
+     * a press holds the floor immediately, and the recognition service takes a moment to
+     * open the microphone. Anything said in that gap is not in the audio at all.
+     */
+    val listening: Boolean = false,
     /** The running hypothesis while the operator is still speaking. */
     val partial: String? = null,
     val confidence: Int? = null,
@@ -364,8 +372,13 @@ private fun TransmitBand(
                 )
             }
             .semantics(mergeDescendants = true) {
+                liveRegion = LiveRegionMode.Polite
                 contentDescription =
-                    if (transmitting) "Transmitting. Release to send." else "Push to talk."
+                    when {
+                        transmitting && state.listening -> "Listening. Speak now, release to send."
+                        transmitting -> "Opening the microphone. Wait."
+                        else -> "Push to talk."
+                    }
                 // A press-and-hold gesture is unreachable through a screen reader, so the
                 // same message goes out on a double tap. Rule 7 and task W7.23.
                 onClick(label = "Send") {
@@ -385,13 +398,20 @@ private fun TransmitBand(
             )
             Spacer(Modifier.height(Tokens.Grid))
             Text(
-                if (transmitting) "T R A N S M I T" else "PUSH  TO  TALK",
-                fontSize = 20.sp,
+                when {
+                    transmitting && state.listening -> "S P E A K   N O W"
+                    // The honest label for the gap between the thumb landing and the
+                    // microphone opening. An operator who speaks here is not recorded, and
+                    // the panel inverting on its own told them the opposite.
+                    transmitting -> "opening the microphone…"
+                    else -> "PUSH  TO  TALK"
+                },
+                fontSize = if (transmitting && !state.listening) 16.sp else 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (transmitting) Tokens.InkPaper else Tokens.Ink,
                 textAlign = TextAlign.Center,
             )
-            if (transmitting) {
+            if (transmitting && state.listening) {
                 Spacer(Modifier.height(Tokens.Grid))
                 LevelMeter(state.level)
             }

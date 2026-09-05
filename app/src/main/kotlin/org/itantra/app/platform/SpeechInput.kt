@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.speech.RecognitionListener
 import android.speech.RecognitionSupport
 import android.speech.RecognitionSupportCallback
@@ -53,6 +56,15 @@ class SpeechInput(private val context: Context) {
     )
 
     interface Listener {
+        /**
+         * The microphone is now open and recording.
+         *
+         * Everything before this moment is **not in the audio**. The screen exists to make
+         * that moment visible, because push-to-talk trains an operator to speak the instant
+         * their thumb lands.
+         */
+        fun onReady()
+
         /** Microphone level, already normalised to 0..1 for a meter. */
         fun onLevel(level: Float)
 
@@ -87,6 +99,20 @@ class SpeechInput(private val context: Context) {
 
     /** Guards the contract that one call to [start] produces one terminal callback. */
     private var settled = true
+
+    private val main = Handler(Looper.getMainLooper())
+
+    /** A stop deferred until the microphone has actually been open for a moment. */
+    private var pendingStop: Runnable? = null
+
+    /** `elapsedRealtime` of [RecognitionListener.onReadyForSpeech]; zero until it arrives. */
+    private var readyAt = 0L
+
+    /** The operator has let go, whether or not the microphone had opened by then. */
+    private var stopWanted = false
+
+    /** Read at [start] and reported with the result, since the engine outlives the session. */
+    private var sessionOnDevice = false
 
     private val onDevicePreferred: Boolean
         get() =
@@ -186,25 +212,50 @@ class SpeechInput(private val context: Context) {
         listener: Listener,
     ): Boolean {
         if (!available) return false
-        cancel()
+        val engine = warmUp() ?: return false
+
+        // A session still in flight is *settled*, not destroyed. Tearing the recogniser
+        // down here threw away the previous utterance's result, so pressing twice in quick
+        // succession silently turned the first one into a template.
+        settle { it.onNothingHeard("superseded by the next press") }
+        cancelPendingStop()
+        runCatching { engine.cancel() }
 
         this.listener = listener
         settled = false
+        readyAt = 0L
+        stopWanted = false
+        sessionOnDevice = onDevicePreferred
 
-        val onDevice = onDevicePreferred
-        val engine =
+        return runCatching { engine.startListening(recogniseIntent(languageTag)) }.isSuccess
+    }
+
+    /**
+     * Builds the recogniser ahead of the first press, and keeps it.
+     *
+     * This is the main cause of "sometimes spoken, sometimes template". A recogniser was
+     * created and destroyed on **every** press, and binding to the system recognition
+     * service is not instant — so the microphone often opened after the operator had already
+     * started speaking, and a short utterance could be missed in its entirety. Whether it
+     * worked depended on whether the service happened to be warm, which is exactly the
+     * intermittency reported.
+     *
+     * One instance, built when the screen appears and reused for every press.
+     */
+    fun warmUp(): SpeechRecognizer? {
+        recogniser?.let { return it }
+        if (!available) return null
+        val created =
             runCatching {
-                if (onDevice && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (onDevicePreferred && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
                 } else {
                     SpeechRecognizer.createSpeechRecognizer(context)
                 }
-            }.getOrNull() ?: return false
-
-        recogniser = engine
-        engine.setRecognitionListener(callbacks(onDevice))
-
-        return runCatching { engine.startListening(recogniseIntent(languageTag)) }.isSuccess
+            }.getOrNull() ?: return null
+        created.setRecognitionListener(callbacks())
+        recogniser = created
+        return created
     }
 
     /**
@@ -226,6 +277,15 @@ class SpeechInput(private val context: Context) {
             // fallback where one is possible at all.
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            // Hints, honoured by some engines and ignored by others. On push-to-talk the
+            // operator decides where the sentence ends, so the recogniser is asked not to
+            // endpoint on an ordinary mid-sentence pause and hand back half a message.
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2_000L)
+            putExtra(
+                RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
+                2_000L,
+            )
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1_000L)
         }
 
     /**
@@ -235,10 +295,40 @@ class SpeechInput(private val context: Context) {
      * on release rather than waiting for the recogniser's own endpointer to notice a pause.
      */
     fun stop() {
-        runCatching { recogniser?.stopListening() }
+        stopWanted = true
+        if (recogniser == null) return
+        if (readyAt == 0L) {
+            // The microphone has not opened yet. Stopping now would close a session that
+            // never recorded a sample, which is a guaranteed "nothing recognised".
+            // onReadyForSpeech honours stopWanted when it arrives.
+            return
+        }
+        scheduleStop(MIN_LISTEN_MILLIS - (SystemClock.elapsedRealtime() - readyAt))
     }
 
-    fun cancel() {
+    /**
+     * Stops after the microphone has been open for [MIN_LISTEN_MILLIS], not before.
+     *
+     * A press and release is quick — quicker than a person expects — and a recogniser given
+     * eighty milliseconds of audio returns nothing every time. The floor costs an operator
+     * who taps nothing they would notice, and it is the difference between a tap that sends
+     * a word and a tap that sends a template.
+     */
+    private fun scheduleStop(delayMillis: Long) {
+        cancelPendingStop()
+        val stopping = Runnable { runCatching { recogniser?.stopListening() } }
+        pendingStop = stopping
+        main.postDelayed(stopping, delayMillis.coerceIn(0, MIN_LISTEN_MILLIS))
+    }
+
+    private fun cancelPendingStop() {
+        pendingStop?.let { main.removeCallbacks(it) }
+        pendingStop = null
+    }
+
+    /** Ends the session and releases the recogniser. For teardown, not between presses. */
+    fun close() {
+        cancelPendingStop()
         settled = true
         listener = null
         runCatching { recogniser?.cancel() }
@@ -252,7 +342,7 @@ class SpeechInput(private val context: Context) {
         listener?.let(action)
     }
 
-    private fun callbacks(onDevice: Boolean) =
+    private fun callbacks() =
         object : RecognitionListener {
             override fun onRmsChanged(rmsdB: Float) {
                 // The documented range is roughly -2..10 dB. Normalised here rather than in
@@ -274,13 +364,19 @@ class SpeechInput(private val context: Context) {
                 if (text.isNullOrBlank()) {
                     settle { it.onNothingHeard("nothing recognised") }
                 } else {
-                    settle { it.onResult(Result(text, score, onDevice)) }
+                    settle { it.onResult(Result(text, score, sessionOnDevice)) }
                 }
             }
 
             override fun onError(error: Int) = settle { it.onNothingHeard(describe(error)) }
 
-            override fun onReadyForSpeech(params: Bundle?) = Unit
+            override fun onReadyForSpeech(params: Bundle?) {
+                readyAt = SystemClock.elapsedRealtime()
+                listener?.onReady()
+                // Released before the microphone opened. The press still gets its floor of
+                // recording time rather than being thrown away.
+                if (stopWanted) scheduleStop(MIN_LISTEN_MILLIS)
+            }
 
             override fun onBeginningOfSpeech() = Unit
 
@@ -302,6 +398,13 @@ class SpeechInput(private val context: Context) {
             ?.takeIf { it.isNotEmpty() }
 
     companion object {
+        /**
+         * The shortest the microphone stays open once it has opened.
+         *
+         * Long enough for one word, short enough that it never feels like a delay.
+         */
+        const val MIN_LISTEN_MILLIS = 900L
+
         /**
          * The recogniser wants a full locale, and the two that matter are the ones a bare
          * language code gets wrong: `hi` alone is ambiguous, and the Indic packs are all

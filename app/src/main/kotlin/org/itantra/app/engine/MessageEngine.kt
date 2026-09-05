@@ -149,6 +149,8 @@ class MessageEngine(
             // rather than waiting for the operator to discover its absence by pressing
             // transmit and getting a template.
             ensurePackFor(language)
+            // Bound before the first press rather than during it. See SpeechInput.warmUp.
+            speech?.warmUp()
         }
         if (bluetoothNet != null) return
 
@@ -196,6 +198,7 @@ class MessageEngine(
     }
 
     fun stop() {
+        speech?.close()
         bluetoothNet?.stop()
         bluetoothNet = null
         started = false
@@ -287,20 +290,33 @@ class MessageEngine(
     }
 
     private fun beginUtterance() {
+        // Built now, started when the microphone actually opens. UtteranceClock.start()
+        // means "the microphone delivered the first hop", and marking it on the press would
+        // fold the recognition service's bind time into the STT figure -- reporting the
+        // platform's start-up cost as this project's recognition latency.
         val clock =
             UtteranceClock(
                 utteranceId = "u" + System.currentTimeMillis(),
                 language = language.code,
                 mode = "PTT",
                 transport = "bluetooth",
-            ).start()
+            )
         utterance = clock
 
         val heard = CompletableDeferred<SpeechInput.Result?>()
         pendingSpeech = heard
 
         _state.value =
-            _state.value.copy(transmitting = true, partial = null, level = 0f, speechNote = null)
+            _state.value.copy(
+                transmitting = true,
+                // Not yet. The panel used to inform an operator that it was transmitting
+                // while the microphone was still being opened, which is when the words that
+                // went missing were spoken.
+                listening = false,
+                partial = null,
+                level = 0f,
+                speechNote = null,
+            )
 
         val listening = speech?.start(SpeechInput.tagFor(language.code), speechListener(clock, heard))
         if (listening != true) {
@@ -312,7 +328,7 @@ class MessageEngine(
     }
 
     private fun endUtterance() {
-        _state.value = _state.value.copy(transmitting = false, level = 0f)
+        _state.value = _state.value.copy(transmitting = false, listening = false, level = 0f)
         speech?.stop()
         val heard = pendingSpeech
         val clock = utterance
@@ -331,6 +347,11 @@ class MessageEngine(
         clock: UtteranceClock,
         heard: CompletableDeferred<SpeechInput.Result?>,
     ) = object : SpeechInput.Listener {
+        override fun onReady() {
+            clock.start()
+            _state.value = _state.value.copy(listening = true)
+        }
+
         override fun onLevel(level: Float) {
             _state.value = _state.value.copy(level = level)
         }
@@ -409,7 +430,9 @@ class MessageEngine(
                 partial = null,
                 speechNote = speechNote(heard),
             )
-        if (heard != null && clock != null) {
+        // isStarted: a press where the microphone never opened has no MIC mark, and
+        // toTrace refuses to invent one.
+        if (heard != null && clock != null && clock.isStarted) {
             _traces.value = (_traces.value + clock.toTrace(frameBytes = sent.wireBytes)).takeLast(MAX_TRACES)
         }
     }
@@ -577,8 +600,13 @@ class MessageEngine(
          * Long enough for an on-device pass over a held sentence, short enough that a
          * recogniser which has stopped answering does not swallow the message -- the
          * template goes instead, and the screen says so.
+         *
+         * Raised from four seconds, which was too tight: the release now defers the stop
+         * until the microphone has been open for a moment, so the wait begins later, and a
+         * cold recognition session can take several seconds to return its first final
+         * result. Four seconds turned a slow success into a template.
          */
-        const val SPEECH_TIMEOUT_MILLIS = 4_000L
+        const val SPEECH_TIMEOUT_MILLIS = 8_000L
 
         /** Below this the transcription still goes, marked uncertain rather than dropped. */
         const val CONFIDENT_ABOVE = 0.6f
