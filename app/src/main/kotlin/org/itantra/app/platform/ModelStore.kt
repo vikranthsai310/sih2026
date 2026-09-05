@@ -20,6 +20,7 @@ import java.io.File
  * ```
  *   <external files>/models/asr/tokens.txt          shared, 5 633 tokens, nine scripts
  *   <external files>/models/asr/hi/model.int8.onnx  one per language
+ *   <external files>/models/asr/en/tokens.txt       English brings its own, Latin
  * ```
  *
  * Deliberately identical to what `fetch_models.py --into models` produces, so a pack is
@@ -36,8 +37,23 @@ import java.io.File
 class ModelStore(context: Context) {
     private val root = File(context.getExternalFilesDir(null), "models/asr")
 
-    /** The token table, shared by every language — see `docs/MODELS.md` section 0. */
-    val tokens: File get() = File(root, TOKENS)
+    /**
+     * The token table for a language, which is **not** always the shared one.
+     *
+     * Eight of the nine published models share a 67 605-byte table covering nine Indic
+     * scripts. English does not: it has its own 11 433-byte Latin table at `en/tokens.txt`,
+     * and the manifest says so. Handing the English model the Indic table would not fail
+     * loudly — it would load, decode, and return nonsense, and the conclusion drawn would
+     * have been "the English model is broken" rather than "the application gave it the
+     * wrong tokens".
+     *
+     * Resolved by looking rather than by a rule, so a language that later ships its own
+     * table needs no code change.
+     */
+    fun tokensFor(languageCode: String): File {
+        val own = File(File(root, languageCode), TOKENS)
+        return if (own.isFile() && own.length() > MIN_TOKENS_BYTES) own else File(root, TOKENS)
+    }
 
     fun modelFor(languageCode: String): File = File(File(root, languageCode), MODEL)
 
@@ -50,6 +66,7 @@ class ModelStore(context: Context) {
      */
     fun hasPack(languageCode: String): Boolean {
         val model = modelFor(languageCode)
+        val tokens = tokensFor(languageCode)
         return tokens.isFile() &&
             tokens.length() > MIN_TOKENS_BYTES &&
             model.isFile() &&

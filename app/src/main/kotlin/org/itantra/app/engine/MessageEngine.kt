@@ -334,6 +334,10 @@ class MessageEngine(
 
     private fun endUtterance() {
         _state.value = _state.value.copy(transmitting = false, listening = false, level = 0f)
+        // The operator letting go *is* the end of speech, and it is the instant every
+        // latency figure is measured from. Marked before the recogniser is told, so the
+        // stop's own cost lands inside the measurement rather than beside it.
+        utterance?.mark(UtteranceClock.Stage.ENDPOINT)
         speech?.stop()
         val heard = pendingSpeech
         val clock = utterance
@@ -453,11 +457,21 @@ class MessageEngine(
     /**
      * Band F, from the utterance that just happened rather than from a benchmark.
      *
-     * `STT` is the microphone opening to the final transcription, and `LINK` is that to the
-     * frame leaving. Both stay absent unless something was actually recognised, and absent
-     * is drawn as a dash: the time a recogniser spends refusing an utterance is not
-     * recognition latency, and reporting it as such flatters the project in precisely the
-     * direction a reader should distrust.
+     * Every figure is measured from the **release**, not from the microphone opening.
+     *
+     * This was wrong and it flattered nothing -- it made the project look three to four
+     * times worse than it is. STT ran from the first sample, so a three-second sentence
+     * contributed three seconds to a number labelled recognition latency: 4 116 ms before
+     * the sliding window and 3 330 ms after, when the decode itself had gone from about
+     * 1 116 ms to about 330 ms. The improvement was real and invisible.
+     *
+     * ISRO's wording settles it: "the time delay between the Words said and STT
+     * completion". The words are said when the operator lets go. So `STT` is release to
+     * transcription, `LINK` is transcription to the frame leaving, and `TOTAL` is release to
+     * transmitted -- the wait an operator actually experiences.
+     *
+     * All three stay absent unless something was recognised, and absent is drawn as a dash:
+     * the time a recogniser spends refusing an utterance is not recognition latency.
      */
     private fun metricsFrom(
         clock: UtteranceClock?,
@@ -482,12 +496,13 @@ class MessageEngine(
                 lastFrameBytes = wireBytes,
             )
         }
-        val stt = clock.elapsedMillis(UtteranceClock.Stage.FINAL)
-        val total = clock.elapsedMillis(UtteranceClock.Stage.TX)
+        val endpoint = clock.elapsedMillis(UtteranceClock.Stage.ENDPOINT)
+        val final = clock.elapsedMillis(UtteranceClock.Stage.FINAL)
+        val tx = clock.elapsedMillis(UtteranceClock.Stage.TX)
         return previous.copy(
-            sttMillis = stt,
-            linkMillis = if (total != null && stt != null) total - stt else null,
-            totalMillis = total,
+            sttMillis = if (final != null && endpoint != null) final - endpoint else null,
+            linkMillis = if (tx != null && final != null) tx - final else null,
+            totalMillis = if (tx != null && endpoint != null) tx - endpoint else null,
             lastFrameBytes = wireBytes,
         )
     }

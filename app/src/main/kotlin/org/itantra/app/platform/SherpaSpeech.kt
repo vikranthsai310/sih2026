@@ -88,11 +88,13 @@ class SherpaSpeech(
         loadedFor = null
 
         val language = Language.entries.firstOrNull { it.code == languageCode } ?: return null
+        val tokens = store.tokensFor(languageCode)
+        if (!tableSuits(tokens, language)) return null
         val built =
             runCatching {
                 SherpaRecogniser(
                     modelPath = store.modelFor(languageCode).absolutePath,
-                    tokensPath = store.tokens.absolutePath,
+                    tokensPath = tokens.absolutePath,
                     language = language,
                 )
             }.getOrNull() ?: return null
@@ -101,6 +103,31 @@ class SherpaSpeech(
         windows = built.windowedDecoder()
         loadedFor = languageCode
         return built
+    }
+
+    /**
+     * Whether a token table is the one this language's model was trained against.
+     *
+     * Eight of the nine models share an Indic table; English has its own in Latin. Give
+     * either model the other's table and sherpa-onnx does not complain — it loads, decodes,
+     * and emits nonsense, and the conclusion drawn is that the model is bad. Checked once
+     * per load rather than on every readiness poll, because it reads the file.
+     *
+     * The test is the script itself rather than a list of which languages have their own
+     * table, so a language that later ships one needs no change here.
+     */
+    private fun tableSuits(
+        tokens: java.io.File,
+        language: Language,
+    ): Boolean {
+        val sample = runCatching { tokens.readText() }.getOrNull() ?: return false
+        val base = language.blockBase
+        return if (base == null) {
+            // English. A table dense with Devanagari is not the Latin one it needs.
+            sample.count { it.code in 0x41..0x7A } > sample.count { it.code >= 0x0900 }
+        } else {
+            sample.any { it.code in base until base + SCRIPT_BLOCK }
+        }
     }
 
     override fun start(
@@ -245,6 +272,9 @@ class SherpaSpeech(
         /** A held control in a pocket must truncate a sentence, not exhaust the heap. */
         const val MAX_SECONDS = 30
         const val MAX_SAMPLES = SAMPLE_RATE * MAX_SECONDS
+
+        /** A Unicode script block is 128 code points, which is how Language.blockBase is defined. */
+        const val SCRIPT_BLOCK = 0x80
 
         /** Speech sits near 0.1 RMS, so this puts an ordinary voice around two thirds. */
         const val METER_GAIN = 6.0
