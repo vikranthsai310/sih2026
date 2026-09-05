@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
@@ -111,6 +112,7 @@ fun OperatingScreen(
         if (state.transmitting || state.partial != null) {
             PartialBand(state)
         }
+        state.speechNote?.let { SpeechNote(it) }
 
         SecondaryBand(onAlert, onPosition)
         TrafficBand(state, modifier = Modifier.fillMaxWidth().weight(TRAFFIC_WEIGHT))
@@ -133,6 +135,15 @@ data class OperatingState(
     /** The running hypothesis while the operator is still speaking. */
     val partial: String? = null,
     val confidence: Int? = null,
+    /** Microphone level while the control is held, 0..1. Drives the meter in band C. */
+    val level: Float = 0f,
+    /**
+     * Why the last press produced no words, when it produced none.
+     *
+     * Shown rather than swallowed: a template arriving in place of what the operator
+     * actually said is the single most misleading thing this screen could do quietly.
+     */
+    val speechNote: String? = null,
     val messages: List<LoggedMessage> = emptyList(),
     val degraded: EngineState.Degraded.Reason? = null,
     val metrics: BandFMetrics = BandFMetrics(),
@@ -330,9 +341,48 @@ private fun TransmitBand(
                 color = if (transmitting) Tokens.InkPaper else Tokens.Ink,
                 textAlign = TextAlign.Center,
             )
+            if (transmitting) {
+                Spacer(Modifier.height(Tokens.Grid))
+                LevelMeter(state.level)
+            }
         }
     }
 }
+
+/**
+ * The microphone level, while the control is held.
+ *
+ * The one question an operator has mid-sentence is whether the unit can hear them at all,
+ * and the inverted panel does not answer it -- it inverts identically whether the handset is
+ * listening to a shout or to a covered microphone. A silent recogniser and a working one
+ * look the same without this.
+ *
+ * Deliberately not a number. It is read at arm's length, in motion, by someone speaking.
+ */
+@Composable
+private fun LevelMeter(level: Float) {
+    val filled = (level.coerceIn(0f, 1f) * METER_SEGMENTS).toInt()
+    Row(
+        // Cleared, not merged: a screen reader announcing twelve blocks one at a time is
+        // worse than useless. The spoken channel for "am I being heard" is the partial
+        // hypothesis in band C', which is a live region already.
+        Modifier.clearAndSetSemantics { },
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        repeat(METER_SEGMENTS) { index ->
+            Box(
+                Modifier
+                    .width(10.dp)
+                    .height(if (index < filled) 18.dp else 6.dp)
+                    .background(
+                        if (index < filled) Tokens.InkPaper else Tokens.InkPaper.copy(alpha = 0.3f),
+                    ),
+            )
+        }
+    }
+}
+
+private const val METER_SEGMENTS = 12
 
 /**
  * Band C′ — the partial hypothesis, task **W1.32**.
@@ -373,6 +423,29 @@ private fun PartialBand(state: OperatingState) {
             )
         }
     }
+}
+
+/**
+ * What happened instead of recognition, said plainly. Task **W1.32**.
+ *
+ * `docs/ARCHITECTURE.md` specifies IndicConformer through sherpa-onnx, and there are no
+ * acoustic models in this repository to run it -- so a press can fall back to a template the
+ * operator did not choose. That substitution is invisible in band E, where a canned sentence
+ * and a recognised one are both simply text, and it is exactly the kind of thing an
+ * interface should never do silently.
+ */
+@Composable
+private fun SpeechNote(note: String) {
+    Text(
+        note,
+        fontSize = Tokens.Instrument,
+        color = Tokens.Muted,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Tokens.ScreenMargin, vertical = 2.dp)
+                .semantics { liveRegion = LiveRegionMode.Polite },
+    )
 }
 
 // ── D ────────────────────────────────────────────────────────────────────────
@@ -461,7 +534,19 @@ private fun TrafficBand(
                     color = Tokens.Ink,
                     modifier = Modifier.weight(1f),
                 )
-                Text(message.age, fontSize = Tokens.Instrument, color = Tokens.Muted)
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(message.age, fontSize = Tokens.Instrument, color = Tokens.Muted)
+                    // Only on this unit's own sends. A message that arrived was spoken by
+                    // whoever sent it, and this column is about how *this* handset produced
+                    // the one beside it.
+                    if (message.delivery != LoggedMessage.Delivery.RECEIVED) {
+                        Text(
+                            if (message.fromSpeech) "spoken" else "template",
+                            fontSize = Tokens.Instrument,
+                            color = Tokens.Muted,
+                        )
+                    }
+                }
             }
         }
     }

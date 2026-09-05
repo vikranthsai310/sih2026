@@ -22,7 +22,13 @@ import org.itantra.app.engine.MessageEngine
 import org.itantra.app.platform.DataStoreEpochStore
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.PushToTalkKey
-import org.itantra.app.ui.OperatingScreen
+import org.itantra.app.platform.SpeechInput
+import org.itantra.app.ui.AppActions
+import org.itantra.app.ui.AppState
+import org.itantra.app.ui.ItantraApp
+import org.itantra.app.ui.LicenceRow
+import org.itantra.app.ui.PackRow
+import org.itantra.app.ui.TransportOption
 import org.itantra.audio.EngineState
 import org.itantra.proto.TemplateProfile
 
@@ -87,17 +93,82 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val running = engine
-            val state = running?.state?.collectAsState()?.value ?: startingState()
-            OperatingScreen(
-                state = state,
-                onTransmitChange = { running?.onTransmit(it) },
-                onAlert = { running?.onAlert() },
-                onPosition = { },
-                onLanguage = { running?.onLanguageCycle() },
-                onMenu = { },
+            ItantraApp(
+                state =
+                    AppState(
+                        operating = running?.state?.collectAsState()?.value ?: startingState(),
+                        traces = running?.traces?.collectAsState()?.value.orEmpty(),
+                        languages = running?.languageOptions().orEmpty(),
+                        transports = transports(),
+                        packs = installedPacks(),
+                        licences = licences(),
+                    ),
+                actions =
+                    AppActions(
+                        onTransmitChange = { running?.onTransmit(it) },
+                        onAlert = { running?.onAlert() },
+                        onPosition = { },
+                        onLanguageCycle = { running?.onLanguageCycle() },
+                        onLanguageChosen = { running?.onLanguageChosen(it) },
+                    ),
             )
         }
     }
+
+    /**
+     * The radios, and the truth about which of them works.
+     *
+     * `core-link` holds a `BleLink` and a `WifiLink` as well, and neither is wired to
+     * anything — listing them as choices would offer an operator a switch that silently does
+     * nothing. Only what runs appears here; `docs/TRANSPORT.md` keeps the roadmap.
+     */
+    private fun transports() =
+        listOf(
+            TransportOption(
+                id = "bluetooth",
+                name = "Bluetooth Classic (RFCOMM)",
+                range = "about 10 m indoors",
+                endurance = "measured on the handset, not yet estimated",
+            ),
+        )
+
+    /**
+     * Language packs on this handset, which is none of them.
+     *
+     * `models/` carries no acoustic model and no voice, so the honest answer is an empty
+     * list and the screen's own "0.0 MB used" line. A row invented to make the screen look
+     * populated would be the one thing a storage screen must never do.
+     */
+    private fun installedPacks(): List<PackRow> = emptyList()
+
+    /** What is actually inside the APK, and the two things deliberately kept out of it. */
+    private fun licences() =
+        listOf(
+            LicenceRow(
+                "k2-fsa / sherpa-onnx",
+                "Apache-2.0",
+                "Recognition and synthesis library. Bundled; its models are not published yet",
+            ),
+            LicenceRow("microsoft / onnxruntime", "MIT", "Inference engine beneath sherpa-onnx"),
+            LicenceRow("AndroidX, Jetpack Compose", "Apache-2.0", "Interface toolkit"),
+            LicenceRow("JetBrains kotlinx", "Apache-2.0", "Coroutines and serialisation"),
+            LicenceRow("zxing / core", "Apache-2.0", "QR encoding, for pairing (W6.11)"),
+            LicenceRow(
+                "Android SpeechRecognizer",
+                "Platform service",
+                "On-device recognition, standing in for the models named above",
+            ),
+            LicenceRow(
+                "espeak-ng",
+                "GPL-3.0",
+                "NOT shipped. Phonemisation would make this application copyleft",
+            ),
+            LicenceRow(
+                "Meta MMS",
+                "CC-BY-NC",
+                "NOT shipped. Non-commercial, and this is a competition entry",
+            ),
+        )
 
     /**
      * Retries the two things an operator most often leaves and comes back from: switching
@@ -125,6 +196,7 @@ class MainActivity : ComponentActivity() {
                 epochStore = DataStoreEpochStore(applicationContext),
                 templates = deploymentProfile(),
                 bondedDevices = { bonded(adapter) },
+                speech = SpeechInput(applicationContext),
             ).also { it.start() }
         return true
     }

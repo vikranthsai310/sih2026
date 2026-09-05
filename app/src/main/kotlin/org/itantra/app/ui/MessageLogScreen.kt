@@ -160,6 +160,14 @@ data class LoggedMessage(
     val isAlert: Boolean = false,
     val delivery: Delivery = Delivery.RECEIVED,
     val confidence: Int? = null,
+    /**
+     * Whether this unit produced the text by recognising speech, rather than by falling
+     * back to a template because nothing was heard.
+     *
+     * Meaningless on a received message, which was produced however the sending unit
+     * produced it. See [Delivery].
+     */
+    val fromSpeech: Boolean = false,
 ) {
     enum class Delivery { PENDING, SENT, DELIVERED, RECEIVED, FAILED }
 

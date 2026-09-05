@@ -2,16 +2,23 @@ package org.itantra.app.engine
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.itantra.app.platform.NodeIdentity
+import org.itantra.app.platform.SpeechInput
+import org.itantra.app.ui.BandFMetrics
+import org.itantra.app.ui.LanguageOption
 import org.itantra.app.ui.LoggedMessage
 import org.itantra.app.ui.OperatingState
 import org.itantra.audio.EngineState
+import org.itantra.bench.UtteranceClock
+import org.itantra.bench.UtteranceTrace
 import org.itantra.link.BluetoothNet
 import org.itantra.link.LinkState
 import org.itantra.link.MeshLink
@@ -58,6 +65,8 @@ class MessageEngine(
     private val epochStore: EpochCounter.Store,
     private val templates: TemplateTable,
     private val bondedDevices: () -> List<BluetoothDevice>,
+    /** Null on a handset with no recogniser at all; every send then uses a template. */
+    private val speech: SpeechInput? = null,
 ) {
     private val mesh = MeshLink(scope)
 
@@ -86,6 +95,26 @@ class MessageEngine(
 
     /** The language this unit renders in. Tapping band B cycles it. */
     private var language: Language = Language.HINDI
+
+    /** Timing for the utterance in progress. Null between presses. */
+    private var utterance: UtteranceClock? = null
+
+    /** Completed by the recogniser, or by the release when there is no recogniser. */
+    private var pendingSpeech: CompletableDeferred<SpeechInput.Result?>? = null
+
+    /** Why the last attempt produced no words, for the note under band C. */
+    private var lastSpeechProblem: String? = null
+
+    private val _traces = MutableStateFlow<List<UtteranceTrace>>(emptyList())
+
+    /**
+     * Real latency traces, for the metrics screen.
+     *
+     * Only utterances that were actually recognised. A template send has no recognition
+     * stage to time, and padding the series with zeroes would make the median a lie in
+     * exactly the direction that flatters the project.
+     */
+    val traces: StateFlow<List<UtteranceTrace>> = _traces.asStateFlow()
 
     private fun initialState() =
         OperatingState(
@@ -243,25 +272,116 @@ class MessageEngine(
      * Called on the transmit control, and by the hardware key with the screen off.
      *
      * Sends on **release** rather than press, mirroring push-to-talk: the message is what
-     * was said while the control was held, so it goes when the operator lets go.
+     * was said while the control was held, so it goes when the operator lets go. The
+     * microphone is open for exactly that interval, and the recogniser is stopped here
+     * rather than left to find a pause of its own -- on a radio net the operator decides
+     * where the sentence ends.
      */
     fun onTransmit(held: Boolean) {
-        _state.value = _state.value.copy(transmitting = held)
-        if (held) return
-        scope.launch { sendNextTemplate(MessageType.TEXT) }
+        if (held) beginUtterance() else endUtterance()
     }
 
+    private fun beginUtterance() {
+        val clock =
+            UtteranceClock(
+                utteranceId = "u" + System.currentTimeMillis(),
+                language = language.code,
+                mode = "PTT",
+                transport = "bluetooth",
+            ).start()
+        utterance = clock
+
+        val heard = CompletableDeferred<SpeechInput.Result?>()
+        pendingSpeech = heard
+
+        _state.value =
+            _state.value.copy(transmitting = true, partial = null, level = 0f, speechNote = null)
+
+        val listening = speech?.start(SpeechInput.tagFor(language.code), speechListener(clock, heard))
+        if (listening != true) {
+            // No recogniser, or it would not open. Settled now rather than on release, so
+            // the operator is not made to wait for a result that was never coming.
+            lastSpeechProblem = if (speech?.available == true) "recogniser would not start" else null
+            heard.complete(null)
+        }
+    }
+
+    private fun endUtterance() {
+        _state.value = _state.value.copy(transmitting = false, level = 0f)
+        speech?.stop()
+        val heard = pendingSpeech
+        val clock = utterance
+        pendingSpeech = null
+        utterance = null
+
+        scope.launch {
+            // Bounded. A recogniser that never answers must not silently eat the message.
+            val result = heard?.let { withTimeoutOrNull(SPEECH_TIMEOUT_MILLIS) { it.await() } }
+            clock?.mark(UtteranceClock.Stage.FINAL)
+            send(result, clock, MessageType.TEXT)
+        }
+    }
+
+    private fun speechListener(
+        clock: UtteranceClock,
+        heard: CompletableDeferred<SpeechInput.Result?>,
+    ) = object : SpeechInput.Listener {
+        override fun onLevel(level: Float) {
+            _state.value = _state.value.copy(level = level)
+        }
+
+        override fun onPartial(text: String) {
+            // The first hypothesis is a real latency stage, and the one W1.33 names
+            // FIRST_PARTIAL. The mark is first-one-wins, so later partials cost nothing.
+            clock.mark(UtteranceClock.Stage.FIRST_PARTIAL)
+            _state.value = _state.value.copy(partial = text)
+        }
+
+        override fun onResult(result: SpeechInput.Result) {
+            lastSpeechProblem = null
+            heard.complete(result)
+        }
+
+        override fun onNothingHeard(reason: String) {
+            lastSpeechProblem = reason
+            heard.complete(null)
+        }
+    }
+
+    /**
+     * An alert is deliberately **not** spoken.
+     *
+     * It is the one control that has to work with a hand over the microphone and a
+     * helicopter overhead, so it sends a template the receiving unit already holds rather
+     * than waiting on a recogniser. `docs/UX.md` rule 3.
+     */
     fun onAlert() {
-        scope.launch { sendNextTemplate(MessageType.ALERT) }
+        scope.launch { send(null, null, MessageType.ALERT) }
     }
 
-    private suspend fun sendNextTemplate(type: MessageType) {
-        if (templateIds.isEmpty()) return
-        val id = templateIds[nextTemplate % templateIds.size]
-        nextTemplate++
-        val text = templates.render(id, language) ?: return
+    /**
+     * Sends what was heard, or a template when nothing was.
+     *
+     * The fallback is not a convenience. Without acoustic models the template was the *only*
+     * path, and it would be easy to leave the two indistinguishable on screen -- a canned
+     * sentence and a recognised one are both just text in band E.
+     * [LoggedMessage.fromSpeech] keeps them apart, because a demonstration that cannot tell
+     * you which of the two just happened is not demonstrating anything.
+     */
+    private suspend fun send(
+        heard: SpeechInput.Result?,
+        clock: UtteranceClock?,
+        type: MessageType,
+    ) {
+        val text = heard?.text ?: nextTemplateText() ?: return
+        // The recogniser's own score, where it offers one. Below the threshold the message
+        // still goes -- an uncertain sentence beats silence on a radio net -- but it travels
+        // marked, and Session narrows the template match accordingly.
+        val confident = heard == null || (heard.confidence ?: 1f) >= CONFIDENT_ABOVE
 
-        val sent = session.send(text, confident = true, type = type, nowMillis = System.currentTimeMillis())
+        val sent =
+            session.send(text, confident = confident, type = type, nowMillis = System.currentTimeMillis())
+        clock?.mark(UtteranceClock.Stage.TX)
 
         val entry =
             LoggedMessage(
@@ -274,14 +394,62 @@ class MessageEngine(
                 isAlert = type == MessageType.ALERT,
                 delivery =
                     if (sent.queued) LoggedMessage.Delivery.PENDING else LoggedMessage.Delivery.SENT,
+                fromSpeech = heard != null,
             )
         _state.value =
             _state.value.copy(
                 messages = (listOf(entry) + _state.value.messages).take(MAX_ON_SCREEN),
-                metrics = _state.value.metrics.copy(lastFrameBytes = sent.wireBytes),
+                metrics = metricsFrom(clock, sent.wireBytes),
                 queued = session.queuedCount,
+                partial = null,
+                speechNote = speechNote(heard),
             )
+        if (heard != null && clock != null) {
+            _traces.value = (_traces.value + clock.toTrace(frameBytes = sent.wireBytes)).takeLast(MAX_TRACES)
+        }
     }
+
+    /** Cycles the profile, so a demonstration is not one sentence repeated. */
+    private fun nextTemplateText(): String? {
+        if (templateIds.isEmpty()) return null
+        val id = templateIds[nextTemplate % templateIds.size]
+        nextTemplate++
+        return templates.render(id, language)
+    }
+
+    /**
+     * Band F, from the utterance that just happened rather than from a benchmark.
+     *
+     * `STT` is the microphone opening to the final transcription, and `LINK` is that to the
+     * frame leaving. Both stay absent when nothing was recognised, and absent is drawn as a
+     * dash: a template that took no time to "recognise" must never be reported as a fast
+     * recogniser.
+     */
+    private fun metricsFrom(
+        clock: UtteranceClock?,
+        wireBytes: Int,
+    ): BandFMetrics {
+        val previous = _state.value.metrics
+        if (clock == null) return previous.copy(lastFrameBytes = wireBytes)
+        val stt = clock.elapsedMillis(UtteranceClock.Stage.FINAL)
+        val total = clock.elapsedMillis(UtteranceClock.Stage.TX)
+        return previous.copy(
+            sttMillis = stt,
+            linkMillis = if (total != null && stt != null) total - stt else null,
+            totalMillis = total,
+            lastFrameBytes = wireBytes,
+        )
+    }
+
+    /** What the screen says about the last attempt at speech. Null when it simply worked. */
+    private fun speechNote(heard: SpeechInput.Result?): String? =
+        when {
+            heard != null -> null
+            speech == null || speech.available != true ->
+                "No speech recogniser on this handset. Sent a template."
+            lastSpeechProblem != null -> "Heard nothing: " + lastSpeechProblem + ". Sent a template."
+            else -> null
+        }
 
     /**
      * Cycles the language this unit renders in.
@@ -295,6 +463,25 @@ class MessageEngine(
         language = all[(all.indexOf(language) + 1) % all.size]
         refresh()
     }
+
+    /** Chosen from the language screen, where cycling ten of them one tap at a time is not a control. */
+    fun onLanguageChosen(code: String) {
+        language = Language.entries.firstOrNull { it.code == code } ?: return
+        refresh()
+    }
+
+    /** The languages this unit can render, and whether it can also speak them. */
+    fun languageOptions(): List<LanguageOption> =
+        Language.entries.map {
+            LanguageOption(
+                code = it.code,
+                nativeName = displayNameFor(it),
+                englishName = it.name.lowercase().replaceFirstChar(Char::uppercase),
+                // No Piper voices are present, so no language can be spoken aloud on any
+                // handset built from this repository. Reported rather than assumed.
+                canSpeak = false,
+            )
+        }
 
     /**
      * A condition that does not clear itself when the net recovers.
@@ -347,6 +534,21 @@ class MessageEngine(
 
         /** How often the screen re-reads the roster. Cheap, and the numbers are live. */
         const val REFRESH_MILLIS = 1_000L
+
+        /**
+         * How long a release waits for the recogniser's final answer.
+         *
+         * Long enough for an on-device pass over a held sentence, short enough that a
+         * recogniser which has stopped answering does not swallow the message -- the
+         * template goes instead, and the screen says so.
+         */
+        const val SPEECH_TIMEOUT_MILLIS = 4_000L
+
+        /** Below this the transcription still goes, marked uncertain rather than dropped. */
+        const val CONFIDENT_ABOVE = 0.6f
+
+        /** Enough for the 100-utterance run docs/EVALUATION.md section 4 asks for. */
+        const val MAX_TRACES = 200
 
         /** Each language in its own script — a speaker of Odia is looking for ଓଡ଼ିଆ. */
         fun displayNameFor(language: Language): String =
