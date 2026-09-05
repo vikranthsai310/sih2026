@@ -549,6 +549,8 @@ class MessageEngine(
                 realTimeFactor = null,
                 cpuPercent = null,
                 lastFrameBytes = wireBytes,
+                // No audio was recorded, so the ratio falls back to the protocol convention.
+                audioMillis = null,
             )
         }
         val endpoint = clock.elapsedMillis(UtteranceClock.Stage.ENDPOINT)
@@ -561,6 +563,7 @@ class MessageEngine(
             realTimeFactor = heard.realTimeFactor,
             cpuPercent = cpuSincePress(),
             lastFrameBytes = wireBytes,
+            audioMillis = heard.audioMillis,
         )
     }
 

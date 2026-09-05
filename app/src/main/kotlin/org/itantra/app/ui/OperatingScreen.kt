@@ -184,13 +184,36 @@ data class BandFMetrics(
     val realTimeFactor: Double? = null,
     val cpuPercent: Double? = null,
     val lastFrameBytes: Int? = null,
+    /** Audio actually captured for the last utterance, when one was recognised. */
+    val audioMillis: Long? = null,
 ) {
-    /** The compression figure the demonstration points at, against three seconds of audio. */
+    /**
+     * How much smaller the frame is than the audio it replaced.
+     *
+     * Measured against **this utterance's own audio** whenever there was any, rather than
+     * against a fixed reference. The reference used to be three seconds regardless, so a
+     * six-second sentence was compared with a three-second clip nobody recorded — a true
+     * enough sentence about the protocol printed where a reader takes it for a measurement
+     * of what just happened.
+     *
+     * The three-second convention survives for a template send, where no audio was captured
+     * and the figure is the protocol claim rather than an observation. `docs/DEMO.md` keeps
+     * the four headline ratios, which are properties of the frame codec and not of any
+     * particular utterance.
+     */
     val compressionRatio: Int?
-        get() = lastFrameBytes?.takeIf { it > 0 }?.let { Math.round(RAW_AUDIO_BYTES / it).toInt() }
+        get() {
+            val bytes = lastFrameBytes?.takeIf { it > 0 } ?: return null
+            val audio = audioMillis?.takeIf { it > 0 }?.let { it * BYTES_PER_SECOND / 1000.0 }
+            return Math.round((audio ?: RAW_AUDIO_BYTES) / bytes).toInt()
+        }
 
     private companion object {
+        /** Three seconds of 16 kHz 16-bit mono, the convention when nothing was recorded. */
         const val RAW_AUDIO_BYTES = 96_000.0
+
+        /** 16 kHz, 16-bit, mono — what AudioCapture delivers. */
+        const val BYTES_PER_SECOND = 32_000
     }
 }
 
