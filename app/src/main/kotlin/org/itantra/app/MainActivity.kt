@@ -24,6 +24,7 @@ import org.itantra.app.platform.ModelStore
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.PushToTalkKey
 import org.itantra.app.platform.SherpaSpeech
+import org.itantra.app.platform.Speaker
 import org.itantra.app.ui.AppActions
 import org.itantra.app.ui.AppState
 import org.itantra.app.ui.ItantraApp
@@ -111,6 +112,7 @@ class MainActivity : ComponentActivity() {
                         onTransmitChange = { running?.onTransmit(it) },
                         onAlert = { running?.onAlert() },
                         onLanguageChosen = { running?.onLanguageChosen(it) },
+                        onReplay = { running?.onReplay(it) },
                         readLicence = ::readLicence,
                     ),
             )
@@ -253,6 +255,7 @@ class MainActivity : ComponentActivity() {
                 bondedDevices = { bonded(adapter) },
                 speech = SherpaSpeech(ModelStore(applicationContext)),
                 lexicons = ::lexiconFor,
+                speaker = Speaker(ModelStore(applicationContext)),
             ).also { it.start() }
         return true
     }

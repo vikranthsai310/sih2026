@@ -34,6 +34,11 @@ secrets.properties
 # Language packs are large binaries fetched by tools/fetch-models.
 # Only the manifest and checksums are tracked; see docs/MODELS.md.
 models/**/*.onnx
+# espeak-ng's dictionaries: 18 MB of fetched data shared by every Piper voice, and
+# data rather than source. tools/fetch_models.py and the voice archives bring it.
+models/tts/espeak-ng-data/
+models/tts/**/tokens.txt
+models/tts/**/MODEL_CARD
 models/**/*.bin
 models/**/*.pt
 models/**/*.nemo

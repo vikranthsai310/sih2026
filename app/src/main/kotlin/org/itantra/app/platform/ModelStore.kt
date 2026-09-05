@@ -73,6 +73,38 @@ class ModelStore(context: Context) {
             model.length() > MIN_MODEL_BYTES
     }
 
+    // ── the voice, for speaking a message that arrives ───────────────────────
+
+    private val voices = File(context.getExternalFilesDir(null), "models/tts")
+
+    /**
+     * espeak-ng's data, shared by every voice.
+     *
+     * One copy rather than one per language: it is 18 MB of dictionaries covering every
+     * language espeak knows, and six voices carrying their own would be a hundred megabytes
+     * of the same files. This is also the GPL-3.0 component `LICENSES.md` section 6 is
+     * about — it is data rather than code, and the code is already linked into
+     * `libsherpa-onnx-jni.so`.
+     */
+    val espeakData: File get() = File(voices, ESPEAK)
+
+    fun voiceFor(languageCode: String): File = File(File(voices, languageCode), VOICE)
+
+    fun voiceTokensFor(languageCode: String): File = File(File(voices, languageCode), TOKENS)
+
+    /**
+     * Whether a message arriving in this language can be spoken aloud.
+     *
+     * Four of the ten have no permissively licensed voice — Tamil, Gujarati, Kannada and
+     * Odia — so this is false for them by design rather than by omission, and
+     * `LICENSES.md` section 6 records the decision to ship those recognise-only rather than
+     * take a non-commercial model.
+     */
+    fun hasVoice(languageCode: String): Boolean =
+        espeakData.isDirectory() &&
+            voiceFor(languageCode).let { it.isFile() && it.length() > MIN_VOICE_BYTES } &&
+            voiceTokensFor(languageCode).isFile()
+
     /** Every language with a usable pack, for the language screen. */
     fun installed(codes: Iterable<String>): Set<String> = codes.filterTo(HashSet()) { hasPack(it) }
 
@@ -88,5 +120,11 @@ class ModelStore(context: Context) {
 
         /** The real models are 167–198 MB. A hundred megabytes is a generous floor. */
         const val MIN_MODEL_BYTES = 100L * 1024 * 1024
+
+        const val ESPEAK = "espeak-ng-data"
+        const val VOICE = "model.onnx"
+
+        /** A Piper medium voice is ~63 MB; ten is a floor that only catches a failed copy. */
+        const val MIN_VOICE_BYTES = 10L * 1024 * 1024
     }
 }

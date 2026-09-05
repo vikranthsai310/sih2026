@@ -37,10 +37,17 @@ import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
  * stretches the delivery rather than tearing a hole in it.
  */
 class SherpaSynthesiser(
-    assets: AssetManager,
     modelPath: String,
     tokensPath: String,
     dataDir: String,
+    /**
+     * Null for a voice on the filesystem, which is the shipping case.
+     *
+     * A Piper voice is ~63 MB and the espeak-ng data another 18, against a 30 MB installer
+     * cap — so voices are fetched at setup and read from app storage, exactly as the
+     * acoustic models are.
+     */
+    assets: AssetManager? = null,
     private val speakerId: Int = 0,
     private val speed: Float = 1.0f,
     numThreads: Int = SYNTHESIS_THREADS,

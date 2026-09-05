@@ -15,6 +15,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.Recogniser
 import org.itantra.app.platform.SherpaSpeech
+import org.itantra.app.platform.Speaker
 import org.itantra.app.ui.BandFMetrics
 import org.itantra.app.ui.LanguageOption
 import org.itantra.app.ui.LoggedMessage
@@ -84,6 +85,8 @@ class MessageEngine(
      * rather than all at once at startup.
      */
     private val lexicons: (String) -> BiasingLexicon? = { null },
+    /** Null on a handset with no voice installed; arrivals are then shown but not spoken. */
+    private val speaker: Speaker? = null,
 ) {
     private val mesh = MeshLink(scope)
 
@@ -220,6 +223,7 @@ class MessageEngine(
     }
 
     fun stop() {
+        speaker?.close()
         speech?.close()
         bluetoothNet?.stop()
         bluetoothNet = null
@@ -281,7 +285,50 @@ class MessageEngine(
                 messages = (listOf(entry) + _state.value.messages).take(MAX_ON_SCREEN),
                 metrics = _state.value.metrics.copy(lastFrameBytes = message.wireBytes),
             )
+        speakArrival(message.text, alert = message.frame.type == MessageType.ALERT)
     }
+
+    /**
+     * Says an arriving message out loud, and times how long that took to start.
+     *
+     * The problem statement asks for the delay "between the text received and audio
+     * processed and played", so the clock starts here — at the moment the frame became text
+     * — and stops on the first **sound**, not on the end of synthesis. A listener has heard
+     * something at the first chunk; the rest arrives while they are listening to it.
+     */
+    private fun speakArrival(
+        text: String,
+        alert: Boolean,
+    ) {
+        val speaker = speaker ?: return
+        val receivedAt = SystemClock.elapsedRealtime()
+        speaker.speak(
+            languageCode = language.code,
+            text = text,
+            onFirstAudio = {
+                _state.value =
+                    _state.value.copy(
+                        metrics =
+                            _state.value.metrics.copy(
+                                ttsMillis = SystemClock.elapsedRealtime() - receivedAt,
+                            ),
+                    )
+            },
+        )
+        if (alert) {
+            // W5.13: an alert is announced rather than merely spoken. The volume and focus
+            // handling lives in AlertPlayback; this is the hook it attaches to.
+            alerting = true
+        }
+    }
+
+    /** Replays a message from the log. The control existed in MessageLogScreen with no wiring. */
+    fun onReplay(text: String) {
+        speaker?.speak(language.code, text)
+    }
+
+    /** Whether the last arrival was an alert, for the announcement path. */
+    private var alerting = false
 
     /**
      * A dropped frame is shown only when the operator can do something about it.
@@ -640,6 +687,7 @@ class MessageEngine(
         // Loading a 130-190 MB graph takes seconds, and it is paid here -- on the language
         // change, while nobody is speaking -- rather than on the first press. The note is
         // rewritten when it lands so the operator knows when the unit can actually hear.
+        speaker?.preload(target.code)
         sherpa?.preload(target.code) {
             if (target != language) return@preload
             _state.value =
@@ -665,7 +713,7 @@ class MessageEngine(
         }
 
     /** The languages this unit can render, and what it can do with each of them. */
-    fun languageOptions(): List<LanguageOption> = languageOptions(speech)
+    fun languageOptions(): List<LanguageOption> = languageOptions(speech, speaker)
 
     /**
      * A condition that does not clear itself when the net recovers.
@@ -749,15 +797,18 @@ class MessageEngine(
          * chevron that opens an empty menu is worse than one that does nothing. With a null
          * recogniser the rows are still correct; they simply say nothing about speech.
          */
-        fun languageOptions(speech: Recogniser?): List<LanguageOption> =
+        fun languageOptions(
+            speech: Recogniser?,
+            speaker: Speaker? = null,
+        ): List<LanguageOption> =
             Language.entries.map {
                 LanguageOption(
                     code = it.code,
                     nativeName = displayNameFor(it),
                     englishName = it.name.lowercase().replaceFirstChar(Char::uppercase),
-                    // No Piper voices are present, so no language can be spoken aloud on any
-                    // handset built from this repository. Reported rather than assumed.
-                    canSpeak = false,
+                    // Whether a voice is actually installed for this language, asked of
+                    // the store rather than assumed either way.
+                    canSpeak = speaker?.canSpeak(it.code) == true,
                     recognition =
                         when {
                             speech == null -> "no model installed"

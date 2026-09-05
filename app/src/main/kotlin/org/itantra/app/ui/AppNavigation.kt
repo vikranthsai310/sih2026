@@ -100,6 +100,8 @@ data class AppActions(
     val onLanguageChosen: (String) -> Unit,
     /** Reads an asset under `licences/`. Null when the file is missing. */
     val readLicence: (String) -> String?,
+    /** Speaks a logged message again. The control existed here with nothing behind it. */
+    val onReplay: (String) -> Unit,
 )
 
 @Composable
@@ -132,7 +134,10 @@ fun ItantraApp(
             Destination.MENU -> MenuScreen(onOpen = { where = it })
 
             Destination.MESSAGES ->
-                MessageLogScreen(messages = state.operating.messages, onReplay = { })
+                MessageLogScreen(
+                    messages = state.operating.messages,
+                    onReplay = { actions.onReplay(it.text) },
+                )
 
             Destination.LANGUAGE ->
                 LanguageScreen(
