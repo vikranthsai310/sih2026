@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.Recogniser
+import org.itantra.app.platform.SherpaSpeech
 import org.itantra.app.ui.BandFMetrics
 import org.itantra.app.ui.LanguageOption
 import org.itantra.app.ui.LoggedMessage
@@ -526,6 +527,9 @@ class MessageEngine(
      * installer target means they cannot be bundled either.
      */
     private fun ensurePackFor(target: Language) {
+        // Loading a 189 MB graph takes seconds. Paid here, while nobody is speaking, rather
+        // than on the first press.
+        (speech as? SherpaSpeech)?.preload(target.code)
         val ready = speech?.isReady(target.code) == true
         _state.value =
             _state.value.copy(

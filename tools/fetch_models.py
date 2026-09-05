@@ -132,6 +132,9 @@ def install(artefact: dict, base_url: str, into: pathlib.Path, verify_only: bool
             continue
 
         staged = into / f"{name}.staged"
+        # Before the download, not before the rename: a pack whose files live in a
+        # per-language subdirectory has nowhere to stage them otherwise.
+        staged.parent.mkdir(parents=True, exist_ok=True)
         print(f"   {name}: fetching")
         download(f"{base_url.rstrip('/')}/{name}", staged, artefact["bytes"])
 
@@ -142,7 +145,6 @@ def install(artefact: dict, base_url: str, into: pathlib.Path, verify_only: bool
             continue
 
         # The rename is the install. Everything before it is reversible.
-        target.parent.mkdir(parents=True, exist_ok=True)
         staged.replace(target)
         print(f"   {name}: verified and installed")
 

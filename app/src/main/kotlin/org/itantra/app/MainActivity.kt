@@ -20,8 +20,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
 import org.itantra.app.engine.MessageEngine
 import org.itantra.app.platform.DataStoreEpochStore
+import org.itantra.app.platform.ModelStore
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.PushToTalkKey
+import org.itantra.app.platform.SherpaSpeech
 import org.itantra.app.ui.AppActions
 import org.itantra.app.ui.AppState
 import org.itantra.app.ui.ItantraApp
@@ -231,6 +233,7 @@ class MainActivity : ComponentActivity() {
                 epochStore = DataStoreEpochStore(applicationContext),
                 templates = deploymentProfile(),
                 bondedDevices = { bonded(adapter) },
+                speech = SherpaSpeech(ModelStore(applicationContext)),
             ).also { it.start() }
         return true
     }

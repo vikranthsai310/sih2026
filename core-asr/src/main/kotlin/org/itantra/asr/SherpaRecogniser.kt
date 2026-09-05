@@ -30,10 +30,17 @@ import org.itantra.proto.Language
  * language and released on a language switch — one model resident at a time.
  */
 class SherpaRecogniser(
-    assets: AssetManager,
-    modelDir: String,
+    modelPath: String,
     tokensPath: String,
     val language: Language,
+    /**
+     * Null for a model on the filesystem, which is the shipping case.
+     *
+     * A pack is ~189 MB and constraint N2 caps the installer at 30 MB, so the model cannot
+     * be an asset: it is fetched once during setup and read from app storage. The asset
+     * path is kept because it is the only way to run a model from an instrumented test.
+     */
+    assets: AssetManager? = null,
     hotwordsFile: String = "",
     hotwordsScore: Float = 1.5f,
     numThreads: Int = DECODE_THREADS,
@@ -48,7 +55,7 @@ class SherpaRecogniser(
                         // IndicConformer is published as a NeMo CTC graph, not a
                         // transducer -- the wrong config here loads and then produces
                         // silence rather than failing.
-                        nemo = OfflineNemoEncDecCtcModelConfig(model = "$modelDir/model.int8.onnx"),
+                        nemo = OfflineNemoEncDecCtcModelConfig(model = modelPath),
                         tokens = tokensPath,
                         numThreads = numThreads,
                         modelType = "nemo_ctc",
