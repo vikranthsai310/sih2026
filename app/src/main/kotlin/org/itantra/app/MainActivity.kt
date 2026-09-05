@@ -30,6 +30,7 @@ import org.itantra.app.ui.ItantraApp
 import org.itantra.app.ui.LicenceRow
 import org.itantra.app.ui.PackRow
 import org.itantra.app.ui.TransportOption
+import org.itantra.asr.BiasingLexicon
 import org.itantra.audio.EngineState
 import org.itantra.proto.TemplateProfile
 
@@ -203,6 +204,23 @@ class MainActivity : ComponentActivity() {
             ),
         )
 
+    /**
+     * The alert lexicon for a language, from the assets the build copies out of `models/`.
+     *
+     * Null rather than empty when a file is missing: an empty lexicon and an absent one look
+     * identical to a corrector, and only one of them is a packaging fault worth noticing.
+     */
+    private fun lexiconFor(code: String): BiasingLexicon? {
+        val domain = readAsset("lexicon/alert-lexicon.$code.txt") ?: return null
+        // Negation is optional only in the sense that a missing file must not stop the
+        // domain terms loading; every language in this repository ships one.
+        val negation = readAsset("lexicon/negation.$code.txt").orEmpty()
+        return BiasingLexicon.of(domain, negation)
+    }
+
+    private fun readAsset(path: String): String? =
+        runCatching { assets.open(path).bufferedReader().use { it.readText() } }.getOrNull()
+
     /** Verbatim, from `assets/licences/`. */
     private fun readLicence(file: String): String? =
         runCatching { assets.open("licences/$file").bufferedReader().use { it.readText() } }.getOrNull()
@@ -234,6 +252,7 @@ class MainActivity : ComponentActivity() {
                 templates = deploymentProfile(),
                 bondedDevices = { bonded(adapter) },
                 speech = SherpaSpeech(ModelStore(applicationContext)),
+                lexicons = ::lexiconFor,
             ).also { it.start() }
         return true
     }

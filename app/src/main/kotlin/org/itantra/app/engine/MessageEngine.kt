@@ -17,6 +17,8 @@ import org.itantra.app.ui.BandFMetrics
 import org.itantra.app.ui.LanguageOption
 import org.itantra.app.ui.LoggedMessage
 import org.itantra.app.ui.OperatingState
+import org.itantra.asr.BiasingLexicon
+import org.itantra.asr.LexiconCorrector
 import org.itantra.audio.EngineState
 import org.itantra.bench.UtteranceClock
 import org.itantra.bench.UtteranceTrace
@@ -73,6 +75,13 @@ class MessageEngine(
      * drove Google Speech Services, which constraint C1 prohibits by name.
      */
     private val speech: Recogniser? = null,
+    /**
+     * The alert lexicon for a language, or null where none ships.
+     *
+     * A function rather than a map so the twenty small files are read on a language change
+     * rather than all at once at startup.
+     */
+    private val lexicons: (String) -> BiasingLexicon? = { null },
 ) {
     private val mesh = MeshLink(scope)
 
@@ -110,6 +119,9 @@ class MessageEngine(
 
     /** Why the last attempt produced no words, for the note under band C. */
     private var lastSpeechProblem: String? = null
+
+    /** Rebuilt on a language change; null when that language ships no lexicon. */
+    private var corrector: LexiconCorrector? = null
 
     private val _traces = MutableStateFlow<List<UtteranceTrace>>(emptyList())
 
@@ -408,7 +420,7 @@ class MessageEngine(
         clock: UtteranceClock?,
         type: MessageType,
     ) {
-        val text = heard?.text ?: nextTemplateText() ?: return
+        val text = heard?.text?.let(::bestReading) ?: nextTemplateText() ?: return
         // The recogniser's own score, where it offers one. Below the threshold the message
         // still goes -- an uncertain sentence beats silence on a radio net -- but it travels
         // marked, and Session narrows the template match accordingly.
@@ -443,6 +455,39 @@ class MessageEngine(
         // toTrace refuses to invent one.
         if (heard != null && clock != null && clock.isStarted) {
             _traces.value = (_traces.value + clock.toTrace(frameBytes = sent.wireBytes)).takeLast(MAX_TRACES)
+        }
+    }
+
+    /**
+     * The transcription, repaired against the alert lexicon **only where that is safe**.
+     *
+     * `docs/ASR.md` section 3.4 wanted contextual biasing, and it cannot be had: sherpa-onnx
+     * applies a hotwords file only under `modified_beam_search`, which is a transducer beam
+     * search, and IndicConformer is published as a NeMo CTC graph. The shipped library says
+     * so itself — *"modified_beam_search if you provide --hotwords-file"*. So the lexicon
+     * cannot reach the decoder and can only repair its output.
+     *
+     * Repairing output is dangerous, and [LexiconCorrector] has a test asserting exactly how:
+     * खाता ("eats") sits one edit from खाना ("food") and gets rewritten, because eighty
+     * distress terms cannot tell the class what else is a word in Hindi. Applied to
+     * free speech it would damage more than it fixes.
+     *
+     * So it is gated. A correction is adopted **only when it turns a sentence that matched
+     * no template into one that does** — the raw reading was not a known sentence and the
+     * repaired one is, which is evidence rather than a guess. Everything else is transmitted
+     * exactly as heard. That confines the mechanism to the case it is good at, where the
+     * payoff is also largest: a matched template travels as one byte and is rendered in the
+     * receiver's own language, so repairing it fixes the sentence at both ends at once.
+     */
+    private fun bestReading(raw: String): String {
+        val corrector = corrector ?: return raw
+        if (templates.match(raw, language, recogniserConfident = true) != null) return raw
+        val repaired = corrector.correct(raw)
+        if (!repaired.changed) return raw
+        return if (templates.match(repaired.text, language, recogniserConfident = true) != null) {
+            repaired.text
+        } else {
+            raw
         }
     }
 
@@ -545,6 +590,7 @@ class MessageEngine(
         // Loading a 189 MB graph takes seconds. Paid here, while nobody is speaking, rather
         // than on the first press.
         (speech as? SherpaSpeech)?.preload(target.code)
+        corrector = lexicons(target.code)?.let { LexiconCorrector(it) }
         val ready = speech?.isReady(target.code) == true
         _state.value =
             _state.value.copy(

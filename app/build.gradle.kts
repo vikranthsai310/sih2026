@@ -103,7 +103,21 @@ val copyDeploymentProfile by tasks.registering(Copy::class) {
     into(layout.buildDirectory.dir("generated/assets"))
 }
 
-tasks.named("preBuild") { dependsOn(copyDeploymentProfile) }
+/**
+ * Copies the alert lexicons into the APK from `models/lexicon/`.
+ *
+ * Twenty files, eighty kilobytes in total — small enough to bundle, unlike the acoustic
+ * models, and needed on every handset for every language rather than only the installed
+ * ones. Copied from `models/` for the same reason the template profile is: one file, not
+ * a second copy that drifts.
+ */
+val copyLexicons by tasks.registering(Copy::class) {
+    from(rootProject.file("models/lexicon"))
+    into(layout.buildDirectory.dir("generated/assets/lexicon"))
+    include("*.txt")
+}
+
+tasks.named("preBuild") { dependsOn(copyDeploymentProfile, copyLexicons) }
 
 dependencies {
     implementation(project(":core-audio"))
