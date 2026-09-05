@@ -399,7 +399,7 @@ class MessageEngine(
         _state.value =
             _state.value.copy(
                 messages = (listOf(entry) + _state.value.messages).take(MAX_ON_SCREEN),
-                metrics = metricsFrom(clock, sent.wireBytes),
+                metrics = metricsFrom(clock, sent.wireBytes, recognised = heard != null),
                 queued = session.queuedCount,
                 partial = null,
                 speechNote = speechNote(heard),
@@ -421,16 +421,34 @@ class MessageEngine(
      * Band F, from the utterance that just happened rather than from a benchmark.
      *
      * `STT` is the microphone opening to the final transcription, and `LINK` is that to the
-     * frame leaving. Both stay absent when nothing was recognised, and absent is drawn as a
-     * dash: a template that took no time to "recognise" must never be reported as a fast
-     * recogniser.
+     * frame leaving. Both stay absent unless something was actually recognised, and absent
+     * is drawn as a dash: the time a recogniser spends refusing an utterance is not
+     * recognition latency, and reporting it as such flatters the project in precisely the
+     * direction a reader should distrust.
      */
     private fun metricsFrom(
         clock: UtteranceClock?,
         wireBytes: Int,
+        recognised: Boolean,
     ): BandFMetrics {
         val previous = _state.value.metrics
-        if (clock == null) return previous.copy(lastFrameBytes = wireBytes)
+        if (clock == null || !recognised) {
+            // Caught on a real handset: a press where the recogniser answered "language pack
+            // not installed" still reported STT 79 ms, because the clock had been running
+            // and the marks were read regardless. Seventy-nine milliseconds to *decline* was
+            // being displayed as seventy-nine milliseconds to recognise -- the metrics screen
+            // said "0 utterances" about the very same press, and band F is the strip a jury
+            // photographs.
+            //
+            // Clearing rather than leaving the previous figures: a stale STT standing beside
+            // this frame's byte count reads as a measurement of this frame.
+            return previous.copy(
+                sttMillis = null,
+                linkMillis = null,
+                totalMillis = null,
+                lastFrameBytes = wireBytes,
+            )
+        }
         val stt = clock.elapsedMillis(UtteranceClock.Stage.FINAL)
         val total = clock.elapsedMillis(UtteranceClock.Stage.TX)
         return previous.copy(
@@ -447,7 +465,10 @@ class MessageEngine(
             heard != null -> null
             speech == null || speech.available != true ->
                 "No speech recogniser on this handset. Sent a template."
-            lastSpeechProblem != null -> "Heard nothing: " + lastSpeechProblem + ". Sent a template."
+            // Capitalised and used as the whole sentence. Prefixing it read as "Heard
+            // nothing: nothing recognised", which is the same fact said twice.
+            lastSpeechProblem != null ->
+                lastSpeechProblem!!.replaceFirstChar(Char::uppercase) + ". Sent a template."
             else -> null
         }
 

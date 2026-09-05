@@ -28,7 +28,16 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="true" />
 
+    <!--
+      enableOnBackInvokedCallback: without it the platform never routes the back gesture to
+      the Compose BackHandler, and logcat said so on every navigation:
+      "OnBackInvokedCallback is not enabled for the application."
+      The chevron worked; the gesture would have left the application instead of returning
+      to the operating screen, and an operator who swipes back off a settings page has left
+      the net.
+    -->
     <application
+        android:enableOnBackInvokedCallback="true"
         android:label="iTantra"
         android:supportsRtl="true"
         android:theme="@style/Theme.ITantra">

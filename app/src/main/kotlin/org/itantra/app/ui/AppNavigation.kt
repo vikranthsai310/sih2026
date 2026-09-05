@@ -198,12 +198,14 @@ private fun SubScreen(
                     .heightIn(min = Tokens.TouchTarget)
                     .width(Tokens.TouchTarget)
                     .clickable { onBack() }
-                    .semantics { contentDescription = "Back" },
+                    // The title is spoken here rather than drawn twice. Every one of these
+                    // screens already opens with its own heading, and a bar repeating it
+                    // showed "LICENCES" above "LICENCES" on a real handset.
+                    .semantics { contentDescription = "Back from " + title },
                 contentAlignment = Alignment.CenterStart,
             ) {
                 Text("‹", fontSize = 34.sp, color = Tokens.Ink)
             }
-            Text(title, fontSize = Tokens.Title, fontWeight = FontWeight.Bold, color = Tokens.Ink)
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.Rule))
         content()
@@ -223,6 +225,11 @@ private fun MenuScreen(onOpen: (Destination) -> Unit) {
             Destination.LICENCES to "What this application is built from",
         )
     LazyColumn(Modifier.fillMaxSize().padding(Tokens.ScreenMargin)) {
+        item {
+            // The heading the other six screens each carry for themselves.
+            Text("SETTINGS", fontSize = Tokens.Title, fontWeight = FontWeight.Bold, color = Tokens.Ink)
+            Spacer(Modifier.height(Tokens.Grid))
+        }
         items(rows) { (destination, blurb) ->
             Column(
                 Modifier
