@@ -2,6 +2,7 @@ package org.itantra.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -73,12 +74,13 @@ fun OperatingScreen(
     onTransmitChange: (Boolean) -> Unit,
     onAlert: () -> Unit,
     onPosition: () -> Unit,
+    onLanguage: () -> Unit,
     onMenu: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize().background(Tokens.Paper)) {
         StatusBand(state, onMenu)
-        ModeBand(state)
+        ModeBand(state, onLanguage)
 
         // Band C. `weight` rather than a fixed height, so it grows with the screen and
         // still satisfies rule 1 on a taller handset.
@@ -209,7 +211,10 @@ private fun StatusBand(
 // ── B ────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun ModeBand(state: OperatingState) {
+private fun ModeBand(
+    state: OperatingState,
+    onLanguage: () -> Unit,
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -232,6 +237,7 @@ private fun ModeBand(state: OperatingState) {
             modifier =
                 Modifier
                     .heightIn(min = Tokens.TouchTarget)
+                    .clickable { onLanguage() }
                     .semantics { contentDescription = "Language ${state.language}. Change." },
         )
     }

@@ -81,9 +81,29 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     sourceSets["main"].java.srcDir("src/main/kotlin")
+    // The deployment profile is copied into the APK from models/ rather than kept as a
+    // second copy under app/. Two copies of a template table is exactly the drift
+    // PROTOCOL.md section 5.2 calls a safety defect: byte 0x02 meaning one sentence on one
+    // handset and another elsewhere. One file, copied at build time.
+    sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/assets"))
     sourceSets["test"].java.srcDir("src/test/kotlin")
     sourceSets["androidTest"].java.srcDir("src/androidTest/kotlin")
 }
+
+/**
+ * Copies the deployment profile into the APK from `models/`.
+ *
+ * Every unit must hold the *same* table: byte 0x02 meaning "evacuate immediately" on one
+ * handset and "position secure" on another is a safety defect, not a compatibility one —
+ * `docs/PROTOCOL.md` section 5.2. Keeping a second copy under `app/` is how those two
+ * tables drift apart, so there is one file and the build copies it.
+ */
+val copyDeploymentProfile by tasks.registering(Copy::class) {
+    from(rootProject.file("models/templates/templates.json"))
+    into(layout.buildDirectory.dir("generated/assets"))
+}
+
+tasks.named("preBuild") { dependsOn(copyDeploymentProfile) }
 
 dependencies {
     implementation(project(":core-audio"))
