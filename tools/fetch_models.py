@@ -109,7 +109,12 @@ def install(artefact: dict, base_url: str, into: pathlib.Path, verify_only: bool
     problems = []
     expected = artefact["sha256"]
 
-    for name in artefact["files"]:
+    # Where a file is published is not always what it is called once installed. Odia's
+    # vocabulary ships as vocab.txt and is installed as tokens.txt, so that one loader
+    # config serves all ten languages instead of nine plus a special case.
+    remote_names = artefact.get("remote") or artefact["files"]
+
+    for name, remote in zip(artefact["files"], remote_names):
         target = into / name
         if expected == PLACEHOLDER:
             # Said out loud rather than passed over. A run that prints "installed" for a
@@ -136,7 +141,7 @@ def install(artefact: dict, base_url: str, into: pathlib.Path, verify_only: bool
         # per-language subdirectory has nowhere to stage them otherwise.
         staged.parent.mkdir(parents=True, exist_ok=True)
         print(f"   {name}: fetching")
-        download(f"{base_url.rstrip('/')}/{name}", staged, artefact["bytes"])
+        download(f"{base_url.rstrip('/')}/{remote}", staged, artefact["bytes"])
 
         actual = sha256_of(staged)
         if actual != expected:

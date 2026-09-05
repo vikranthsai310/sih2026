@@ -27,6 +27,8 @@ iTantra is released under **Apache-2.0**, subject to the copyleft note in §6.
 | Component | Licence | Role |
 | --- | --- | --- |
 | AI4Bharat IndicConformer | Permissive | Production acoustic models, all ten languages |
+| parismitaglobalsolutions / indicconformer-sherpa-onnx | Apache-2.0 | IndicConformer converted to sherpa-onnx form; nine languages, fetched at setup |
+| OpenVoiceOS / ai4bharat-indicconformer-or-onnx | MIT | The same model for **Odia**, which the conversion above does not cover |
 | alphacep / vosk-api | Apache-2.0 | Week-one prototype; schedule insurance |
 | NVIDIA / NeMo | Apache-2.0 | ONNX export tooling and fine-tuning recipes |
 | k2-fsa / icefall | Apache-2.0 | Streaming Zipformer training recipes, if fine-tuning is undertaken |

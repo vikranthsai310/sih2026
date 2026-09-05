@@ -464,7 +464,35 @@
       },
       "confidenceLow": -1.8,
       "confidenceHigh": -0.6,
-      "asr": null
+      "asr": {
+        "family": "IndicConformer (AI4Bharat), int8, NeMo conformer-CTC",
+        "licence": "MIT",
+        "source": "https://huggingface.co/OpenVoiceOS/ai4bharat-indicconformer-or-onnx",
+        "baseUrl": "https://huggingface.co/OpenVoiceOS/ai4bharat-indicconformer-or-onnx/resolve/main",
+        "note": "A different publisher from the other nine. The sherpa-onnx conversion that covers hi, bn, mr, te, ml, ta, gu, kn and en has no Odia export; this one declares model_type \"nemo-conformer-ctc\" with 80 features and the same \"token id\" vocabulary format, so it loads through the identical config. Its vocabulary is published as vocab.txt and is installed as tokens.txt, which is why these artefacts carry a \"remote\" name.",
+        "artefacts": [
+          {
+            "files": [
+              "or/model.int8.onnx"
+            ],
+            "remote": [
+              "model.int8.onnx"
+            ],
+            "bytes": 137677313,
+            "sha256": "175d16b83013d0426883beeb5783808f9b08fa3117827606cac417ec14c0223f"
+          },
+          {
+            "files": [
+              "or/tokens.txt"
+            ],
+            "remote": [
+              "vocab.txt"
+            ],
+            "bytes": 2757,
+            "sha256": "5d0dd452e34581c34f5636ed1860c2ef086988bc837570e0805045101cef9130"
+          }
+        ]
+      }
     },
     {
       "lang": "en",

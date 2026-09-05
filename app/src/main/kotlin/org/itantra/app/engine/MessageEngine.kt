@@ -626,23 +626,43 @@ class MessageEngine(
      * installer target means they cannot be bundled either.
      */
     private fun ensurePackFor(target: Language) {
-        // Loading a 189 MB graph takes seconds. Paid here, while nobody is speaking, rather
-        // than on the first press.
-        (speech as? SherpaSpeech)?.preload(target.code)
         corrector = lexicons(target.code)?.let { LexiconCorrector(it) }
-        val ready = speech?.isReady(target.code) == true
+        val sherpa = speech as? SherpaSpeech
+        val installed = speech?.isReady(target.code) == true
+
         _state.value =
             _state.value.copy(
                 languages = languageOptions(),
-                speechNote =
-                    if (ready) {
-                        null
-                    } else {
-                        "No ${displayNameFor(target)} speech model on this handset. " +
-                            "Transmit sends a template."
-                    },
+                speechNote = packNote(target, installed, sherpa?.isLoaded(target.code) ?: installed),
             )
+        if (!installed) return
+
+        // Loading a 130-190 MB graph takes seconds, and it is paid here -- on the language
+        // change, while nobody is speaking -- rather than on the first press. The note is
+        // rewritten when it lands so the operator knows when the unit can actually hear.
+        sherpa?.preload(target.code) {
+            if (target != language) return@preload
+            _state.value =
+                _state.value.copy(
+                    languages = languageOptions(),
+                    speechNote = packNote(target, installed = true, loaded = true),
+                )
+        }
     }
+
+    private fun packNote(
+        target: Language,
+        installed: Boolean,
+        loaded: Boolean,
+    ): String? =
+        when {
+            !installed ->
+                "No ${displayNameFor(target)} speech model on this handset. " +
+                    "Transmit sends a template."
+
+            !loaded -> "Loading the ${displayNameFor(target)} model…"
+            else -> null
+        }
 
     /** The languages this unit can render, and what it can do with each of them. */
     fun languageOptions(): List<LanguageOption> = languageOptions(speech)

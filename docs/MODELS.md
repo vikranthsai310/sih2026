@@ -26,10 +26,17 @@ does exist is a self-contained ~189 MB int8 model per language sharing one multi
 `core-models` are untouched, and it carries a note saying it describes the intention rather
 than the artefact.
 
-**Nine of ten.** There is no IndicConformer export in sherpa-onnx form for **Odia**. The
-`ai4bharat/indicconformer_stt_or_hybrid_ctc_rnnt_large` checkpoint exists in NeMo format and
-would have to be exported. Until then Odia renders, transmits and receives — it cannot be
-spoken *into*. The manifest declares `"asr": null` for it and the fetcher says so out loud.
+**Ten of ten, from two publishers.** The sherpa-onnx conversion above covers nine
+languages and has no Odia export. `OpenVoiceOS/ai4bharat-indicconformer-or-onnx` (**MIT**)
+does: the same AI4Bharat model, declaring `model_type: "nemo-conformer-ctc"` with 80
+features and the same `token id` vocabulary format, so it loads through the identical
+`OfflineNemoEncDecCtcModelConfig` rather than needing a special case. It publishes its
+vocabulary as `vocab.txt` and it is installed as `tokens.txt`, which is why manifest
+artefacts may carry a `remote` name distinct from the installed one.
+
+Two publishers for one language set is worth stating rather than hiding: the Odia weights
+were converted by someone else, and the `source` field in each pack's `asr` block records
+which. Both are AI4Bharat's IndicConformer underneath, both permissively licensed.
 
 **Voices, checked rather than assumed.** Piper publishes voices for Hindi, Marathi,
 Malayalam, Telugu, Bengali and English, and none for **Tamil, Gujarati, Kannada or Odia** —

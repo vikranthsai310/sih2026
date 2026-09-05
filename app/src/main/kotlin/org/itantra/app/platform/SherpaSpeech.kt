@@ -79,10 +79,30 @@ class SherpaSpeech(
      * press is how an operator loses their first sentence. Called when the language is
      * chosen so the cost is paid while nobody is talking.
      */
-    fun preload(languageCode: String) {
-        if (!isReady(languageCode) || loadedFor == languageCode) return
-        worker.execute { load(languageCode) }
+    fun preload(
+        languageCode: String,
+        onLoaded: () -> Unit = {},
+    ) {
+        if (!isReady(languageCode)) return
+        if (loadedFor == languageCode) {
+            onLoaded()
+            return
+        }
+        worker.execute {
+            load(languageCode)
+            onLoaded()
+        }
     }
+
+    /**
+     * Whether this language's model is resident *now*, as opposed to merely installed.
+     *
+     * The difference is several seconds and it is what the operator experiences on a
+     * language change: the pack is on disk, so [isReady] is true, and a press in that window
+     * would find nothing to decode with. The screen says "loading" rather than pretending
+     * either that it is ready or that it is missing.
+     */
+    fun isLoaded(languageCode: String): Boolean = loadedFor == languageCode
 
     private fun load(languageCode: String): SherpaRecogniser? {
         if (loadedFor == languageCode) return recogniser
