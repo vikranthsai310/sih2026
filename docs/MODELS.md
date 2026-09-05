@@ -4,6 +4,45 @@ Implemented by `core-models`. Shipping ten languages in the installer would prod
 package of roughly seven hundred megabytes and forfeit the efficiency criterion. Assets are
 therefore modular.
 
+## 0. Where the recogniser's models actually come from
+
+Written after the fact, because what is publishable today is not what this document was
+planned around.
+
+**Source:** `parismitaglobalsolutions/indicconformer-sherpa-onnx` on Hugging Face,
+**Apache-2.0** — AI4Bharat's IndicConformer exported to sherpa-onnx form and quantised to
+int8. `models/manifest.json` now carries the real URL, byte count and SHA-256 for every
+language, taken from the repository's own Git-LFS object ids and, for the files small enough
+to be stored inline, computed from an actual download. `tools/fetch_models.py` no longer
+refuses to run.
+
+**One model per language, not a shared encoder.** Section 1 below assumes a single shared
+acoustic model with a small vocabulary per language. That is the better design and it is
+not what exists: the only multilingual export published
+(`ai4bharat/indic-conformer-600m-multilingual`) stores its encoder weights as several
+hundred external-data blobs, which neither the fetcher nor sherpa-onnx loads directly. What
+does exist is a self-contained ~189 MB int8 model per language sharing one multilingual
+5,633-token table. The `shared` block in the manifest is retained so the schema and
+`core-models` are untouched, and it carries a note saying it describes the intention rather
+than the artefact.
+
+**Nine of ten.** There is no IndicConformer export in sherpa-onnx form for **Odia**. The
+`ai4bharat/indicconformer_stt_or_hybrid_ctc_rnnt_large` checkpoint exists in NeMo format and
+would have to be exported. Until then Odia renders, transmits and receives — it cannot be
+spoken *into*. The manifest declares `"asr": null` for it and the fetcher says so out loud.
+
+**Voices, checked rather than assumed.** Piper publishes voices for Hindi, Marathi,
+Malayalam, Telugu, Bengali and English, and none for **Tamil, Gujarati, Kannada or Odia** —
+verified against `rhasspy/piper-voices` `voices.json`, and exactly what `LICENSES.md`
+section 6 already recorded.
+
+**What is not used.** Android's `SpeechRecognizer`. It works, it is offline, and
+`REQUIREMENTS.md` constraint **C1** rules it out by name: on this handset it is served by
+Google Speech Services, and ISRO prohibits "proprietary, closed-source, or commercial
+voice-activation SDKs". It was briefly wired into push-to-talk and has been removed. The
+40 % Accuracy criterion is measured as word error rate, so a build recognising through
+Google would have had a jury measuring Google's model rather than this one's.
+
 ## 1. Delivery
 
 | Component | Size | Delivery |

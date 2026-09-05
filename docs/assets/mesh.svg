@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 480" width="1000" height="480" role="img" aria-labelledby="t d">
+  <title id="t">One handset speaks; many handsets hear</title>
+  <desc id="d">Speech is recognised on the sending handset and sent as a 44-byte packet. Three handsets receive it directly over the radio link and a fourth is reached by a relay hop. Each re-synthesises the speech locally.</desc>
+
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#172E3B"/>
+      <stop offset="1" stop-color="#0F212B"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#F48C22" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#16A04C" stop-opacity=".30"/>
+    </linearGradient>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- reusable receiving handset -->
+    <g id="peer">
+      <rect x="0" y="0" width="84" height="146" rx="14" fill="url(#body)" stroke="#2C4A5A" stroke-width="1.5"/>
+      <rect x="7" y="9" width="70" height="118" rx="8" fill="#0A1A22"/>
+      <rect x="32" y="4" width="20" height="3" rx="1.5" fill="#2C4A5A"/>
+      <rect x="30" y="134" width="24" height="3" rx="1.5" fill="#223E4C"/>
+    </g>
+  </defs>
+
+  <style>
+    .lbl   { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .cap   { font-size: 13px; letter-spacing: 2.4px; fill: #6F8E9E; }
+    .name  { font-size: 15px; fill: #C7D8E1; }
+    .muted { font-size: 12.5px; fill: #6F8E9E; }
+    .mono  { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+
+    /* ---- voice bars on the speaking handset ---- */
+    .bar { fill: #F48C22; transform-box: fill-box; transform-origin: 50% 50%; animation: talk 1s ease-in-out infinite; }
+    .b2 { animation-delay: .12s } .b3 { animation-delay: .24s }
+    .b4 { animation-delay: .36s } .b5 { animation-delay: .48s } .b6 { animation-delay: .60s }
+    @keyframes talk { 0%,100% { transform: scaleY(.28) } 50% { transform: scaleY(1) } }
+
+    /* ---- broadcast rings leaving the speaker ---- */
+    .ring { fill: none; stroke: #F48C22; stroke-width: 2; opacity: 0; animation: ping 4s ease-out infinite; }
+    .r2 { animation-delay: .5s } .r3 { animation-delay: 1s }
+    @keyframes ping {
+      0%   { r: 8;  opacity: .55 }
+      35%  { r: 78; opacity: 0 }
+      100% { r: 78; opacity: 0 }
+    }
+
+    /* ---- packets in flight (one cycle = 4s, shared by everything) ---- */
+    .pkt { fill: #F7A63F; filter: url(#glow); opacity: 0; }
+    .f1 { animation: fly1 4s linear infinite }
+    .f2 { animation: fly2 4s linear infinite }
+    .f3 { animation: fly3 4s linear infinite }
+    .f4 { animation: fly4 4s linear infinite }
+    @keyframes fly1 { 0%{transform:translateX(0);opacity:0} 6%{opacity:1} 38%{transform:translateX(434px);opacity:1} 42%,100%{transform:translateX(434px);opacity:0} }
+    @keyframes fly2 { 0%{transform:translateX(0);opacity:0} 6%{opacity:1} 38%{transform:translateX(410px);opacity:1} 42%,100%{transform:translateX(410px);opacity:0} }
+    @keyframes fly3 { 0%{transform:translateX(0);opacity:0} 6%{opacity:1} 38%{transform:translateX(434px);opacity:1} 42%,100%{transform:translateX(434px);opacity:0} }
+    /* relay hop departs only after the second handset has the packet */
+    @keyframes fly4 { 0%,42%{transform:translateX(0);opacity:0} 46%{opacity:1} 60%{transform:translateX(136px);opacity:1} 64%,100%{transform:translateX(136px);opacity:0} }
+
+    /* ---- screens light up on arrival ---- */
+    .lit  { fill: #16A04C; opacity: 0; animation: wake 4s ease-out infinite; }
+    .lit4 { animation: wake4 4s ease-out infinite }
+    @keyframes wake  { 0%,36%{opacity:0} 42%{opacity:.20} 70%{opacity:0} 100%{opacity:0} }
+    @keyframes wake4 { 0%,58%{opacity:0} 64%{opacity:.20} 90%{opacity:0} 100%{opacity:0} }
+
+    .out  { fill: none; stroke: #16A04C; stroke-width: 2; opacity: 0; animation: heard 4s ease-out infinite; }
+    .out4 { animation: heard4 4s ease-out infinite }
+    @keyframes heard  { 0%,36%{opacity:0; r:6} 44%{opacity:.75} 72%{opacity:0; r:30} 100%{opacity:0} }
+    @keyframes heard4 { 0%,58%{opacity:0; r:6} 66%{opacity:.75} 92%{opacity:0; r:30} 100%{opacity:0} }
+  </style>
+
+  <!-- backdrop: carried by the graphic so it reads identically in light and dark themes -->
+  <rect width="1000" height="480" rx="20" fill="#0B1720"/>
+  <rect x=".75" y=".75" width="998.5" height="478.5" rx="19.5" fill="none" stroke="#1C2F3C"/>
+
+  <text class="lbl cap" x="40" y="46">ONE SPEAKS &#183; MANY HEAR</text>
+  <text class="lbl muted" x="40" y="68">Meaning crosses the link, not the waveform</text>
+
+  <!-- ============ beams ============ -->
+  <g stroke="url(#beam)" stroke-width="1.5" stroke-dasharray="5 7">
+    <path d="M200 255 L610 113"/>
+    <path d="M200 255 L610 258"/>
+    <path d="M200 255 L610 398"/>
+    <path d="M694 258 L830 258" stroke-dasharray="3 5"/>
+  </g>
+
+  <!-- ============ the speaking handset ============ -->
+  <g>
+    <rect x="70" y="150" width="130" height="210" rx="18" fill="url(#body)" stroke="#3A6072" stroke-width="1.8"/>
+    <rect x="79" y="161" width="112" height="176" rx="10" fill="#0A1A22"/>
+    <rect x="118" y="155" width="34" height="4" rx="2" fill="#3A6072"/>
+    <rect x="116" y="345" width="38" height="4" rx="2" fill="#2C4A5A"/>
+    <!-- live voice -->
+    <g>
+      <rect class="bar b1" x="99"  y="209" width="8" height="80" rx="4"/>
+      <rect class="bar b2" x="115" y="209" width="8" height="80" rx="4"/>
+      <rect class="bar b3" x="131" y="209" width="8" height="80" rx="4"/>
+      <rect class="bar b4" x="147" y="209" width="8" height="80" rx="4"/>
+      <rect class="bar b5" x="163" y="209" width="8" height="80" rx="4"/>
+    </g>
+    <text class="lbl cap" x="135" y="392" text-anchor="middle" fill="#F48C22">SPEAK</text>
+    <text class="lbl muted" x="135" y="412" text-anchor="middle">recognised on device</text>
+  </g>
+
+  <!-- broadcast rings -->
+  <g>
+    <circle class="ring r1" cx="200" cy="255"/>
+    <circle class="ring r2" cx="200" cy="255"/>
+    <circle class="ring r3" cx="200" cy="255"/>
+  </g>
+
+  <!-- ============ packets ============ -->
+  <g transform="translate(200 255) rotate(-19.11)"><rect class="pkt f1" x="-11" y="-8" width="22" height="16" rx="5"/></g>
+  <g transform="translate(200 255) rotate(0.42)"><rect class="pkt f2" x="-11" y="-8" width="22" height="16" rx="5"/></g>
+  <g transform="translate(200 255) rotate(19.24)"><rect class="pkt f3" x="-11" y="-8" width="22" height="16" rx="5"/></g>
+  <g transform="translate(694 258)"><rect class="pkt f4" x="-9" y="-7" width="18" height="14" rx="4"/></g>
+
+  <!-- payload legend, sitting on the centre beam -->
+  <g transform="translate(405 232)">
+    <rect x="-52" y="-15" width="104" height="30" rx="15" fill="#0E212C" stroke="#2C4A5A"/>
+    <text class="lbl mono" x="0" y="5" text-anchor="middle" font-size="14" fill="#F7A63F">44 bytes</text>
+  </g>
+
+  <!-- ============ receiving handsets ============ -->
+  <g transform="translate(610 40)">
+    <use href="#peer"/>
+    <rect class="lit" x="7" y="9" width="70" height="118" rx="8"/>
+    <circle class="out" cx="42" cy="68"/>
+  </g>
+  <g transform="translate(610 185)">
+    <use href="#peer"/>
+    <rect class="lit" x="7" y="9" width="70" height="118" rx="8" style="animation-delay:.06s"/>
+    <circle class="out" cx="42" cy="68" style="animation-delay:.06s"/>
+  </g>
+  <g transform="translate(610 325)">
+    <use href="#peer"/>
+    <rect class="lit" x="7" y="9" width="70" height="118" rx="8" style="animation-delay:.12s"/>
+    <circle class="out" cx="42" cy="68" style="animation-delay:.12s"/>
+  </g>
+
+  <!-- reached by a relay hop, not by the original transmission -->
+  <g transform="translate(830 185)">
+    <use href="#peer"/>
+    <rect class="lit lit4" x="7" y="9" width="70" height="118" rx="8"/>
+    <circle class="out out4" cx="42" cy="68"/>
+  </g>
+
+  <text class="lbl cap" x="652" y="182" text-anchor="middle" fill="#16A04C">HEAR</text>
+  <text class="lbl muted" x="762" y="240" text-anchor="middle">relay hop</text>
+  <text class="lbl muted" x="652" y="497" text-anchor="middle">re-synthesised locally</text>
+</svg>

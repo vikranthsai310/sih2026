@@ -97,7 +97,6 @@ data class AppState(
 data class AppActions(
     val onTransmitChange: (Boolean) -> Unit,
     val onAlert: () -> Unit,
-    val onPosition: () -> Unit,
     val onLanguageChosen: (String) -> Unit,
     /** Reads an asset under `licences/`. Null when the file is missing. */
     val readLicence: (String) -> String?,
@@ -121,7 +120,6 @@ fun ItantraApp(
             state = state.operating,
             onTransmitChange = actions.onTransmitChange,
             onAlert = actions.onAlert,
-            onPosition = actions.onPosition,
             onLanguageSelected = actions.onLanguageChosen,
             onMenu = { where = Destination.MENU },
             modifier = modifier,

@@ -22,7 +22,6 @@ import org.itantra.app.engine.MessageEngine
 import org.itantra.app.platform.DataStoreEpochStore
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.PushToTalkKey
-import org.itantra.app.platform.SpeechInput
 import org.itantra.app.ui.AppActions
 import org.itantra.app.ui.AppState
 import org.itantra.app.ui.ItantraApp
@@ -108,7 +107,6 @@ class MainActivity : ComponentActivity() {
                     AppActions(
                         onTransmitChange = { running?.onTransmit(it) },
                         onAlert = { running?.onAlert() },
-                        onPosition = { },
                         onLanguageChosen = { running?.onLanguageChosen(it) },
                         readLicence = ::readLicence,
                     ),
@@ -233,7 +231,6 @@ class MainActivity : ComponentActivity() {
                 epochStore = DataStoreEpochStore(applicationContext),
                 templates = deploymentProfile(),
                 bondedDevices = { bonded(adapter) },
-                speech = SpeechInput(applicationContext),
             ).also { it.start() }
         return true
     }

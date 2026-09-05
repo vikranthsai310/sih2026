@@ -142,6 +142,7 @@ def install(artefact: dict, base_url: str, into: pathlib.Path, verify_only: bool
             continue
 
         # The rename is the install. Everything before it is reversible.
+        target.parent.mkdir(parents=True, exist_ok=True)
         staged.replace(target)
         print(f"   {name}: verified and installed")
 
@@ -168,9 +169,12 @@ def main() -> int:
     if unknown:
         sys.exit(f"::error::not in the manifest: {', '.join(unknown)}. Known: {', '.join(sorted(packs))}")
 
+    # The recogniser's own models now have a real published home, so --base-url is only
+    # needed for the artefacts that do not: the voices, and the lexicons. Each pack's "asr"
+    # block carries its own baseUrl, because that is where those files actually are.
     if not args.base_url and not args.verify_only:
-        sys.exit("::error::--base-url is required to download. The artefacts are not published yet; "
-                 "run with --verify-only to check what is already on disk.")
+        print("no --base-url: fetching the ASR models only. Voices and lexicons are not "
+              "published yet and will be reported as absent.")
 
     into = pathlib.Path(args.into)
     into.mkdir(parents=True, exist_ok=True)
@@ -185,6 +189,21 @@ def main() -> int:
     for lang in wanted:
         pack = packs[lang]
         print(f"\n{lang}: {pack['displayName']} ({pack['script']})")
+
+        # The recogniser. One self-contained int8 model per language, Apache-2.0, at the URL
+        # the block names -- see MODELS.md on why this is per-language rather than the
+        # shared encoder the "shared" block above still describes.
+        asr = pack.get("asr")
+        if asr:
+            print(f"   asr: {asr['family']}")
+            for artefact in asr["artefacts"]:
+                problems += install(artefact, asr["baseUrl"], into / "asr", args.verify_only)
+        else:
+            # Not a failure, and not silent. Odia has no IndicConformer export published in
+            # sherpa-onnx form, so this language displays and transmits but cannot be
+            # spoken *into* on this build. LICENSES.md and MODELS.md both say so.
+            print("   no recogniser: no model published for this language yet")
+
         problems += install(pack["vocabulary"], args.base_url, into / "lexicon", args.verify_only)
         if pack["tts"]:
             problems += install(pack["tts"], args.base_url, into / "voices", args.verify_only)

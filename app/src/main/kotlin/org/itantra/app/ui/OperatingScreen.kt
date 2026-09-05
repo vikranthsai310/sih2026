@@ -87,7 +87,6 @@ fun OperatingScreen(
     state: OperatingState,
     onTransmitChange: (Boolean) -> Unit,
     onAlert: () -> Unit,
-    onPosition: () -> Unit,
     onLanguageSelected: (String) -> Unit,
     onMenu: () -> Unit,
     modifier: Modifier = Modifier,
@@ -120,7 +119,7 @@ fun OperatingScreen(
         }
         state.speechNote?.let { SpeechNote(it) }
 
-        SecondaryBand(onAlert, onPosition)
+        SecondaryBand(onAlert)
         TrafficBand(state, modifier = Modifier.fillMaxWidth().weight(TRAFFIC_WEIGHT))
         state.degraded?.let { DegradedBanner(it) }
         InstrumentBand(state)
@@ -521,25 +520,21 @@ private fun SpeechNote(note: String) {
 // ── D ────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun SecondaryBand(
-    onAlert: () -> Unit,
-    onPosition: () -> Unit,
-) {
+private fun SecondaryBand(onAlert: () -> Unit) {
     Divider()
-    // `IntrinsicSize.Min` rather than nothing, and this is not a style preference.
+    // One control, the full width, because POSITION was cut.
     //
-    // A `Column` measures its non-weighted children first, handing each one all the space
-    // the weighted children have not taken yet. The `fillMaxHeight` on the 1 dp rule below
-    // took that literally: it grew to the whole remaining screen, this row grew with it,
-    // and bands C, E and F were left with zero height. The transmit control, the traffic
-    // list and the instrumentation strip all vanished behind a hairline divider.
+    // The words "position" and "location" appear nowhere in ISRO's problem statement.
+    // docs/RISKS.md P-07 names position as unrequired work at High risk, and
+    // docs/ROADMAP.md section 4 puts it third on the cut list: "Multi-hop relay, POSITION,
+    // store-and-forward -- none of these appear in the problem statement; they are ours."
+    // Implementing it also meant a location permission, for a coordinate nobody asked for.
     //
-    // Measuring the row at its minimum intrinsic height bounds it to its content, and keeps
-    // rule 9 — no fixed height on anything containing text, so it still grows at 200 %.
+    // ALERT stays, and is now twice the target it was. It is one of only two things
+    // ROADMAP.md marks "never cut", and it is ISRO's own words: "alert type messages will
+    // be announced at highest volume non-interruptible".
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         SecondaryAction("⚠", "ALERT", Tokens.Alert, Modifier.weight(1f), onAlert)
-        Box(Modifier.width(1.dp).fillMaxHeight().background(Tokens.Rule))
-        SecondaryAction("⌖", "POSITION", Tokens.Ink, Modifier.weight(1f), onPosition)
     }
     Divider()
 }

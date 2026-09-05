@@ -3,10 +3,15 @@
   "shared": {
     "family": "IndicConformer",
     "licence": "Permissive",
-    "files": ["encoder.int8.onnx", "decoder.onnx", "joiner.onnx"],
+    "files": [
+      "encoder.int8.onnx",
+      "decoder.onnx",
+      "joiner.onnx"
+    ],
     "bytes": 125829120,
     "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-    "numThreads": 2
+    "numThreads": 2,
+    "note": "Describes the intended shared-encoder design, which is NOT what ships. The only IndicConformer artefacts published in sherpa-onnx form today are one self-contained int8 model per language (see each pack's \"asr\" block). The multilingual shared-encoder export exists but stores its weights as hundreds of external-data blobs, which neither this fetcher nor sherpa-onnx loads directly. Kept so the schema and core-models Manifest.kt are unchanged; MODELS.md carries the reasoning."
   },
   "packs": [
     {
@@ -16,21 +21,55 @@
       "script": "Devanagari",
       "blockBase": "U+0900",
       "vocabulary": {
-        "files": ["tokens.hi.txt", "alert-lexicon.hi.txt", "negation.hi.txt"],
+        "files": [
+          "tokens.hi.txt",
+          "alert-lexicon.hi.txt",
+          "negation.hi.txt"
+        ],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "tts": {
         "family": "Piper",
         "licence": "MIT",
-        "files": ["hi_IN-pratham-medium.onnx", "hi_IN-pratham-medium.onnx.json"],
+        "files": [
+          "hi_IN-pratham-medium.onnx",
+          "hi_IN-pratham-medium.onnx.json"
+        ],
         "bytes": 63963136,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
         "sampleRate": 22050
       },
-      "rules": { "files": ["normalise.hi.json"], "version": 3 },
+      "rules": {
+        "files": [
+          "normalise.hi.json"
+        ],
+        "version": 3
+      },
       "confidenceLow": -1.8,
-      "confidenceHigh": -0.6
+      "confidenceHigh": -0.6,
+      "asr": {
+        "family": "IndicConformer (AI4Bharat), int8, exported for sherpa-onnx",
+        "licence": "Apache-2.0",
+        "source": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx",
+        "baseUrl": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main",
+        "artefacts": [
+          {
+            "files": [
+              "hi/model.int8.onnx"
+            ],
+            "bytes": 197595593,
+            "sha256": "915c71e04dd7e5378a4057fdebb252b3a587188e4e99db6d7ce0909ad5ad05fa"
+          },
+          {
+            "files": [
+              "tokens.txt"
+            ],
+            "bytes": 67605,
+            "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2"
+          }
+        ]
+      }
     },
     {
       "lang": "bn",
@@ -39,21 +78,55 @@
       "script": "Bengali",
       "blockBase": "U+0980",
       "vocabulary": {
-        "files": ["tokens.bn.txt", "alert-lexicon.bn.txt", "negation.bn.txt"],
+        "files": [
+          "tokens.bn.txt",
+          "alert-lexicon.bn.txt",
+          "negation.bn.txt"
+        ],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "tts": {
         "family": "Piper",
         "licence": "MIT",
-        "files": ["bn_IN-medium.onnx", "bn_IN-medium.onnx.json"],
+        "files": [
+          "bn_IN-medium.onnx",
+          "bn_IN-medium.onnx.json"
+        ],
         "bytes": 63963136,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
         "sampleRate": 22050
       },
-      "rules": { "files": ["normalise.bn.json"], "version": 1 },
+      "rules": {
+        "files": [
+          "normalise.bn.json"
+        ],
+        "version": 1
+      },
       "confidenceLow": -1.8,
-      "confidenceHigh": -0.6
+      "confidenceHigh": -0.6,
+      "asr": {
+        "family": "IndicConformer (AI4Bharat), int8, exported for sherpa-onnx",
+        "licence": "Apache-2.0",
+        "source": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx",
+        "baseUrl": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main",
+        "artefacts": [
+          {
+            "files": [
+              "bn/model.int8.onnx"
+            ],
+            "bytes": 197595578,
+            "sha256": "e9120a534f69df065314be468bf15579f1b92a4cd8c07ad119b80b69244718a8"
+          },
+          {
+            "files": [
+              "tokens.txt"
+            ],
+            "bytes": 67605,
+            "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2"
+          }
+        ]
+      }
     },
     {
       "lang": "mr",
@@ -62,21 +135,55 @@
       "script": "Devanagari",
       "blockBase": "U+0900",
       "vocabulary": {
-        "files": ["tokens.mr.txt", "alert-lexicon.mr.txt", "negation.mr.txt"],
+        "files": [
+          "tokens.mr.txt",
+          "alert-lexicon.mr.txt",
+          "negation.mr.txt"
+        ],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "tts": {
         "family": "Piper",
         "licence": "MIT",
-        "files": ["mr_IN-medium.onnx", "mr_IN-medium.onnx.json"],
+        "files": [
+          "mr_IN-medium.onnx",
+          "mr_IN-medium.onnx.json"
+        ],
         "bytes": 63963136,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
         "sampleRate": 22050
       },
-      "rules": { "files": ["normalise.mr.json"], "version": 1 },
+      "rules": {
+        "files": [
+          "normalise.mr.json"
+        ],
+        "version": 1
+      },
       "confidenceLow": -1.8,
-      "confidenceHigh": -0.6
+      "confidenceHigh": -0.6,
+      "asr": {
+        "family": "IndicConformer (AI4Bharat), int8, exported for sherpa-onnx",
+        "licence": "Apache-2.0",
+        "source": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx",
+        "baseUrl": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main",
+        "artefacts": [
+          {
+            "files": [
+              "mr/model.int8.onnx"
+            ],
+            "bytes": 197595593,
+            "sha256": "1ea81e55c4b9b12624c9d02a5b9c1b6f7c871c78a55ff52d333f81cb5136eaf2"
+          },
+          {
+            "files": [
+              "tokens.txt"
+            ],
+            "bytes": 67605,
+            "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2"
+          }
+        ]
+      }
     },
     {
       "lang": "te",
@@ -85,21 +192,55 @@
       "script": "Telugu",
       "blockBase": "U+0C00",
       "vocabulary": {
-        "files": ["tokens.te.txt", "alert-lexicon.te.txt", "negation.te.txt"],
+        "files": [
+          "tokens.te.txt",
+          "alert-lexicon.te.txt",
+          "negation.te.txt"
+        ],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "tts": {
         "family": "Piper",
         "licence": "MIT",
-        "files": ["te_IN-medium.onnx", "te_IN-medium.onnx.json"],
+        "files": [
+          "te_IN-medium.onnx",
+          "te_IN-medium.onnx.json"
+        ],
         "bytes": 63963136,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
         "sampleRate": 22050
       },
-      "rules": { "files": ["normalise.te.json"], "version": 1 },
+      "rules": {
+        "files": [
+          "normalise.te.json"
+        ],
+        "version": 1
+      },
       "confidenceLow": -1.8,
-      "confidenceHigh": -0.6
+      "confidenceHigh": -0.6,
+      "asr": {
+        "family": "IndicConformer (AI4Bharat), int8, exported for sherpa-onnx",
+        "licence": "Apache-2.0",
+        "source": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx",
+        "baseUrl": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main",
+        "artefacts": [
+          {
+            "files": [
+              "te/model.int8.onnx"
+            ],
+            "bytes": 197595693,
+            "sha256": "710f176e33080f1be84b4f38bb5f33be3f522dcf4f191bf4d5cc89f7a85924f3"
+          },
+          {
+            "files": [
+              "tokens.txt"
+            ],
+            "bytes": 67605,
+            "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2"
+          }
+        ]
+      }
     },
     {
       "lang": "ml",
@@ -108,21 +249,55 @@
       "script": "Malayalam",
       "blockBase": "U+0D00",
       "vocabulary": {
-        "files": ["tokens.ml.txt", "alert-lexicon.ml.txt", "negation.ml.txt"],
+        "files": [
+          "tokens.ml.txt",
+          "alert-lexicon.ml.txt",
+          "negation.ml.txt"
+        ],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "tts": {
         "family": "Piper",
         "licence": "MIT",
-        "files": ["ml_IN-meera-medium.onnx", "ml_IN-meera-medium.onnx.json"],
+        "files": [
+          "ml_IN-meera-medium.onnx",
+          "ml_IN-meera-medium.onnx.json"
+        ],
         "bytes": 63963136,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
         "sampleRate": 22050
       },
-      "rules": { "files": ["normalise.ml.json"], "version": 1 },
+      "rules": {
+        "files": [
+          "normalise.ml.json"
+        ],
+        "version": 1
+      },
       "confidenceLow": -1.8,
-      "confidenceHigh": -0.6
+      "confidenceHigh": -0.6,
+      "asr": {
+        "family": "IndicConformer (AI4Bharat), int8, exported for sherpa-onnx",
+        "licence": "Apache-2.0",
+        "source": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx",
+        "baseUrl": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main",
+        "artefacts": [
+          {
+            "files": [
+              "ml/model.int8.onnx"
+            ],
+            "bytes": 197595555,
+            "sha256": "dcbdfa9f773db910508b40b703cb76c5974e8d4c6f123ea81265b40853c3f0c2"
+          },
+          {
+            "files": [
+              "tokens.txt"
+            ],
+            "bytes": 67605,
+            "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2"
+          }
+        ]
+      }
     },
     {
       "lang": "ta",
@@ -131,14 +306,45 @@
       "script": "Tamil",
       "blockBase": "U+0B80",
       "vocabulary": {
-        "files": ["tokens.ta.txt", "alert-lexicon.ta.txt", "negation.ta.txt"],
+        "files": [
+          "tokens.ta.txt",
+          "alert-lexicon.ta.txt",
+          "negation.ta.txt"
+        ],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "tts": null,
-      "rules": { "files": ["normalise.ta.json"], "version": 1 },
+      "rules": {
+        "files": [
+          "normalise.ta.json"
+        ],
+        "version": 1
+      },
       "confidenceLow": -1.8,
-      "confidenceHigh": -0.6
+      "confidenceHigh": -0.6,
+      "asr": {
+        "family": "IndicConformer (AI4Bharat), int8, exported for sherpa-onnx",
+        "licence": "Apache-2.0",
+        "source": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx",
+        "baseUrl": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main",
+        "artefacts": [
+          {
+            "files": [
+              "ta/model.int8.onnx"
+            ],
+            "bytes": 197595513,
+            "sha256": "abb7b59d706b8d27ba3fb5e5e3db7671c9e1a09bf7bc6122de507c60030e65fb"
+          },
+          {
+            "files": [
+              "tokens.txt"
+            ],
+            "bytes": 67605,
+            "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2"
+          }
+        ]
+      }
     },
     {
       "lang": "gu",
@@ -147,14 +353,45 @@
       "script": "Gujarati",
       "blockBase": "U+0A80",
       "vocabulary": {
-        "files": ["tokens.gu.txt", "alert-lexicon.gu.txt", "negation.gu.txt"],
+        "files": [
+          "tokens.gu.txt",
+          "alert-lexicon.gu.txt",
+          "negation.gu.txt"
+        ],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "tts": null,
-      "rules": { "files": ["normalise.gu.json"], "version": 1 },
+      "rules": {
+        "files": [
+          "normalise.gu.json"
+        ],
+        "version": 1
+      },
       "confidenceLow": -1.8,
-      "confidenceHigh": -0.6
+      "confidenceHigh": -0.6,
+      "asr": {
+        "family": "IndicConformer (AI4Bharat), int8, exported for sherpa-onnx",
+        "licence": "Apache-2.0",
+        "source": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx",
+        "baseUrl": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main",
+        "artefacts": [
+          {
+            "files": [
+              "gu/model.int8.onnx"
+            ],
+            "bytes": 197595461,
+            "sha256": "822ed7f0b809bbd479275bf91c913d05564b88c0d082bbcba2f37999b88cb598"
+          },
+          {
+            "files": [
+              "tokens.txt"
+            ],
+            "bytes": 67605,
+            "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2"
+          }
+        ]
+      }
     },
     {
       "lang": "kn",
@@ -163,14 +400,45 @@
       "script": "Kannada",
       "blockBase": "U+0C80",
       "vocabulary": {
-        "files": ["tokens.kn.txt", "alert-lexicon.kn.txt", "negation.kn.txt"],
+        "files": [
+          "tokens.kn.txt",
+          "alert-lexicon.kn.txt",
+          "negation.kn.txt"
+        ],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "tts": null,
-      "rules": { "files": ["normalise.kn.json"], "version": 1 },
+      "rules": {
+        "files": [
+          "normalise.kn.json"
+        ],
+        "version": 1
+      },
       "confidenceLow": -1.8,
-      "confidenceHigh": -0.6
+      "confidenceHigh": -0.6,
+      "asr": {
+        "family": "IndicConformer (AI4Bharat), int8, exported for sherpa-onnx",
+        "licence": "Apache-2.0",
+        "source": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx",
+        "baseUrl": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main",
+        "artefacts": [
+          {
+            "files": [
+              "kn/model.int8.onnx"
+            ],
+            "bytes": 197595728,
+            "sha256": "b226ce7e4ea35b0dd66991964bd00e011b6b14b0fcdf4f7d1cccd777781c94dc"
+          },
+          {
+            "files": [
+              "tokens.txt"
+            ],
+            "bytes": 67605,
+            "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2"
+          }
+        ]
+      }
     },
     {
       "lang": "or",
@@ -179,14 +447,24 @@
       "script": "Odia",
       "blockBase": "U+0B00",
       "vocabulary": {
-        "files": ["tokens.or.txt", "alert-lexicon.or.txt", "negation.or.txt"],
+        "files": [
+          "tokens.or.txt",
+          "alert-lexicon.or.txt",
+          "negation.or.txt"
+        ],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "tts": null,
-      "rules": { "files": ["normalise.or.json"], "version": 1 },
+      "rules": {
+        "files": [
+          "normalise.or.json"
+        ],
+        "version": 1
+      },
       "confidenceLow": -1.8,
-      "confidenceHigh": -0.6
+      "confidenceHigh": -0.6,
+      "asr": null
     },
     {
       "lang": "en",
@@ -194,21 +472,55 @@
       "displayName": "English",
       "script": "Latin",
       "vocabulary": {
-        "files": ["tokens.en.txt", "alert-lexicon.en.txt", "negation.en.txt"],
+        "files": [
+          "tokens.en.txt",
+          "alert-lexicon.en.txt",
+          "negation.en.txt"
+        ],
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
       "tts": {
         "family": "Piper",
         "licence": "MIT",
-        "files": ["en_US-lessac-medium.onnx", "en_US-lessac-medium.onnx.json"],
+        "files": [
+          "en_US-lessac-medium.onnx",
+          "en_US-lessac-medium.onnx.json"
+        ],
         "bytes": 63963136,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
         "sampleRate": 22050
       },
-      "rules": { "files": ["normalise.en.json"], "version": 1 },
+      "rules": {
+        "files": [
+          "normalise.en.json"
+        ],
+        "version": 1
+      },
       "confidenceLow": -1.8,
-      "confidenceHigh": -0.6
+      "confidenceHigh": -0.6,
+      "asr": {
+        "family": "IndicConformer (AI4Bharat), int8, exported for sherpa-onnx",
+        "licence": "Apache-2.0",
+        "source": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx",
+        "baseUrl": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main",
+        "artefacts": [
+          {
+            "files": [
+              "en/model.int8.onnx"
+            ],
+            "bytes": 174610057,
+            "sha256": "28b9261a53028a7c99ff0799f44fb53f19c78b68cc4cf40637ac9c16cb1fbc6f"
+          },
+          {
+            "files": [
+              "en/tokens.txt"
+            ],
+            "bytes": 11433,
+            "sha256": "89c165b98df7af718ec0e872177279bfad4ade51331f1be92753c9583a1ef30d"
+          }
+        ]
+      }
     }
   ]
 }

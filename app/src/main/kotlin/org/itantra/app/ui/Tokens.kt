@@ -73,7 +73,7 @@ object Tokens {
     /** Rule 7. Larger than the 48 dp platform minimum, because operators wear gloves. */
     val TouchTarget: Dp = 64.dp
 
-    /** ALERT and POSITION. */
+    /** The ALERT control in band D. */
     val SecondaryAction: Dp = 72.dp
 
     /** Band A, the status bar. */

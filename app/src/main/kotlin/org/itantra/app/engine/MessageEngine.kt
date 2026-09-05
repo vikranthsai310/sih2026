@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.itantra.app.platform.NodeIdentity
-import org.itantra.app.platform.SpeechInput
+import org.itantra.app.platform.Recogniser
 import org.itantra.app.ui.BandFMetrics
 import org.itantra.app.ui.LanguageOption
 import org.itantra.app.ui.LoggedMessage
@@ -65,8 +65,13 @@ class MessageEngine(
     private val epochStore: EpochCounter.Store,
     private val templates: TemplateTable,
     private val bondedDevices: () -> List<BluetoothDevice>,
-    /** Null on a handset with no recogniser at all; every send then uses a template. */
-    private val speech: SpeechInput? = null,
+    /**
+     * Null until a language pack is on the handset, and every send then uses a template.
+     *
+     * Deliberately null today. See [Recogniser] -- the implementation that used to sit here
+     * drove Google Speech Services, which constraint C1 prohibits by name.
+     */
+    private val speech: Recogniser? = null,
 ) {
     private val mesh = MeshLink(scope)
 
@@ -100,7 +105,7 @@ class MessageEngine(
     private var utterance: UtteranceClock? = null
 
     /** Completed by the recogniser, or by the release when there is no recogniser. */
-    private var pendingSpeech: CompletableDeferred<SpeechInput.Result?>? = null
+    private var pendingSpeech: CompletableDeferred<Recogniser.Result?>? = null
 
     /** Why the last attempt produced no words, for the note under band C. */
     private var lastSpeechProblem: String? = null
@@ -149,8 +154,6 @@ class MessageEngine(
             // rather than waiting for the operator to discover its absence by pressing
             // transmit and getting a template.
             ensurePackFor(language)
-            // Bound before the first press rather than during it. See SpeechInput.warmUp.
-            speech?.warmUp()
         }
         if (bluetoothNet != null) return
 
@@ -303,7 +306,7 @@ class MessageEngine(
             )
         utterance = clock
 
-        val heard = CompletableDeferred<SpeechInput.Result?>()
+        val heard = CompletableDeferred<Recogniser.Result?>()
         pendingSpeech = heard
 
         _state.value =
@@ -318,11 +321,12 @@ class MessageEngine(
                 speechNote = null,
             )
 
-        val listening = speech?.start(SpeechInput.tagFor(language.code), speechListener(clock, heard))
+        val listening = speech?.start(language.code, speechListener(clock, heard))
         if (listening != true) {
             // No recogniser, or it would not open. Settled now rather than on release, so
             // the operator is not made to wait for a result that was never coming.
-            lastSpeechProblem = if (speech?.available == true) "recogniser would not start" else null
+            lastSpeechProblem =
+                if (speech != null) "the recogniser would not start" else null
             heard.complete(null)
         }
     }
@@ -345,8 +349,8 @@ class MessageEngine(
 
     private fun speechListener(
         clock: UtteranceClock,
-        heard: CompletableDeferred<SpeechInput.Result?>,
-    ) = object : SpeechInput.Listener {
+        heard: CompletableDeferred<Recogniser.Result?>,
+    ) = object : Recogniser.Listener {
         override fun onReady() {
             clock.start()
             _state.value = _state.value.copy(listening = true)
@@ -363,7 +367,7 @@ class MessageEngine(
             _state.value = _state.value.copy(partial = text)
         }
 
-        override fun onResult(result: SpeechInput.Result) {
+        override fun onResult(result: Recogniser.Result) {
             lastSpeechProblem = null
             heard.complete(result)
         }
@@ -395,7 +399,7 @@ class MessageEngine(
      * you which of the two just happened is not demonstrating anything.
      */
     private suspend fun send(
-        heard: SpeechInput.Result?,
+        heard: Recogniser.Result?,
         clock: UtteranceClock?,
         type: MessageType,
     ) {
@@ -488,11 +492,11 @@ class MessageEngine(
     }
 
     /** What the screen says about the last attempt at speech. Null when it simply worked. */
-    private fun speechNote(heard: SpeechInput.Result?): String? =
+    private fun speechNote(heard: Recogniser.Result?): String? =
         when {
             heard != null -> null
-            speech == null || speech.available != true ->
-                "No speech recogniser on this handset. Sent a template."
+            speech == null ->
+                "No speech model on this handset. Sent a template."
             // Capitalised and used as the whole sentence. Prefixing it read as "Heard
             // nothing: nothing recognised", which is the same fact said twice.
             lastSpeechProblem != null ->
@@ -513,28 +517,27 @@ class MessageEngine(
         refresh()
     }
 
-    /** Asks for the on-device model, and says on screen what the answer was. */
+    /**
+     * Whether this unit can turn speech into words yet, and what to say when it cannot.
+     *
+     * The recogniser's language packs are fetched by `tools/fetch_models.py`, not by an
+     * in-application download button: they are hundreds of megabytes each, constraint C2
+     * allows them to be fetched "once during setup" and never at runtime, and a 30 MB
+     * installer target means they cannot be bundled either.
+     */
     private fun ensurePackFor(target: Language) {
-        val speech = speech ?: return
-        speech.ensurePack(SpeechInput.tagFor(target.code)) { state ->
-            if (target != language) return@ensurePack
-            _state.value =
-                _state.value.copy(
-                    languages = languageOptions(),
-                    speechNote =
-                        when (state) {
-                            SpeechInput.Pack.DOWNLOADING ->
-                                "Fetching the ${displayNameFor(target)} speech model. " +
-                                    "Templates until it lands."
-
-                            SpeechInput.Pack.UNAVAILABLE ->
-                                "This handset has no ${displayNameFor(target)} speech model. " +
-                                    "Transmit sends a template."
-
-                            else -> null
-                        },
-                )
-        }
+        val ready = speech?.isReady(target.code) == true
+        _state.value =
+            _state.value.copy(
+                languages = languageOptions(),
+                speechNote =
+                    if (ready) {
+                        null
+                    } else {
+                        "No ${displayNameFor(target)} speech model on this handset. " +
+                            "Transmit sends a template."
+                    },
+            )
     }
 
     /** The languages this unit can render, and what it can do with each of them. */
@@ -622,7 +625,7 @@ class MessageEngine(
          * chevron that opens an empty menu is worse than one that does nothing. With a null
          * recogniser the rows are still correct; they simply say nothing about speech.
          */
-        fun languageOptions(speech: SpeechInput?): List<LanguageOption> =
+        fun languageOptions(speech: Recogniser?): List<LanguageOption> =
             Language.entries.map {
                 LanguageOption(
                     code = it.code,
@@ -632,11 +635,10 @@ class MessageEngine(
                     // handset built from this repository. Reported rather than assumed.
                     canSpeak = false,
                     recognition =
-                        when (speech?.packStateFor(SpeechInput.tagFor(it.code))) {
-                            SpeechInput.Pack.INSTALLED -> "installed on this handset"
-                            SpeechInput.Pack.DOWNLOADING -> "downloading"
-                            SpeechInput.Pack.UNAVAILABLE -> "not available on this handset"
-                            else -> null
+                        when {
+                            speech == null -> "no model installed"
+                            speech.isReady(it.code) -> "installed on this handset"
+                            else -> "no model installed"
                         },
                 )
             }
