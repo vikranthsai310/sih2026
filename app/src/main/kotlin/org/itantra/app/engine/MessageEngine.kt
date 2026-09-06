@@ -25,6 +25,7 @@ import org.itantra.asr.LexiconCorrector
 import org.itantra.audio.EngineState
 import org.itantra.bench.UtteranceClock
 import org.itantra.bench.UtteranceTrace
+import org.itantra.link.BleBroadcastLink
 import org.itantra.link.BluetoothNet
 import org.itantra.link.LinkState
 import org.itantra.link.MeshLink
@@ -128,6 +129,16 @@ class MessageEngine(
     /** Rebuilt on a language change; null when that language ships no lexicon. */
     private var corrector: LexiconCorrector? = null
 
+    /**
+     * Which units have been heard from lately, and when.
+     *
+     * A broadcast channel has no roster to count: nothing is connected to anything, so
+     * `MeshLink.connectedCount` would say "1 unit" on an empty channel and "1 unit" in a
+     * room of six. The honest count is who has actually transmitted recently, which is also
+     * what an operator means by the number.
+     */
+    private val heardFrom = LinkedHashMap<Int, Long>()
+
     /** Process CPU and wall clock at the press, so the utterance's share can be differenced. */
     private var cpuAtPressMillis = 0L
     private var wallAtPressMillis = 0L
@@ -188,6 +199,16 @@ class MessageEngine(
             return
         }
 
+        // The radio channel first, because it needs nothing arranged. Every unit with the
+        // application open is on it; there is no bond, no dialog and no roster. This is the
+        // shape docs/PROTOCOL.md section 8 always described — every frame to every unit,
+        // no destination field — and the shape docs/TRANSPORT.md section 8 says pairing
+        // keeps breaking on demonstration day.
+        mesh.addPeer(BROADCAST_PEER, BleBroadcastLink(bluetooth, scope))
+
+        // Bonded handsets are still used where they exist: RFCOMM is ~200 kbps against a
+        // few advertisements a second, so a paired pair gets the better link for free. It
+        // is no longer a requirement for the application to work.
         val net = BluetoothNet(bluetooth, scope, mesh, bondedDevices)
         bluetoothNet = net
         net.start()
@@ -268,6 +289,7 @@ class MessageEngine(
     }
 
     private fun onMessage(message: Session.Received.Message) {
+        synchronized(heardFrom) { heardFrom[message.from] = SystemClock.elapsedRealtime() }
         val entry =
             LoggedMessage(
                 from = "node ${message.from}",
@@ -728,10 +750,19 @@ class MessageEngine(
         _state.value = _state.value.copy(degraded = reason)
     }
 
+    /** Units heard from inside [PEER_MEMORY_MILLIS]. See [heardFrom]. */
+    private fun unitsOnChannel(): Int {
+        val now = SystemClock.elapsedRealtime()
+        return synchronized(heardFrom) {
+            heardFrom.entries.removeAll { now - it.value > PEER_MEMORY_MILLIS }
+            heardFrom.size
+        }
+    }
+
     private fun refresh() {
         _state.value =
             _state.value.copy(
-                peerCount = mesh.connectedCount,
+                peerCount = maxOf(unitsOnChannel(), mesh.connectedCount - 1),
                 linkUp = mesh.state.value == LinkState.CONNECTED,
                 language = displayNameFor(language),
                 languageCode = language.code,
@@ -742,25 +773,19 @@ class MessageEngine(
     }
 
     /**
-     * What is wrong with the net, distinguished so the banner can say what to do.
+     * What is wrong with the channel.
      *
-     * The three states used to be one. "Link down — reconnecting" on a handset with the
-     * radio switched off, or with nothing paired, is advice for a situation that will never
-     * resolve, and it is the single most likely thing to be on screen when this application
-     * is first opened.
+     * "No other unit paired" is gone, because pairing is gone. On a broadcast channel the
+     * only thing that can be wrong with the radio is that it is switched off; a channel
+     * with nobody else on it is not a fault, it is a quiet channel, and telling an operator
+     * to go and pair something would now be advice for a problem they do not have.
      */
     private fun netTrouble(): EngineState.Degraded.Reason? {
         val bluetooth = adapter
         if (bluetooth == null || !isEnabled(bluetooth)) {
             return EngineState.Degraded.Reason.BLUETOOTH_OFF
         }
-        if (mesh.connectedCount > 0) return null
-        val paired = bluetoothNet?.candidateCount ?: 0
-        return if (paired == 0) {
-            EngineState.Degraded.Reason.NO_PEERS
-        } else {
-            EngineState.Degraded.Reason.LINK_DOWN
-        }
+        return if (mesh.state.value == LinkState.CONNECTED) null else EngineState.Degraded.Reason.LINK_DOWN
     }
 
     companion object {
@@ -788,6 +813,12 @@ class MessageEngine(
 
         /** Enough for the 100-utterance run docs/EVALUATION.md section 4 asks for. */
         const val MAX_TRACES = 200
+
+        /** The broadcast channel's entry in the mesh. There is exactly one. */
+        const val BROADCAST_PEER = "ble-broadcast"
+
+        /** How long a unit stays counted after its last transmission. */
+        const val PEER_MEMORY_MILLIS = 60_000L
 
         /**
          * The ten languages, with what this handset can do with each.
