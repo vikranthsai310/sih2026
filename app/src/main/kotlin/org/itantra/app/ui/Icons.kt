@@ -403,6 +403,26 @@ object Icons {
         )
     }
 
+    /**
+     * `i-pause` — **drawn here, not ported.**
+     *
+     * Board 10 asks for `<use href="#i-pause">` on the HOLD flank and the canvas never
+     * defines that symbol, so the reference resolves to nothing and the control renders as a
+     * word with an empty square above it. Every other glyph in this file is transcribed from
+     * a symbol that exists; this one is the set's vocabulary applied to a missing member —
+     * two round-capped bars at the same weight and inset as [Play], which it sits beside.
+     *
+     * If the canvas later defines `i-pause`, replace this with the transcription and delete
+     * the note.
+     */
+    val Pause: ImageVector by lazy {
+        vector(
+            "Pause",
+            24f,
+            Part("M9.5 6.5v11M14.5 6.5v11", width = 2.6f, cap = StrokeCap.Round),
+        )
+    }
+
     /** `i-globe` */
     val Globe: ImageVector by lazy {
         vector(

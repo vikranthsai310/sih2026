@@ -897,7 +897,7 @@ private fun Dock(
             // Board 10 swaps the left flank for HOLD. Everywhere else it is ALERT, and
             // ALERT is never dimmed — alert frames pre-empt the transmit queue.
             if (dock == DockState.PHONE) {
-                FlankButton(Icons.Speaking, "HOLD", p.butter, enabled = true, onClick = { onTransmitChange(false) })
+                FlankButton(Icons.Pause, "HOLD", p.butter, enabled = true, onClick = { onTransmitChange(false) })
             } else {
                 FlankButton(Icons.Alert, "ALERT", p.blush, enabled = true, strong = true, onClick = onAlert)
             }
