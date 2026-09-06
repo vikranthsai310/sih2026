@@ -108,6 +108,8 @@ data class AppActions(
     val onReplay: (String) -> Unit,
     /** Opens the folder picker so a pack can be copied onto this handset. */
     val onImportPacks: () -> Unit,
+    /** Hands one download address to the browser. */
+    val onDownload: (Download) -> Unit,
 )
 
 @Composable
@@ -170,6 +172,7 @@ fun ItantraApp(
                     onImport = actions.onImportPacks,
                     status = state.packStatus,
                     downloads = state.downloads,
+                    onDownload = actions.onDownload,
                 )
 
             Destination.LICENCES ->

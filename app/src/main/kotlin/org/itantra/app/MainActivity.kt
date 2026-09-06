@@ -6,7 +6,9 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -157,6 +159,7 @@ class MainActivity : ComponentActivity() {
                         onLanguageChosen = { running?.onLanguageChosen(it) },
                         onReplay = { running?.onReplay(it) },
                         onImportPacks = ::pickPackFolder,
+                        onDownload = ::openInBrowser,
                         readLicence = ::readLicence,
                     ),
             )
@@ -335,7 +338,23 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Opens the system folder picker, and says so.
+     * Hands one address to whatever browser this handset has.
+     *
+     * Not a network call: this application holds no `INTERNET` permission and opens no
+     * socket. It passes a URL to another program, which fetches under its own permissions
+     * and its own user's instruction — which is what constraint C2 means by a pack being
+     * "fetched once during setup". The verifying is still done here, by SHA-256.
+     */
+    private fun openInBrowser(download: Download) {
+        packStatus = "Opening your browser…"
+        runCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(download.url)))
+            packStatus = "Downloading in your browser. Come back and tap install."
+        }.onFailure { packStatus = "No browser on this handset to open that with." }
+    }
+
+    /**
+     * Opens the system file picker, and says so.
      *
      * The status is set **before** the launch, so the press is acknowledged even if no
      * activity answers the intent. A handset with no document provider throws

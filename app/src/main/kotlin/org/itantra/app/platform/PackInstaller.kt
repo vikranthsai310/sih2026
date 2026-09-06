@@ -52,7 +52,9 @@ class PackInstaller(private val context: Context) {
             when {
                 problem != null -> problem
                 files == 0 -> "Nothing to copy in that folder."
-                else -> "Installed %d files, %.0f MB.".format(files, bytes / 1_048_576.0)
+                // "Installed 1 files, 0 MB" was the report for a 66 kB token table, which
+                // reads as a failure. Both halves of that were wrong.
+                else -> "Installed $files ${if (files == 1) "file" else "files"}, ${size(bytes)}."
             }
     }
 
@@ -299,6 +301,14 @@ class PackInstaller(private val context: Context) {
     }
 
     private companion object {
+        /** Bytes an operator can act on: "0 MB" for a 66 kB file reads as nothing at all. */
+        fun size(bytes: Long): String =
+            when {
+                bytes >= 1_048_576L -> "%.0f MB".format(bytes / 1_048_576.0)
+                bytes >= 1_024L -> "%.0f kB".format(bytes / 1_024.0)
+                else -> "$bytes B"
+            }
+
         /** A picked folder may be all of Download; this keeps the walk finite. */
         const val MAX_DEPTH = 4
         const val MAX_FILES = 400

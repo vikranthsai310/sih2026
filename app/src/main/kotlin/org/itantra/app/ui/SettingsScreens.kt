@@ -201,6 +201,8 @@ fun StorageScreen(
     status: String? = null,
     /** What this handset still needs, with the address to fetch each from. */
     downloads: List<Download> = emptyList(),
+    /** Hands one address to the browser. Null leaves the rows as plain text. */
+    onDownload: ((Download) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize().background(Paper).padding(16.dp)) {
@@ -255,24 +257,47 @@ fun StorageScreen(
 
         if (downloads.isNotEmpty()) {
             Text("FILES TO DOWNLOAD", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Muted)
-            Spacer(Modifier.height(4.dp))
-            // The address in full, selectable, because this application cannot open it —
-            // it has no INTERNET permission and is not getting one. The browser does the
-            // fetching and this does the verifying.
+            Text("Tap one to open it in your browser.", fontSize = 12.sp, color = Muted)
+            Spacer(Modifier.height(6.dp))
             for (download in downloads) {
-                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                // Tappable, because a row that looks like an item and does nothing when
+                // pressed is worse than no row at all. The tap hands the address to the
+                // browser: this application holds no INTERNET permission and opens no
+                // socket, so the fetching is done by a program allowed to do it and the
+                // verifying is still done here, by SHA-256.
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, Muted, RoundedCornerShape(6.dp))
+                        .then(
+                            if (onDownload == null) {
+                                Modifier
+                            } else {
+                                Modifier.clickable { onDownload(download) }
+                            },
+                        )
+                        .padding(10.dp)
+                        .semantics {
+                            contentDescription =
+                                "Download the " + download.kind + ", " +
+                                describeSize(download.bytes) + ". Opens your browser."
+                        },
+                ) {
                     Text(
-                        "%s · %.0f MB".format(download.kind, download.bytes / 1_048_576.0),
-                        fontSize = 12.sp,
+                        download.kind + " · " + describeSize(download.bytes) + "  ›",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
                         color = Ink,
                     )
                     Text(
                         download.url,
-                        fontSize = 10.sp,
+                        fontSize = 9.sp,
                         fontFamily = FontFamily.Monospace,
                         color = Muted,
+                        maxLines = 2,
                     )
                 }
+                Spacer(Modifier.height(6.dp))
             }
             Spacer(Modifier.height(12.dp))
         }
@@ -311,6 +336,14 @@ fun StorageScreen(
         }
     }
 }
+
+/** Bytes an operator can act on: "0 MB" for a 66 kB file reads as nothing to download. */
+internal fun describeSize(bytes: Long): String =
+    when {
+        bytes >= 1_048_576 -> "%.0f MB".format(bytes / 1_048_576.0)
+        bytes >= 1_024 -> "%.0f kB".format(bytes / 1_024.0)
+        else -> "$bytes B"
+    }
 
 /** One artefact the operator has to fetch in a browser before importing it. */
 data class Download(
