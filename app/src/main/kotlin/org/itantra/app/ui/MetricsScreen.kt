@@ -1,20 +1,25 @@
 package org.itantra.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,7 +30,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.itantra.bench.LatencySummary
 import org.itantra.bench.StageSummary
 import org.itantra.bench.UtteranceTrace
@@ -76,6 +80,7 @@ fun MetricsScreen(
     status: String? = null,
     modifier: Modifier = Modifier,
 ) {
+    val p = palette
     val summary = LatencySummary.of(traces)
     val reportable = LatencySummary.isReportable(traces)
     val completed = traces.count { it.endToEndMillis != null }
@@ -83,186 +88,307 @@ fun MetricsScreen(
     Column(
         modifier
             .fillMaxSize()
-            .background(Paper)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .background(p.ground)
+            .verticalScroll(rememberScrollState()),
     ) {
-        Text("METRICS", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "$completed utterances this session",
-            fontSize = 13.sp,
-            color = Muted,
-        )
-        Spacer(Modifier.height(16.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(p.paper)
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Metrics", fontSize = Tokens.Title, fontWeight = FontWeight.Bold, color = p.ink)
+            Spacer(Modifier.weight(1f))
+            Mono("$completed utterances", p.muted)
+        }
+        Box(Modifier.fillMaxWidth().height(Tokens.Hairline).background(p.hairline))
 
-        Headline(summary, reportable, completed)
-        Spacer(Modifier.height(20.dp))
+        if (completed == 0) {
+            EmptyState(
+                icon = Icons.Chart,
+                title = "Nothing measured yet",
+                body = "Send one utterance and the strip fills.",
+                family = p.sky,
+            )
+            return@Column
+        }
 
-        Text("WHERE THE TIME GOES", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ink)
-        Spacer(Modifier.height(8.dp))
-        StageTable(traces)
-
-        Spacer(Modifier.height(20.dp))
-        Text("DISTRIBUTION", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ink)
-        Spacer(Modifier.height(8.dp))
-        Histogram(traces)
-
-        Spacer(Modifier.height(24.dp))
-        ExportRow(onExportCsv)
-        if (status != null) {
-            Spacer(Modifier.height(8.dp))
-            Text(status, fontSize = 13.sp, color = Muted)
+        Column(
+            Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Headline(summary, reportable, completed, traces)
+            StageTable(traces)
+            ExportRow(onExportCsv)
+            status?.let {
+                Text(
+                    it,
+                    fontSize = Tokens.Label,
+                    lineHeight = Tokens.Label * 1.4f,
+                    color = p.muted,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+            }
         }
     }
 }
 
+/** A figure or a machine fact, in the one face this screen sets numbers in. */
+@Composable
+private fun Mono(
+    text: String,
+    colour: Color,
+    size: androidx.compose.ui.unit.TextUnit = Tokens.Instrument,
+    weight: FontWeight = FontWeight.Medium,
+) {
+    Text(text, fontSize = size, fontFamily = FontFamily.Monospace, fontWeight = weight, color = colour)
+}
+
 /**
- * The headline pair, or the reason there isn't one.
+ * The headline card, or the reason there isn't one.
  *
  * Median **and** p95 together, never the median alone: an operator remembers the slowest
  * exchange, not the average one, and a median quoted by itself is the number that makes a
- * system look better than it feels.
+ * system look better than it feels. The median is set at 38 sp and the other two at 22 sp
+ * because one of the three is the answer and two are the caveat — a row of three equal
+ * figures says the opposite.
  */
 @Composable
 private fun Headline(
     summary: LatencySummary.Stats?,
     reportable: Boolean,
     completed: Int,
+    traces: List<UtteranceTrace>,
 ) {
+    val p = palette
     if (summary == null || !reportable) {
+        // The refusal has to look deliberate and expensive rather than like a bug. It is
+        // this screen's best argument for every other number on it.
         Column(
             Modifier
                 .fillMaxWidth()
-                .background(Amber)
-                .padding(12.dp)
-                .semantics {
+                .background(p.paper, RoundedCornerShape(Tokens.RadiusTile))
+                .border(Tokens.SignalBorder, p.butter.mid, RoundedCornerShape(Tokens.RadiusTile))
+                .padding(16.dp)
+                .semantics(mergeDescendants = true) {
                     contentDescription =
                         "Not reportable. $completed of " +
                         "${LatencySummary.MINIMUM_UTTERANCES} utterances collected."
                 },
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("NOT REPORTABLE", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(
+                    Icons.Hourglass,
+                    contentDescription = null,
+                    tint = p.butter.core,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    "NOT REPORTABLE",
+                    fontSize = Tokens.BodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = p.butter.deep,
+                )
+            }
             Text(
                 "$completed of ${LatencySummary.MINIMUM_UTTERANCES} utterances. " +
                     "A median over fewer is not a median.",
-                fontSize = 13.sp,
-                color = Color.Black,
+                fontSize = Tokens.Label,
+                lineHeight = Tokens.Label * 1.45f,
+                color = p.muted,
             )
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .background(p.sunken, RoundedCornerShape(Tokens.RadiusPill)),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(
+                            (completed.toFloat() / LatencySummary.MINIMUM_UTTERANCES).coerceIn(0f, 1f),
+                        )
+                        .height(6.dp)
+                        .background(p.butter.core, RoundedCornerShape(Tokens.RadiusPill)),
+                )
+            }
         }
         return
     }
 
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Figure("MEDIAN", "${summary.medianMillis} ms")
-        Figure("P95", "${summary.p95Millis} ms")
-        Figure("WORST", "${summary.worstMillis} ms")
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(p.paper, RoundedCornerShape(Tokens.RadiusTile))
+            .border(Tokens.Hairline, p.hairline, RoundedCornerShape(Tokens.RadiusTile))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Mono("END TO END", p.muted)
+            Mono("target 800-1200", p.muted)
+        }
+        Row(
+            Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
+                contentDescription =
+                    "Median ${summary.medianMillis} milliseconds, " +
+                    "p95 ${summary.p95Millis}, worst ${summary.worstMillis}."
+            },
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Mono("${summary.medianMillis}", p.sky.deep, Tokens.Display, FontWeight.Bold)
+                Text("MEDIAN ms", fontSize = Tokens.Instrument, color = p.muted)
+            }
+            Box(Modifier.size(width = 1.dp, height = 44.dp).background(p.hairline))
+            Column {
+                Mono("${summary.p95Millis}", p.ink, Tokens.Figure, FontWeight.Bold)
+                Text("P95", fontSize = Tokens.Instrument, color = p.muted)
+            }
+            Column {
+                Mono("${summary.worstMillis}", p.ink, Tokens.Figure, FontWeight.Bold)
+                Text("WORST", fontSize = Tokens.Instrument, color = p.muted)
+            }
+        }
+        Histogram(traces, summary.p95Millis)
     }
 }
 
+/**
+ * The distribution as bars, with the p95 marked where it falls.
+ *
+ * Drawn with sized boxes rather than a charting library: the data is already bucketed, and a
+ * dependency here would be carried into an APK that constraint **N2** caps at thirty
+ * megabytes, for the sake of one diagnostic chart. The modal bucket is the only one in the
+ * signal colour — a chart where every bar is the accent has no accent.
+ */
 @Composable
-private fun Figure(
-    label: String,
-    value: String,
+private fun Histogram(
+    traces: List<UtteranceTrace>,
+    p95: Long?,
 ) {
+    val p = palette
+    val buckets = StageSummary.histogram(traces)
+    if (buckets.isEmpty()) return
+    val tallest = buckets.maxOf { it.count }.coerceAtLeast(1)
+    val busiest = buckets.maxByOrNull { it.count }
+
     Column(
-        Modifier.semantics { contentDescription = "$label $value" },
-        horizontalAlignment = Alignment.CenterHorizontally,
+        Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
+            // A bar chart read glyph by glyph is noise. The shape, in one sentence.
+            contentDescription =
+                busiest?.let {
+                    "Distribution over ${buckets.sumOf { b -> b.count }} utterances, " +
+                        "most between ${it.fromMillis} and ${it.toMillis} milliseconds."
+                } ?: "No distribution yet."
+        },
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(value, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Ink)
-        Text(label, fontSize = 12.sp, color = Muted)
+        Row(
+            Modifier.fillMaxWidth().height(92.dp),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            buckets.forEach { bucket ->
+                val modal = bucket === busiest && bucket.count > 0
+                val past95 = p95 != null && bucket.fromMillis >= p95
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight((bucket.count.toFloat() / tallest).coerceIn(0.02f, 1f))
+                        .background(
+                            when {
+                                modal -> p.sky.core
+                                past95 -> p.butter.mid
+                                else -> p.sky.mid
+                            },
+                            RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp),
+                        ),
+                )
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Mono("${buckets.first().fromMillis}", p.muted)
+            p95?.let { Mono("p95 $it", p.butter.core) }
+            Mono("${buckets.last().toMillis} ms", p.muted)
+        }
     }
 }
 
 /** One row per stage, with the budget beside it so a reader need not know it. */
 @Composable
 private fun StageTable(traces: List<UtteranceTrace>) {
+    val p = palette
     val stages = StageSummary.byStage(traces)
-    if (stages.isEmpty()) {
-        Text("No completed utterances yet.", fontSize = 14.sp, color = Muted)
-        return
-    }
+    if (stages.isEmpty()) return
 
-    for (stat in stages) {
-        val budget = "${stat.stage.budgetMillis.first}–${stat.stage.budgetMillis.last} ms"
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(p.paper, RoundedCornerShape(Tokens.RadiusTile))
+            .border(Tokens.Hairline, p.hairline, RoundedCornerShape(Tokens.RadiusTile)),
+    ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp)
-                .semantics {
-                    contentDescription =
-                        "${stat.stage.label}: median ${stat.medianMillis} milliseconds, " +
-                        "budget $budget, " +
-                        if (stat.withinBudget) {
-                            "within budget"
-                        } else {
-                            "${stat.overBudgetMillis} milliseconds over budget"
-                        }
-                },
+                .heightIn(min = 42.dp)
+                .background(p.ground)
+                .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(stat.stage.label, fontSize = 14.sp, color = Ink, modifier = Modifier.weight(1f))
-            Text(
-                "${stat.medianMillis} ms",
-                fontSize = 14.sp,
-                fontFamily = FontFamily.Monospace,
-                // Red where the median is past the budget ceiling. A p95 outside it is
-                // expected and is not marked, or every row would be red.
-                color = if (stat.withinBudget) Ink else Danger,
-                fontWeight = if (stat.withinBudget) FontWeight.Normal else FontWeight.Bold,
-            )
-            Spacer(Modifier.width(12.dp))
-            Text(budget, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = Muted)
+            Mono("BY STAGE", p.muted)
+            Spacer(Modifier.weight(1f))
+            Mono("median", p.muted)
         }
-    }
-}
-
-/**
- * The distribution as bars.
- *
- * Drawn with sized boxes rather than a charting library: this is one screen, the data is
- * already bucketed, and a dependency here would be carried into the APK for the sake of a
- * bar chart in a diagnostic view.
- */
-@Composable
-private fun Histogram(traces: List<UtteranceTrace>) {
-    val buckets = StageSummary.histogram(traces)
-    if (buckets.isEmpty()) {
-        Text("Nothing to plot yet.", fontSize = 14.sp, color = Muted)
-        return
-    }
-    val tallest = buckets.maxOf { it.count }.coerceAtLeast(1)
-
-    Column(
-        Modifier.fillMaxWidth().semantics {
-            // A bar chart read glyph by glyph is noise. The shape, in one sentence.
-            val busiest = buckets.maxByOrNull { it.count }!!
-            contentDescription =
-                "Distribution over ${buckets.sumOf { it.count }} utterances, " +
-                "most between ${busiest.fromMillis} and ${busiest.toMillis} milliseconds."
-        },
-    ) {
-        for (bucket in buckets) {
-            if (bucket.count == 0 && bucket.fromMillis < buckets.first { it.count > 0 }.fromMillis) {
-                // Leading empties carry no information; the gaps between clusters do.
-                continue
-            }
-            Row(Modifier.fillMaxWidth().padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+        stages.forEach { stat ->
+            val budget = "${stat.stage.budgetMillis.first}-${stat.stage.budgetMillis.last} ms"
+            Box(Modifier.fillMaxWidth().height(1.dp).background(p.sunken))
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 40.dp)
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription =
+                            "${stat.stage.label}: median ${stat.medianMillis} milliseconds, " +
+                            "budget $budget, " +
+                            if (stat.withinBudget) {
+                                "within budget"
+                            } else {
+                                "${stat.overBudgetMillis} milliseconds over budget"
+                            }
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 Text(
-                    "${bucket.fromMillis}",
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = Muted,
-                    modifier = Modifier.width(48.dp),
+                    stat.stage.label,
+                    fontSize = Tokens.BodySmall,
+                    color = p.ink,
+                    modifier = Modifier.weight(1f),
                 )
-                Box(
-                    Modifier
-                        .fillMaxWidth(bucket.count.toFloat() / tallest)
-                        .height(BAR_HEIGHT_DP.dp)
-                        .background(if (bucket.count == 0) Paper else Ink),
+                // Blush where the median is past the budget ceiling. A p95 outside it is
+                // expected and is not marked, or every row would be red.
+                Mono(
+                    "${stat.medianMillis} ms",
+                    if (stat.withinBudget) p.sky.deep else p.blush.deep,
+                    Tokens.Label,
+                    if (stat.withinBudget) FontWeight.Medium else FontWeight.Bold,
                 )
-                Spacer(Modifier.width(6.dp))
-                Text("${bucket.count}", fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = Muted)
+                if (!stat.withinBudget) {
+                    Icon(
+                        Icons.Alert,
+                        contentDescription = null,
+                        tint = p.blush.core,
+                        modifier = Modifier.size(15.dp),
+                    )
+                }
             }
         }
     }
@@ -270,28 +396,25 @@ private fun Histogram(traces: List<UtteranceTrace>) {
 
 @Composable
 private fun ExportRow(onExportCsv: () -> Unit) {
-    Column(
+    val p = palette
+    Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = TARGET_DP.dp)
+            .heightIn(min = Tokens.SecondaryAction)
+            .background(p.sky.tint, RoundedCornerShape(Tokens.RadiusTile))
+            .border(Tokens.Hairline, p.sky.mid, RoundedCornerShape(Tokens.RadiusTile))
             .clickable { onExportCsv() }
-            .semantics { contentDescription = "Export the three result files" },
+            .padding(horizontal = 16.dp)
+            .semantics(mergeDescendants = true) { contentDescription = "Export the three result files" },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("EXPORT CSV", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
-        Text(
-            // Naming the three files matters: "export" alone leaves a reader wondering
-            // which numbers they are about to be handed.
-            "latency.csv, resource.csv, scorecard.csv — each naming this device and soak",
-            fontSize = 12.sp,
-            color = Muted,
-        )
+        Icon(Icons.Download, contentDescription = null, tint = p.sky.core, modifier = Modifier.size(22.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("Export CSV", fontSize = Tokens.BodySmall, fontWeight = FontWeight.SemiBold, color = p.sky.deep)
+            // Naming the three files matters: "export" alone leaves a reader wondering which
+            // numbers they are about to be handed.
+            Mono("latency · resource · scorecard", p.muted)
+        }
     }
 }
-
-private const val BAR_HEIGHT_DP = 14
-private const val TARGET_DP = 64
-private val Ink = Color(0xFF101010)
-private val Paper = Color(0xFFFFFFFF)
-private val Muted = Color(0xFF5F5F5F)
-private val Danger = Color(0xFFB3261E)
-private val Amber = Color(0xFFF2B705)

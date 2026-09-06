@@ -116,6 +116,19 @@ data class AppState(
      * board 24 prints nothing where this screen has nothing to say.
      */
     val buildLine: String? = null,
+    /**
+     * Whether the speech models are loaded and the transmit control means anything.
+     *
+     * False draws [SplashScreen]. Defaulted true so nothing that constructs an `AppState`
+     * for a preview or a test has to know about a loading phase it is not exercising —
+     * and so that a build whose loader never reports simply never shows a splash, rather
+     * than showing one for ever.
+     */
+    val ready: Boolean = true,
+    /** What is loading, in the language being loaded. Board 01's caption. */
+    val loadingLabel: String? = null,
+    /** 0..1, or null when the loader cannot say. */
+    val loadingProgress: Float? = null,
 )
 
 /** What the shell can ask the engine to do. */
@@ -154,6 +167,18 @@ fun ItantraApp(
     // The system gesture and the control on screen must do the same thing. An operator who
     // swipes back and lands outside the application has left the net.
     BackHandler(enabled = where != Destination.OPERATING) { where = back(where) }
+
+    // Risk T-11: the transmit control must never be live over an unloaded recogniser.
+    // The splash is that interval made visible, and it is the only screen that outranks
+    // the navigation state entirely.
+    if (!state.ready) {
+        SplashScreen(
+            loading = state.loadingLabel,
+            progress = state.loadingProgress,
+            modifier = modifier,
+        )
+        return
+    }
 
     if (where == Destination.OPERATING) {
         OperatingScreen(

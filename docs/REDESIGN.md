@@ -167,21 +167,29 @@ Boards 15, 16, 11, 11·a, 11·b, 25.
 
 - [x] **5.1** Message log on the Phase 2 bubble component — one bubble, two screens.
       Resolve **G2**.
-- [ ] **5.2** Metrics — one family, two accents; stage table and histogram restyled;
+- [x] **5.2** Metrics — one family, two accents; stage table and histogram restyled;
       the not-reportable state as board 16's empty state.
 - [x] **5.3** Banner system — colour in the icon only, all eleven reasons.
 - [x] **5.4** Empty and error set — "absent is not zero"; `—` never becomes `0`.
 
 ### Phase 6 — Splash, wiring and verification
 
-- [ ] **6.1** Splash — the −52 dp overlap, three Sky figures, load progress. The canvas
+- [x] **6.1** Splash — the −52 dp overlap, three Sky figures, load progress. The canvas
       uses a drop-in image slot; ship a drawable placeholder, not a hotlinked photo
       (the app has no network path for one).
-- [ ] **6.2** Wire every new screen: `Destination`, `SubScreen`, `BackHandler`, and the
-      control room tiles all reach what they claim to.
-- [ ] **6.3** Full pass — `:app:assembleDebug`, unit tests, and a walk of every route
+- [~] **6.2** Wire every new screen. **Partly done.** `TEST_ALERT`, `TEXT_SIZE`, the control
+      room and the splash are wired and every control-room tile reaches what it claims to.
+      `AlertComposeScreen`, `AlertConfirmScreen` and `IncomingAlertScreen` are **not**
+      routed: each needs an engine action that does not exist (a template send, a
+      confidence gate, an incoming-alert intent), and this branch does not add engine code.
+      They are drawn, compiled and unreachable — the state they were in before, at the new
+      fidelity.
+- [x] **6.3** Full pass — `:app:assembleDebug`, unit tests, and a walk of every route
       confirming nothing is unreachable and nothing lost its action.
-- [ ] **6.4** Field Mode toggle proven: both palettes, one geometry, no layout shift.
+- [ ] **6.4** Field Mode toggle proven. **Not done.** `ItantraTheme(fieldMode = false)` is a
+      constant in `MainActivity`, and no board in v2 draws the control that would change it —
+      board 23 is text size, not appearance. Both palettes exist and share one geometry;
+      nothing yet flips between them at runtime.
 
 ## 3. What is explicitly not touched
 

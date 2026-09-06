@@ -87,7 +87,7 @@ fun StorageScreen(
     modifier: Modifier = Modifier,
 ) {
     val p = palette
-    val groups = storageGroups(packs, languages)
+    val groups = storageGroups(packs, languages, downloads)
     val total = packs.sumOf { it.bytes }
     val wanted =
         downloads
@@ -199,6 +199,14 @@ internal data class StorageGroup(
     val nativeName: String,
     val englishName: String,
     val bytes: Long,
+    /**
+     * Files that are on the handset and that the engine will not load.
+     *
+     * Bytes present, `Download.installed` still false: a copy cut short, or a voice
+     * without the metadata sherpa needs. Saying nothing about it is how an operator
+     * downloads the same file three times and watches the storage figure climb.
+     */
+    val unusable: List<PackRow> = emptyList(),
     /** `ASR 34 · voice 26 · rules 1`, built from the kinds actually present. */
     val breakdown: String,
     /** `IndicConformer · Piper · permissive`, or the restrictive statement. */
@@ -216,8 +224,13 @@ internal data class StorageGroup(
 internal fun storageGroups(
     packs: List<PackRow>,
     languages: List<LanguageOption>,
+    downloads: List<Download> = emptyList(),
 ): List<StorageGroup> {
     val names = languages.associateBy { it.code }
+    // A file the index knows about, has bytes for on disk, and still reports as not
+    // installed, is a copy the engine cannot use.
+    val notLoadable =
+        downloads.filter { !it.installed }.map { it.languageCode to it.kind }.toSet()
     return packs
         .groupBy { it.languageCode }
         .map { (code, rows) ->
@@ -229,6 +242,7 @@ internal fun storageGroups(
                     .map { (kind, of) -> "$kind ${of.sumOf { it.bytes } / 1_000_000}" }
             StorageGroup(
                 code = code,
+                unusable = rows.filter { (it.languageCode to it.kind) in notLoadable },
                 nativeName = option?.nativeName ?: code.ifBlank { "shared" },
                 englishName = option?.englishName.orEmpty(),
                 bytes = rows.sumOf { it.bytes },
@@ -391,6 +405,20 @@ private fun InstalledPackRow(
                         group.provenance,
                         fontSize = Tokens.Label,
                         fontWeight = FontWeight.SemiBold,
+                        lineHeight = Tokens.Label * 1.35f,
+                        color = p.blush.deep,
+                    )
+                }
+            } else if (group.unusable.isNotEmpty()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    Box(Modifier.size(6.dp).background(p.blush.core, CircleShape))
+                    Text(
+                        "A copy is here and cannot be used — incomplete, or not in the form " +
+                            "the engine loads. Downloading again replaces it.",
+                        fontSize = Tokens.Label,
                         lineHeight = Tokens.Label * 1.35f,
                         color = p.blush.deep,
                     )

@@ -270,6 +270,23 @@ private fun DeliveryMark(delivery: LoggedMessage.Delivery) {
                     color = p.butter.deep,
                 )
             }
+        // Heard and refused: the far unit received the frame and would not read it out.
+        // Distinct from FAILED, and the distinction is where the fault lies — nothing is
+        // wrong with this handset's sending, so "try again" would be the wrong advice.
+        LoggedMessage.Delivery.REFUSED ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(Icons.Cross, contentDescription = null, tint = p.blush.core, modifier = Modifier.size(15.dp))
+                Text(
+                    "not read",
+                    fontSize = Tokens.Instrument,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Medium,
+                    color = p.blush.deep,
+                )
+            }
         LoggedMessage.Delivery.RECEIVED -> Unit
     }
 }
