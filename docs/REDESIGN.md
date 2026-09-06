@@ -151,8 +151,8 @@ Boards 17, 18, 19, 20, 21, 23, 24.
 
 - [x] **4.1** Control room — hero unit card, then 2-up destination tiles showing their
       current values. Resolve **G1**.
-- [ ] **4.2** Language — own script first, speaks / recognises-only marking.
-- [ ] **4.3** Mode and transport — every choice shows its cost.
+- [x] **4.2** Language — own script first, speaks / recognises-only marking.
+- [x] **4.3** Mode and transport — every choice shows its cost.
 - [ ] **4.4** Storage — the capacity bar as its own legend.
 - [ ] **4.5** Pack import — two steps, in order.
 - [x] **4.6** Text size — new screen, new `Destination`. Resolve **G4**.

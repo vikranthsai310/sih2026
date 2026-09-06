@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,18 +14,27 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -34,68 +44,176 @@ import androidx.compose.ui.unit.sp
 // operator may be gloved, in the dark, or unable to read (task W7.23).
 
 /**
- * Task **W7.19**. Mode and transport.
+ * Task **W7.19**, board 19. Mode and radio — every choice with its cost beside it.
  *
- * Both are shown with their consequence, not just their name. "Push-to-talk" means
- * nothing to someone choosing for the first time; "one at a time, longest battery" does.
+ * ## What the board asks for and what the radio can honour
+ *
+ * Board 19 draws mode as two selectable cards and transport as four radio rows. Neither
+ * selection exists, and the two are unavailable for different reasons that matter:
+ *
+ * - **Mode** is push-to-talk everywhere. `MessageEngine` sets `mode` to the literal `"PTT"`
+ *   in both places it is set and `DuplexPolicy` in `core-audio` has never had a caller. So
+ *   the cards are drawn — with their costs, which is the board's real contribution — and
+ *   the unavailable one says it is not in this build rather than taking a tap and doing
+ *   nothing.
+ * - **Transport is not a chooser at all**, and drawing radios there would be worse than
+ *   unimplemented, it would be *wrong*. Every channel runs at once; a frame goes down every
+ *   one that is up and the replay window discards whichever copy arrives second. A selected
+ *   radio would tell the operator their message left on one radio when it left on four.
+ *
+ * ## The cost chips
+ *
+ * "Push-to-talk" means nothing to someone choosing for the first time. `half duplex ·
+ * 800–1200 ms · lowest power` does, and it is the same three facts for both modes, in the
+ * same order, so they can be compared rather than read.
  */
 @Composable
 fun ModeAndTransportScreen(
     transports: List<TransportOption>,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxSize().background(Paper).padding(16.dp)) {
-        Text("MODE", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
-        Spacer(Modifier.height(8.dp))
+    val p = palette
+    Column(
+        modifier
+            .fillMaxSize()
+            .background(p.ground)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            "Mode and radio",
+            fontSize = Tokens.Title,
+            fontWeight = FontWeight.Bold,
+            color = p.ink,
+            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+        )
 
-        // Stated, not offered. This was two selectable rows with an empty click handler
-        // behind both: the engine is push-to-talk everywhere -- `mode = "PTT"` is a
-        // constant in MessageEngine -- and `DuplexPolicy` in core-audio has never been
-        // wired to it. A row that reads "Open conversation", takes a tap and changes
-        // nothing is worse than a screen that says which mode this build runs.
+        SettingsLabel("MODE")
+        ModeCard(
+            name = "Push to talk",
+            icon = Icons.Transmit,
+            selected = true,
+            costs = listOf("half duplex", "800–1200 ms", "lowest power"),
+            note = null,
+        )
+        ModeCard(
+            name = "Phone",
+            icon = Icons.OpenLine,
+            selected = false,
+            costs = listOf("full duplex", "1050–1500 ms", "higher power"),
+            note = "Open conversation — both sides at once — is not in this build.",
+        )
+
+        SettingsLabel("TRANSPORT", top = 8.dp)
         Column(
             Modifier
                 .fillMaxWidth()
-                .heightIn(min = ROW_DP.dp)
-                .border(1.dp, Ink, RoundedCornerShape(6.dp))
-                .padding(12.dp)
-                .semantics {
-                    contentDescription =
-                        "Push to talk. One at a time. Hold the key to speak. " +
-                        "This build has no other mode."
-                },
+                .background(p.paper, RoundedCornerShape(Tokens.RadiusTile))
+                .border(Tokens.Hairline, p.hairline, RoundedCornerShape(Tokens.RadiusTile)),
         ) {
-            Text("Push to talk", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+            transports.forEachIndexed { index, option ->
+                if (index > 0) {
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(p.sunken))
+                }
+                ChannelRow(option)
+            }
+            if (transports.isEmpty()) {
+                Text(
+                    "No radio is running on this handset.",
+                    fontSize = Tokens.BodySmall,
+                    color = p.muted,
+                    modifier = Modifier.padding(14.dp),
+                )
+            }
+        }
+
+        Column(
+            Modifier.padding(start = 4.dp, top = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            SettingsInstrument("four transports behind one interface")
+            SettingsInstrument("a frame is a frame on all of them")
+        }
+    }
+}
+
+/** One mode, with the three costs that let it be compared with the other. */
+@Composable
+private fun ModeCard(
+    name: String,
+    icon: ImageVector,
+    selected: Boolean,
+    costs: List<String>,
+    note: String?,
+) {
+    val p = palette
+    val shape = RoundedCornerShape(Tokens.RadiusTile)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(p.paper, shape)
+            .border(
+                if (selected) Tokens.SignalBorder else Tokens.Hairline,
+                if (selected) p.periwinkle.core else p.hairline,
+                shape,
+            )
+            .padding(16.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription =
+                    name + (if (selected) ", in use" else ", not in this build") +
+                    ". " + costs.joinToString(", ")
+            },
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(13.dp),
+        ) {
+            Marker(selected, p.periwinkle.core)
             Text(
-                "One at a time. Hold the key to speak. Longest battery life.",
-                fontSize = 13.sp,
-                color = Muted,
+                name,
+                fontSize = Tokens.Callout,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                color = p.ink,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = if (selected) p.periwinkle.core else p.hairlineStrong,
+                modifier = Modifier.size(22.dp),
             )
         }
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "Open conversation — both sides at once — is not in this build.",
-            fontSize = 13.sp,
-            color = Muted,
-        )
-
-        Spacer(Modifier.height(24.dp))
-        Text("CHANNELS", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
-        Spacer(Modifier.height(4.dp))
-        // Not a chooser. Every channel runs at once and a frame goes down all of them; the
-        // replay window discards the copy that arrives second. This section used to offer a
-        // selection between one option, with an empty click handler behind it.
-        Text(
-            "All of these run at the same time. A message goes out on every one that is " +
-                "up, and arrives once.",
-            fontSize = 13.sp,
-            color = Muted,
-        )
-        Spacer(Modifier.height(8.dp))
-
-        for (option in transports) {
-            ChannelRow(option)
-            Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier.padding(start = 33.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            costs.forEach { cost ->
+                Text(
+                    cost,
+                    fontSize = Tokens.Instrument,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Medium,
+                    color = if (selected) p.periwinkle.deep else p.muted,
+                    modifier =
+                        Modifier
+                            .background(
+                                if (selected) p.periwinkle.tint else p.sunken,
+                                RoundedCornerShape(Tokens.RadiusInset),
+                            )
+                            .padding(horizontal = 8.dp, vertical = 5.dp),
+                )
+            }
+        }
+        note?.let {
+            Text(
+                it,
+                fontSize = Tokens.Label,
+                lineHeight = Tokens.Label * 1.4f,
+                color = p.muted,
+                modifier = Modifier.padding(start = 33.dp),
+            )
         }
     }
 }
@@ -103,25 +221,56 @@ fun ModeAndTransportScreen(
 /**
  * One channel, with what it is doing rather than a control that pretends to switch it.
  *
- * The status word carries the meaning, so it is first and it is bold: an operator glancing
- * at this screen is asking "is anything getting out", not reading a list of radio names.
+ * The status word carries the meaning, so it is the coloured one: an operator glancing here
+ * is asking "is anything getting out", not reading a list of radio names.
+ *
+ * **No signal bars.** Board 19 draws a four-bar meter per transport, which reads as range.
+ * `TransportOption` carries a `detail` string and a link state and no reach at all, and a
+ * bar chart derived from either would be a measurement this application has not made — on a
+ * screen whose neighbours are all real numbers. The state is said in words instead.
  */
 @Composable
 private fun ChannelRow(option: TransportOption) {
-    Column(
+    val p = palette
+    val family = if (option.carrying) p.mint else p.butter
+    Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = ROW_DP.dp)
-            .border(1.dp, if (option.carrying) Ink else Muted, RoundedCornerShape(6.dp))
-            .padding(12.dp)
-            .semantics { contentDescription = "${option.name}. ${option.status}. ${option.detail}" },
+            .heightIn(min = Tokens.SecondaryAction)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${option.name}. ${option.status}. ${option.detail}"
+            },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(13.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (option.carrying) "●" else "○", fontSize = 18.sp, color = Ink)
-            Text("  ${option.name}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Box(
+            Modifier
+                .size(10.dp)
+                .background(if (option.carrying) family.core else p.hairlineStrong, CircleShape),
+        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                option.name,
+                fontSize = Tokens.Body,
+                fontWeight = if (option.carrying) FontWeight.SemiBold else FontWeight.Medium,
+                color = p.ink,
+            )
+            SettingsInstrument(option.detail)
         }
-        Text(option.status, fontSize = 14.sp, color = if (option.carrying) Ink else Muted)
-        Text(option.detail, fontSize = 13.sp, color = Muted)
+        Text(
+            option.status,
+            fontSize = Tokens.Instrument,
+            fontWeight = FontWeight.SemiBold,
+            color = if (option.carrying) family.deep else p.muted,
+            modifier =
+                Modifier
+                    .background(
+                        if (option.carrying) family.tint else p.sunken,
+                        RoundedCornerShape(Tokens.RadiusInset),
+                    )
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
+        )
     }
 }
 
@@ -140,20 +289,34 @@ data class TransportOption(
 )
 
 /**
- * Task **W7.20**. Language.
+ * Task **W7.20**, board 18. Language.
  *
  * ## Own script first
  *
  * A speaker of Odia looking for their language is looking for **ଓଡ଼ିଆ**, not for the word
- * "Odia" written in Latin script. The English gloss is second, for the operator setting
- * up someone else's handset.
+ * "Odia" written in Latin script, and certainly not for `or`. The native name is the row's
+ * heading at 19 sp with the 1.4 × Indic line box; the English gloss is second and smaller,
+ * for the operator setting up someone else's handset.
+ *
+ * ## The two ways a language fails, kept apart
+ *
+ * `canSpeak` and `recognition` fail independently. **Text only** on a row means a message
+ * arrives written and is never spoken aloud — it is not a quality warning, it is a
+ * statement that half the product does not happen for that language. The footer says so in
+ * words rather than leaving a chip to be guessed at.
  *
  * ## The licence warning is in the product
  *
- * Where a language's voice carries a non-commercial licence, that is surfaced **here**,
- * on the row, at the moment of choosing — not only in a document nobody reads. Three of
- * the ten languages have no permissively licensed voice at all, and a pack that cannot be
- * deployed commercially is a fact the operator is entitled to before they depend on it.
+ * Where a voice carries a non-commercial licence, that is surfaced **here**, on the row, at
+ * the moment of choosing — not only in a document nobody reads.
+ *
+ * ## What board 18 asks for that this cannot show
+ *
+ * The board splits the list into ON THIS HANDSET and NOT INSTALLED, with a size and a
+ * download control on each uninstalled row. [LanguageOption] carries no installed flag —
+ * what is on disk is `Download`/`PackRow`, which board 20 owns and this screen is not
+ * given. Rather than infer installedness from `canSpeak`, which is a different fact, the
+ * list stays flat and the download path stays on the storage screen where the data is.
  */
 @Composable
 fun LanguageScreen(
@@ -162,53 +325,196 @@ fun LanguageScreen(
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxSize().background(Paper).padding(16.dp)) {
-        Text("LANGUAGE", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
-        Spacer(Modifier.height(12.dp))
+    val p = palette
+    val voices = languages.count { it.canSpeak }
+    Column(
+        modifier
+            .fillMaxSize()
+            .background(p.ground),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Language", fontSize = Tokens.Title, fontWeight = FontWeight.Bold, color = p.ink)
+            Spacer(Modifier.weight(1f))
+            SettingsInstrument("$voices of ${languages.size} speak")
+        }
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(
+            Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             items(languages) { language ->
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = ROW_DP.dp)
-                        .border(
-                            if (language.code == selected) 2.dp else 1.dp,
-                            if (language.code == selected) Ink else Muted,
-                            RoundedCornerShape(6.dp),
-                        )
-                        .clickable { onSelect(language.code) }
-                        .padding(12.dp)
-                        .semantics {
-                            contentDescription =
-                                "${language.englishName}. ${language.availability()}"
-                        },
-                ) {
-                    // Own script, at the largest size on the row.
-                    Text(language.nativeName, fontSize = 20.sp, color = Ink)
-                    Text(language.englishName, fontSize = 13.sp, color = Muted)
-
-                    if (!language.canSpeak) {
-                        Text(
-                            "No voice available — messages arrive as text only",
-                            fontSize = 12.sp,
-                            color = Danger,
-                        )
-                    }
-                    language.recognition?.let {
-                        Text("Speech in: $it", fontSize = 12.sp, color = Muted)
-                    }
-                    if (language.nonCommercialVoice) {
-                        Text(
-                            "Voice licensed for non-commercial use only (CC-BY-NC)",
-                            fontSize = 12.sp,
-                            color = Danger,
-                        )
-                    }
-                }
+                LanguageRow(language, language.code == selected) { onSelect(language.code) }
             }
+            item { Spacer(Modifier.height(4.dp)) }
+        }
+
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(p.paper)
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(Modifier.padding(top = 6.dp).size(7.dp).background(p.butter.core, CircleShape))
+            Text(
+                buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = p.ink)) {
+                        append("Text only")
+                    }
+                    append(
+                        " means a message arrives written but is never spoken. " +
+                            "Recognition and voice fail independently.",
+                    )
+                },
+                fontSize = Tokens.Label,
+                lineHeight = Tokens.Label * 1.45f,
+                color = p.muted,
+            )
         }
     }
+}
+
+/**
+ * One language.
+ *
+ * Selection carries three ways at once — a filled marker, a 2 dp signal border and a weight
+ * change — because `docs/UX.md` rule 3 and the greyscale law both apply, and a ring alone is
+ * the first thing to disappear in sunlight.
+ */
+@Composable
+private fun LanguageRow(
+    language: LanguageOption,
+    selected: Boolean,
+    onSelect: () -> Unit,
+) {
+    val p = palette
+    val shape = RoundedCornerShape(Tokens.RadiusTile)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = Tokens.SecondaryAction)
+            .background(p.paper, shape)
+            .border(
+                if (selected) Tokens.SignalBorder else Tokens.Hairline,
+                if (selected) p.orchid.core else p.hairline,
+                shape,
+            )
+            .clickable(onClick = onSelect)
+            .padding(14.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription =
+                    language.nativeName + ", " + language.englishName + ". " +
+                    language.availability() + if (selected) ". Current." else ""
+            },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(13.dp),
+    ) {
+        Marker(selected, p.orchid.core)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                language.nativeName,
+                fontSize = Tokens.Subtitle,
+                fontWeight = FontWeight.SemiBold,
+                // The whole reason INDIC_LINE_HEIGHT exists: ଓଡ଼ିଆ and മലയാളം clip against
+                // the default box at this size, and this is the screen that shows all ten.
+                lineHeight = Tokens.Subtitle * Tokens.INDIC_LINE_HEIGHT,
+                color = p.ink,
+            )
+            Text(
+                language.englishName + (language.recognition?.let { " · $it" } ?: ""),
+                fontSize = Tokens.Label,
+                lineHeight = Tokens.Label * 1.3f,
+                color = p.muted,
+            )
+        }
+        when {
+            !language.canSpeak -> RowTag("Text only", p.butter)
+            language.nonCommercialVoice -> RowTag("CC-BY-NC", p.blush)
+            else -> Unit
+        }
+    }
+}
+
+/** A small tag on the right of a row. Always a word, never a colour on its own. */
+@Composable
+private fun RowTag(
+    text: String,
+    family: ItantraPalette.Family,
+) {
+    Text(
+        text,
+        fontSize = Tokens.Instrument,
+        fontWeight = FontWeight.SemiBold,
+        color = family.deep,
+        modifier =
+            Modifier
+                .background(family.tint, RoundedCornerShape(Tokens.RadiusInset))
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+    )
+}
+
+/**
+ * The selected marker: a filled disc with a punched centre, or a hollow ring.
+ *
+ * Drawn rather than `RadioButton`, because Material's carries its own colour scheme and
+ * `Tokens` exists so that there is exactly one source of colour in this application.
+ */
+@Composable
+private fun Marker(
+    selected: Boolean,
+    colour: Color,
+) {
+    val p = palette
+    Box(
+        Modifier
+            .size(20.dp)
+            .then(
+                if (selected) {
+                    Modifier.background(colour, CircleShape)
+                } else {
+                    Modifier.border(2.dp, p.hairlineStrong, CircleShape)
+                },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (selected) {
+            Box(Modifier.size(7.dp).background(p.paper, CircleShape))
+        }
+    }
+}
+
+/** A section heading in the instrument face, as every board sets them. */
+@Composable
+private fun SettingsLabel(
+    text: String,
+    top: androidx.compose.ui.unit.Dp = 0.dp,
+) {
+    val p = palette
+    Text(
+        text,
+        fontSize = Tokens.Instrument,
+        fontFamily = FontFamily.Monospace,
+        fontWeight = FontWeight.Medium,
+        color = p.muted,
+        modifier = Modifier.padding(start = 4.dp, top = top),
+    )
+}
+
+/** A figure or a machine fact, in the instrument face. */
+@Composable
+private fun SettingsInstrument(text: String) {
+    val p = palette
+    Text(
+        text,
+        fontSize = Tokens.Instrument,
+        fontFamily = FontFamily.Monospace,
+        fontWeight = FontWeight.Medium,
+        color = p.muted,
+    )
 }
 
 data class LanguageOption(
