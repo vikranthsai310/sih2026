@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.itantra.proto.Frame
 import java.util.UUID
 
 /**
@@ -101,7 +102,8 @@ class BleBroadcastLink(
                 } else {
                     LEGACY_BUDGET
                 }
-            return (budget - SERVICE_DATA_OVERHEAD).coerceAtLeast(MIN_MTU)
+            val overhead = if (extended) SERVICE_DATA_OVERHEAD else LEGACY_OVERHEAD
+            return (budget - overhead).coerceAtLeast(MIN_MTU)
         }
 
     /** Frames waiting for the air. Dropping the oldest is right: stale speech is not worth sending. */
@@ -178,7 +180,32 @@ class BleBroadcastLink(
         }
 
     override suspend fun connect() {
-        if (pump?.isActive == true) return
+        if (_state.value == LinkState.CONNECTED && pump?.isActive == true) return
+        // Re-armed from scratch. A radio switched off and on leaves the scanner stopped
+        // and the advertising set gone, with nothing to notice: the first version returned
+        // here as long as the transmit loop was alive, which it always was, so the channel
+        // stayed "connected" and carried nothing until the application was restarted.
+        pump?.cancel()
+        pump = null
+        runCatching { adapter.bluetoothLeScanner?.stopScan(scanCallback) }
+        stopAdvertising()
+        if (!runCatching { adapter.isEnabled }.getOrDefault(false)) {
+            _state.value = LinkState.DEGRADED
+            return
+        }
+        if (!extendedSupported()) {
+            // A legacy advertisement holds 31 bytes, of which 21 are flags and the
+            // service-data header. The smallest frame is 29. Nothing can ever be carried,
+            // and saying "connected" while dropping every frame is how a handset looks
+            // like it is on the channel and is not. The other roads still run.
+            Log.w(
+                TAG,
+                "no extended advertising on this handset: the BLE channel holds $mtu B " +
+                    "and the smallest frame is $MIN_FRAME_BYTES B",
+            )
+            _state.value = LinkState.DEGRADED
+            return
+        }
         val scanner = adapter.bluetoothLeScanner
         val advertiser = adapter.bluetoothLeAdvertiser
         if (scanner == null || advertiser == null) {
@@ -354,6 +381,12 @@ class BleBroadcastLink(
          * payload, plus 3 for the flags.
          */
         const val SERVICE_DATA_OVERHEAD = 39
+
+        /** A legacy advertisement carries only the flags and the service-data entry. */
+        const val LEGACY_OVERHEAD = 21
+
+        /** Header, one template byte, the full tag, and the CRC. */
+        const val MIN_FRAME_BYTES = Frame.HEADER_SIZE + 1 + 16 + Frame.CRC_SIZE
 
         /** Below this nothing useful fits and fragmentation would never terminate. */
         const val MIN_MTU = 8

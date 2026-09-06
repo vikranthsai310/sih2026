@@ -628,11 +628,19 @@ class MainActivity : ComponentActivity() {
             arrayOf(Manifest.permission.RECORD_AUDIO)
         }
 
-    /** `BLUETOOTH_CONNECT` became a runtime permission in Android 12. */
+    /**
+     * All three Bluetooth permissions became runtime permissions in Android 12, and the
+     * net needs all three: CONNECT for the bonded sockets, SCAN to hear the broadcast
+     * channel, ADVERTISE to speak on it. Checking CONNECT alone let the engine start with
+     * the other two refused, on a channel it could neither hear nor speak.
+     */
     private fun hasBluetoothPermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
-            PackageManager.PERMISSION_GRANTED
+            listOf(
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.BLUETOOTH_ADVERTISE,
+            ).all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
 
     /**
      * Shown between launch and the permission answer, and for good if it was refused.

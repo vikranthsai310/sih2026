@@ -20,7 +20,7 @@ import kotlin.random.Random
  * | Mechanism | Stops |
  * | --- | --- |
  * | `TTL` decrement, drop at zero | Unbounded hop count |
- * | Seen-set on `(SRC, EPOCH, SEQ)` | The same frame going round a loop forever |
+ * | Seen-set on `(SRC, EPOCH, SEQ, fragment)` | The same frame going round a loop forever |
  * | 0–50 ms random delay | Every unit rebroadcasting in the same instant and colliding |
  *
  * The seen-set alone is not enough, because a frame can reach a unit by two paths before
@@ -28,12 +28,28 @@ import kotlin.random.Random
  * multiplies traffic at every hop until the TTL runs out. The delay alone prevents
  * neither.
  *
+ * ## What is relayed is what arrived
+ *
+ * The frame handed here is the **sealed** one, exactly as it came off the wire, and the
+ * frame handed back is that frame with its `TTL` one lower. The first version relayed the
+ * *opened* frame — plaintext, `ENCRYPTED` flag cleared — and every unit that received the
+ * rebroadcast refused it as unauthenticated and counted it as an attack. Multi-hop never
+ * worked, and every message was re-broadcast in the clear. The TTL can be decremented
+ * without breaking the tag because [Session] leaves the TTL byte out of the associated
+ * data, precisely so that relays can do this.
+ *
  * ## `EPOCH` is not on the wire
  *
  * The header carries `SRC` and `SEQ` but not `EPOCH`, so the caller supplies the epoch it
- * currently believes that sender to be in — learned from their `HEARTBEAT`. This matters
- * because `SEQ` wraps at 65 536: without the epoch, a frame from after a wrap would be
- * suppressed as a duplicate of one from before it.
+ * has verified that sender to be in. This matters because `SEQ` wraps at 65 536: without
+ * the epoch, a frame from after a wrap would be suppressed as a duplicate of one from
+ * before it.
+ *
+ * ## Fragments
+ *
+ * The fragments of one message share `SRC` and `SEQ`. Keyed on those alone, the second
+ * fragment was "already seen" the moment the first had been, and a fragmented message
+ * could never cross a relay. The fragment index is part of the key.
  */
 class Relay(
     private val localSrc: Int,
@@ -73,20 +89,21 @@ class Relay(
     val seenCount: Int get() = seen.size
 
     /**
-     * @param epochForSrc the epoch this unit believes [frame]'s sender is in, from their
-     *   most recent `HEARTBEAT`
+     * @param epochForSrc the epoch this unit has verified [frame]'s sender to be in
+     * @param fragment the fragment index for a fragment, or [WHOLE] for a complete frame
      */
     fun consider(
         frame: Frame,
         epochForSrc: Long,
         nowMillis: Long = 0,
+        fragment: Int = WHOLE,
     ): Decision {
         if (frame.src == localSrc) return Decision.Drop(Reason.OWN_FRAME)
         if (!frame.type.relayable) return Decision.Drop(Reason.NOT_RELAYABLE)
 
         // Recorded before the TTL check, so a frame that arrives again by a shorter path
         // is still suppressed rather than forwarded on its second appearance.
-        val key = key(frame.src, epochForSrc, frame.seq)
+        val key = key(frame.src, epochForSrc, frame.seq, fragment)
         if (!remember(key)) return Decision.Drop(Reason.ALREADY_SEEN)
 
         if (frame.ttl <= 0) return Decision.Drop(Reason.TTL_EXHAUSTED)
@@ -105,7 +122,8 @@ class Relay(
         src: Int,
         epoch: Long,
         seq: Int,
-    ): Boolean = remember(key(src, epoch, seq))
+        fragment: Int = WHOLE,
+    ): Boolean = remember(key(src, epoch, seq, fragment))
 
     /** @return true if this is the first time; false if it was already known. */
     private fun remember(key: Long): Boolean {
@@ -121,7 +139,8 @@ class Relay(
         src: Int,
         epoch: Long,
         seq: Int,
-    ): Boolean = key(src, epoch, seq) in seen
+        fragment: Int = WHOLE,
+    ): Boolean = key(src, epoch, seq, fragment) in seen
 
     fun clear() = seen.clear()
 
@@ -136,13 +155,18 @@ class Relay(
         /** Long enough to decorrelate rebroadcasts, short enough not to add real delay. */
         const val MAX_JITTER_MILLIS = 50L
 
-        /** `SRC` (8 bits) ‖ `EPOCH` (32) ‖ `SEQ` (16) packed into one `Long`. */
+        /** The fragment index of a frame that is not a fragment. */
+        const val WHOLE = 0xFF
+
+        /** fragment (8 bits) ‖ `SRC` (8) ‖ `EPOCH` (32) ‖ `SEQ` (16) packed into one `Long`. */
         private fun key(
             src: Int,
             epoch: Long,
             seq: Int,
+            fragment: Int,
         ): Long =
-            ((src.toLong() and 0xFF) shl 48) or
+            ((fragment.toLong() and 0xFF) shl 56) or
+                ((src.toLong() and 0xFF) shl 48) or
                 ((epoch and 0xFFFFFFFFL) shl 16) or
                 (seq.toLong() and 0xFFFF)
     }

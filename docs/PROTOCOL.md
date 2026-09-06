@@ -351,10 +351,16 @@ maximum-volume evacuation order is a weapon. **Encryption is the real address.**
   at provisioning, stored in Android Keystore, never written to DataStore, a file, or a
   log.
 - **Plaintext:** the payload only.
-- **Associated data:** the **entire 10-byte header**. This binds `SRC`, `KEYID`,
-  `TYPE`, `SEQ` and `FLAGS` into the authentication tag, so none of them can be altered by
-  an attacker without invalidating the frame. In particular the sender identity is
-  authenticated, which is what defeats impersonation (risk S-01).
+- **Associated data:** the 10-byte header **with the `TTL` byte set to zero**. This binds
+  `SRC`, `KEYID`, `TYPE`, `SEQ`, `LEN`, `LANG` and `FLAGS` into the authentication tag, so
+  none of them can be altered by an attacker without invalidating the frame. In particular
+  the sender identity is authenticated, which is what defeats impersonation (risk S-01).
+
+  > **Amended 2026-09-06.** The TTL is the one header field a relay legitimately changes,
+  > and a relay does not hold the key — it forwards what it heard. With the TTL bound, every
+  > relayed frame failed verification at the next hop and multi-hop delivery (§8, *Relay*)
+  > never worked. Zeroing that byte in the associated data lets a relay decrement it and
+  > nothing else. A relay that altered any other byte still produces a frame that fails.
 - **Ciphertext and tag** replace the payload; `LEN` counts ciphertext **plus** tag.
 
 ### 6.2 Deterministic nonce
@@ -369,8 +375,16 @@ nonce (12 bytes) = EPOCH (4 B, BE) ‖ SRC (1 B) ‖ SEQ (2 B, BE) ‖ 0x00 × 5
 - `EPOCH` is a per-sender 32-bit counter, persisted, incremented **every time `SEQ` wraps**
   and every time the service starts. The receiver tracks the highest `EPOCH` seen per
   sender and rejects any frame carrying a lower one.
-- `EPOCH` is carried in `HEARTBEAT` (§9) so a joining or restarting receiver learns it
-  without a handshake.
+- `EPOCH` is announced in a **hello** (§9) so a joining or restarting receiver learns it
+  without a handshake, and is otherwise **discovered**: the receiver tries candidate epochs
+  — the last one verified for that sender, the announced one, its own and its neighbours,
+  then a bounded range from zero — and only a candidate whose tag verifies is accepted. A
+  hint is never believed on its own.
+- `EPOCH` is **seeded from the clock**: a start never issues an epoch below the number of
+  minutes since 2026-01-01T00:00Z. A reinstall wipes the persisted counter, and a counter
+  back at zero would both reuse nonces already used under this key and be refused by every
+  peer as a replay. With the seed, a reinstalled unit's epoch is still higher than anything
+  it sent before. A handset whose clock reads before the origin falls back to the counter.
 - This guarantees the `(key, nonce)` pair is never reused, which is the one failure mode
   that destroys GCM entirely.
 
@@ -507,6 +521,16 @@ from a dead one.
 
 12 bytes. `HEARTBEAT` MUST be authenticated like any other frame and MUST NOT be relayed.
 
+> **Amended 2026-09-06 — the hello.** A heartbeat sealed with the sender's epoch cannot
+> tell a receiver what that epoch is, which is the one thing the receiver cannot otherwise
+> know; that circularity is why the 12-byte payload above was never sent. What is sent
+> instead is a **hello**: type `HEARTBEAT`, `ENCRYPTED` clear, `TTL` 0, payload the 4-byte
+> `EPOCH` alone, every 5 s and once on start. It is not authenticated and is not trusted:
+> a receiver uses it only as the first candidate when verifying that sender's next frame
+> (§6.2). A forged hello costs the receiver one wasted tag check. It is never relayed, and
+> it carries no presence, battery or state — a unit is "heard from" only by an
+> authenticated frame.
+
 ---
 
 ## 10. Position payload
@@ -532,7 +556,14 @@ TCP are byte streams and MUST NOT fragment.
 - All fragments of one message share `SEQ`; fragment order is transmission order.
 - The receiver reassembles into a buffer capped at 1024 B and discards the partial message
   if the next fragment does not arrive within 2 s.
-- AEAD verification happens **after** reassembly, on the complete payload.
+- AEAD verification happens **after** reassembly, on the complete payload. The
+  implementation did this the other way round until 2026-09-06 and no fragmented message
+  ever arrived; `SessionPathTest` now sends one through a 64-byte link.
+- The sender sizes fragments to the link's MTU **as it is at the time of sending** — the
+  narrowest peer that is up — not to a figure fixed when the session was built.
+- A fragmented message is relayed as its fragments, each once, after the whole has been
+  verified. The relay seen-set (§8) keys on the fragment index as well as `(SRC, EPOCH,
+  SEQ)`, or the second fragment would be suppressed as a duplicate of the first.
 
 ---
 

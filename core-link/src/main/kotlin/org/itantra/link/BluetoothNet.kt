@@ -117,6 +117,11 @@ class BluetoothNet(
                 // fatal: the radio may come back, and the operator is told separately.
             } catch (e: SecurityException) {
                 return // The permission was revoked. Nothing here can recover that.
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A failure registering one socket must not end listening for every unit
+                // that comes after it. Logged by the link; retried after a pause.
             } finally {
                 runCatching { server?.close() }
                 server = null
@@ -181,27 +186,32 @@ class BluetoothNet(
             return
         }
         val theirName = runCatching { socket.remoteDevice?.name }.getOrNull()
+        val ordered = PeerPreference.hasOrdering(localName(), theirName)
+        // With an ordering, one socket per peer, under its address. Without one, both
+        // units dial and both accept, and both sockets are kept under their own names --
+        // see PeerPreference.hasOrdering for why the alternative loses the pair entirely.
+        val id = if (ordered) address else "$address/${if (inbound) "in" else "out"}"
 
         lock.withLock {
-            val existing = roster[address]
+            val existing = roster[id]
             if (existing != null && existing.link.state.value == LinkState.CONNECTED) {
-                if (existing.inbound == inbound || !supersedes(inbound, theirName)) {
+                if (!ordered || existing.inbound == inbound || !supersedes(inbound, theirName)) {
                     runCatching { socket.close() }
                     return
                 }
                 // Both units dialled. Exactly one socket survives and both ends have to
                 // choose the same one, or the pair loses the connection entirely.
                 runCatching { existing.link.disconnect() }
-                mesh.removePeer(address)
+                mesh.removePeer(id)
             }
 
             val link = RfcommLink(socket, scope, name = "bluetooth")
-            roster[address] = Peer(link, inbound)
-            mesh.addPeer(address, link)
+            roster[id] = Peer(link, inbound)
+            mesh.addPeer(id, link)
             link.connect()
         }
 
-        watchForDeath(address)
+        watchForDeath(id)
     }
 
     /** Whether a newly arrived socket replaces the one already held for that peer. */
@@ -228,8 +238,12 @@ class BluetoothNet(
         }
     }
 
+    /** Whether this unit's own socket to [address] is up, under either naming. */
     private suspend fun isLive(address: String): Boolean =
-        lock.withLock { roster[address]?.link?.state?.value == LinkState.CONNECTED }
+        lock.withLock {
+            roster[address]?.link?.state?.value == LinkState.CONNECTED ||
+                roster["$address/out"]?.link?.state?.value == LinkState.CONNECTED
+        }
 
     // ── what is worth dialling ───────────────────────────────────────────────
 

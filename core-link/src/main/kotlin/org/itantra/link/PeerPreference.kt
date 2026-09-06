@@ -72,6 +72,22 @@ object PeerPreference {
         return theirName!! > ourName!!
     }
 
+    /**
+     * Whether the two names give the pair an ordering at all.
+     *
+     * Without one — a name missing, or two handsets of the same model straight out of the
+     * box — both units dial and both accept, and **both sockets are kept**. The first
+     * version tried to pick one and the two ends picked differently: each kept the socket
+     * it had dialled and closed the one it had accepted, which closed the other end's
+     * keeper, and the pair reconnected and did it again, for ever. Two sockets cost one
+     * duplicate frame per message, which the replay window discards; a pair that can never
+     * hold a connection costs the net.
+     */
+    fun hasOrdering(
+        ourName: String?,
+        theirName: String?,
+    ): Boolean = usable(ourName) && usable(theirName) && ourName != theirName
+
     /** A blank name is what the platform returns when it has not resolved one yet. */
     private fun usable(name: String?): Boolean = !name.isNullOrBlank()
 }

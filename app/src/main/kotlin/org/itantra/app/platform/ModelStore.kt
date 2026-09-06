@@ -119,6 +119,9 @@ class ModelStore(context: Context) {
 
     fun voiceTokensFor(languageCode: String): File = File(File(voices, languageCode), TOKENS)
 
+    /** The Piper `.onnx.json`, bundled beside the voice. Absent for a voice that is not Piper. */
+    fun voiceConfigFor(languageCode: String): File = File(File(voices, languageCode), VOICE_CONFIG)
+
     /**
      * Whether a message arriving in this language can be spoken aloud.
      *
@@ -273,6 +276,7 @@ class ModelStore(context: Context) {
 
         const val ESPEAK = "espeak-ng-data"
         const val VOICE = "model.onnx"
+        const val VOICE_CONFIG = "config.json"
 
         /** The metadata key sherpa-onnx requires and raw Piper voices do not carry. */
         const val SAMPLE_RATE = "sample_rate"

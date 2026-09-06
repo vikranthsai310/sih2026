@@ -133,6 +133,31 @@ class UtteranceDecoderTest {
 
     private fun decoderFor(script: Script) = UtteranceDecoder(decode = script::decode)
 
+    /** The words alone: the commas mark the speaker's pauses and are tested separately. */
+    private fun words(text: String) = text.replace(",", "")
+
+    @Test
+    fun `a pause the speaker left is carried as a comma, and only there`() {
+        val script = Script()
+        script.sentence(listOf("हमें", "तुरंत", "मदद", "चाहिए"))
+        script.quiet(400)
+        script.sentence(listOf("दो", "लोग", "घायल", "हैं"))
+        script.quiet(100)
+        val d = decoderFor(script)
+        feed(d, script.pcm())
+        assertEquals("हमें तुरंत मदद चाहिए, दो लोग घायल हैं", d.onEndpoint())
+    }
+
+    @Test
+    fun `a forced cut is not a pause and gets no comma`() {
+        val script = Script()
+        script.sentence((1..20).map { "w$it" }, wordMillis = 400, gapMillis = 0)
+        script.quiet(100)
+        val d = decoderFor(script)
+        feed(d, script.pcm())
+        assertEquals(script.expected(), d.onEndpoint())
+    }
+
     // ── the accuracy claim: whole clauses, every word once ───────────────────
 
     @Test
@@ -146,7 +171,7 @@ class UtteranceDecoderTest {
         val d = decoderFor(script)
         feed(d, script.pcm())
         assertEquals("the first clause closes in the pause", 1, d.segmentsDecoded)
-        assertEquals(script.expected(), d.onEndpoint())
+        assertEquals(script.expected(), words(d.onEndpoint()))
     }
 
     @Test
@@ -161,7 +186,7 @@ class UtteranceDecoderTest {
         feed(d, script.pcm())
         val text = d.onEndpoint()
         assertFalse("a window cut a word: $text", text.contains('½'))
-        assertEquals(script.expected(), text)
+        assertEquals(script.expected(), words(text))
     }
 
     @Test
@@ -182,7 +207,7 @@ class UtteranceDecoderTest {
         }
         assertTrue("the operator saw nothing while speaking", partials > 0)
         assertTrue("running text is words, not empty", d.runningText().isNotEmpty())
-        assertEquals(script.expected(), d.onEndpoint())
+        assertEquals(script.expected(), words(d.onEndpoint()))
     }
 
     // ── a speaker who never pauses ───────────────────────────────────────────
@@ -199,7 +224,7 @@ class UtteranceDecoderTest {
         assertTrue("a forced cut was needed", d.segmentsDecoded >= 1)
         val text = d.onEndpoint()
         assertFalse("a forced cut fell inside a word: $text", text.contains('½'))
-        assertEquals(script.expected(), text)
+        assertEquals(script.expected(), words(text))
     }
 
     /**
@@ -217,7 +242,7 @@ class UtteranceDecoderTest {
         val d = decoderFor(script)
         feed(d, script.pcm())
         val text = d.onEndpoint()
-        assertEquals(script.expected(), text)
+        assertEquals(script.expected(), words(text))
     }
 
     // ── the latency claim ────────────────────────────────────────────────────
@@ -252,7 +277,7 @@ class UtteranceDecoderTest {
         val decodesBefore = script.windows.size
         assertTrue("a provisional reading was made", d.provisionalDecodes > 0)
         assertEquals("nothing is left for the endpoint", 0, d.endpointDecodeMillis)
-        assertEquals(script.expected(), d.onEndpoint())
+        assertEquals(script.expected(), words(d.onEndpoint()))
         assertEquals("the endpoint reused the reading rather than decoding again", decodesBefore, script.windows.size)
     }
 
@@ -268,7 +293,7 @@ class UtteranceDecoderTest {
             "the tail was ${d.endpointDecodeMillis} ms, more than the last clause",
             d.endpointDecodeMillis <= 2 * 320 + 60 + 2 * UtteranceDecoder.KEEP_QUIET_MILLIS + 40,
         )
-        assertEquals(script.expected(), d.onEndpoint())
+        assertEquals(script.expected(), words(d.onEndpoint()))
     }
 
     // ── silence ──────────────────────────────────────────────────────────────
@@ -303,7 +328,7 @@ class UtteranceDecoderTest {
         script.quiet(100)
         val d = decoderFor(script)
         feed(d, script.pcm())
-        assertEquals(script.expected(), d.onEndpoint())
+        assertEquals(script.expected(), words(d.onEndpoint()))
         val longest = script.windows.max() * 1000 / 16_000
         assertTrue(
             "the model was handed $longest ms for a 1.4 s sentence",
@@ -320,7 +345,7 @@ class UtteranceDecoderTest {
         script.quiet(100)
         val d = decoderFor(script)
         feed(d, script.pcm())
-        assertEquals(script.expected(), d.onEndpoint())
+        assertEquals(script.expected(), words(d.onEndpoint()))
     }
 
     // ── housekeeping ─────────────────────────────────────────────────────────
@@ -333,7 +358,7 @@ class UtteranceDecoderTest {
         script.sentence(listOf("तीन"))
         val d = decoderFor(script)
         feed(d, script.pcm())
-        assertEquals(script.expected(), d.onEndpoint())
+        assertEquals(script.expected(), words(d.onEndpoint()))
         assertEquals(0, d.pendingMillis)
         assertEquals(0, d.segmentsDecoded)
         assertEquals("", d.runningText())
@@ -343,7 +368,7 @@ class UtteranceDecoderTest {
         again.quiet(100)
         val d2 = UtteranceDecoder(decode = again::decode)
         feed(d2, again.pcm())
-        assertEquals("चार", d2.onEndpoint())
+        assertEquals("चार", words(d2.onEndpoint()))
     }
 
     @Test

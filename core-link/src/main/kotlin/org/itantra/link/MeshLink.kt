@@ -44,6 +44,14 @@ import kotlinx.coroutines.launch
  * is currently up — recoverable, and the children are retrying — and `IDLE` when there are
  * no peers at all. There is deliberately no state for "some peers down": on a radio net that
  * is the normal condition, not a fault.
+ *
+ * ## Threads
+ *
+ * Peers are added and removed from the Bluetooth I/O threads while frames are sent from
+ * the engine's. The roster is guarded, and every loop over it walks a **snapshot**: a send
+ * suspends inside the loop at each peer's write, and a peer arriving during that suspension
+ * used to throw `ConcurrentModificationException` out of the send — the message was lost,
+ * and when it happened inside the first `connect()` the outbox watcher never started.
  */
 class MeshLink(
     private val scope: CoroutineScope,
@@ -63,6 +71,8 @@ class MeshLink(
 
     private val peers = LinkedHashMap<String, Peer>()
 
+    private fun snapshot(): List<Peer> = synchronized(peers) { peers.values.toList() }
+
     private val _incoming =
         MutableSharedFlow<ByteArray>(replay = 0, extraBufferCapacity = 256)
     private val _state = MutableStateFlow(LinkState.IDLE)
@@ -73,22 +83,27 @@ class MeshLink(
     override val metrics: StateFlow<LinkMetrics> get() = _metrics.asStateFlow()
 
     /**
-     * The smallest MTU across the peers, or a conservative default with none.
+     * The smallest MTU across the peers that are up, or a conservative default with none.
      *
      * The **smallest**, because one frame goes to all of them: sizing to the largest would
      * produce a frame the narrowest peer cannot carry, and it would fail only for that
-     * unit, only sometimes, and only for long messages.
+     * unit, only sometimes, and only for long messages. Only peers that are up count: a
+     * road that is closed does not get to decide how wide the open ones are.
      */
     override val mtu: Int
-        get() = peers.values.minOfOrNull { it.link.mtu } ?: DEFAULT_MTU
+        get() {
+            val all = snapshot()
+            val up = all.filter { it.link.state.value == LinkState.CONNECTED }
+            return (up.ifEmpty { all }).minOfOrNull { it.link.mtu } ?: DEFAULT_MTU
+        }
 
     /** Peers currently reachable — the "6 units" band A shows. */
     val connectedCount: Int
-        get() = peers.values.count { it.link.state.value == LinkState.CONNECTED }
+        get() = snapshot().count { it.link.state.value == LinkState.CONNECTED }
 
-    val peerCount: Int get() = peers.size
+    val peerCount: Int get() = synchronized(peers) { peers.size }
 
-    val peerNames: List<String> get() = peers.keys.toList()
+    val peerNames: List<String> get() = synchronized(peers) { peers.keys.toList() }
 
     /**
      * Every peer's own state, by the id it was added under.
@@ -99,7 +114,7 @@ class MeshLink(
      * channel listed with no state is the kind of control that looks alive and is not.
      */
     val peerStates: Map<String, LinkState>
-        get() = peers.mapValues { (_, peer) -> peer.link.state.value }
+        get() = synchronized(peers) { peers.mapValues { (_, peer) -> peer.link.state.value } }
 
     /**
      * Adds a peer and starts reading from it.
@@ -132,12 +147,13 @@ class MeshLink(
             scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 link.state.collect { recomputeState() }
             }
-        peers[id] = Peer(link, pump, watch)
+        synchronized(peers) { peers[id] = Peer(link, pump, watch) }
         recomputeState()
     }
 
     fun removePeer(id: String) {
-        peers.remove(id)?.let { peer ->
+        val removed = synchronized(peers) { peers.remove(id) }
+        removed?.let { peer ->
             peer.stop()
             scope.launch { peer.link.disconnect() }
         }
@@ -145,13 +161,32 @@ class MeshLink(
     }
 
     override suspend fun connect() {
-        for (peer in peers.values) peer.link.connect()
+        for (peer in snapshot()) peer.link.connect()
         recomputeState()
     }
 
     override suspend fun disconnect() {
-        for (peer in peers.values) peer.link.disconnect()
+        for (peer in snapshot()) peer.link.disconnect()
         recomputeState()
+    }
+
+    /**
+     * Asks every peer that is not up to try again.
+     *
+     * A broadcast link has nobody to notice it has died: a radio switched off and on
+     * leaves the scanner stopped and the socket dead, with nothing to redial. This is the
+     * periodic nudge that brings such a road back, and it is cheap for a road that is
+     * already open, because those are skipped.
+     */
+    suspend fun reconnectDown(): Int {
+        var attempted = 0
+        for (peer in snapshot()) {
+            if (peer.link.state.value == LinkState.CONNECTED) continue
+            runCatching { peer.link.connect() }
+            attempted++
+        }
+        recomputeState()
+        return attempted
     }
 
     /**
@@ -163,7 +198,7 @@ class MeshLink(
      */
     override suspend fun send(frame: ByteArray) {
         var delivered = 0
-        for (peer in peers.values) {
+        for (peer in snapshot()) {
             if (peer.link.state.value != LinkState.CONNECTED) continue
             runCatching { peer.link.send(frame) }.onSuccess { delivered++ }
         }
@@ -175,10 +210,11 @@ class MeshLink(
     }
 
     private fun recomputeState() {
+        val all = snapshot()
         _state.value =
             when {
-                peers.isEmpty() -> LinkState.IDLE
-                peers.values.any { it.link.state.value == LinkState.CONNECTED } -> LinkState.CONNECTED
+                all.isEmpty() -> LinkState.IDLE
+                all.any { it.link.state.value == LinkState.CONNECTED } -> LinkState.CONNECTED
                 // Configured peers, none up. The children are retrying, so this is
                 // recoverable by definition.
                 else -> LinkState.DEGRADED

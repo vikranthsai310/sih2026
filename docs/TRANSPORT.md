@@ -219,11 +219,20 @@ them.
 | Phase | Behaviour |
 | --- | --- |
 | Discovery | RFCOMM: bonded devices first, then a bounded 12 s scan. BLE: advertise and scan on the service UUID, no bonding. Wi-Fi: none — frames are broadcast to the subnet on port `38173` and any unit on the network receives them |
-| Connection | Role is decided at provisioning — the first unit is the host. No negotiation on the wire |
-| Heartbeat | Every 2 s; three consecutive misses mark the peer offline |
-| Backoff | Exponential with jitter, 1 s → 30 s, reset on a successful frame |
-| Store and forward | Frames queue in the outbox while disconnected and flush in order on reconnection |
-| Degraded | Surfaced in the UI with a reason string. The service never silently stops trying |
+| Connection | RFCOMM: the unit with the lexicographically greater **Bluetooth name** dials, the other listens (`PeerPreference`). Two units with the same name, or no name, both dial and **both sockets are kept** — a duplicate frame costs nothing, a pair that closes each other's socket never connects. Broadcast roads have no connection at all |
+| Hello | Every 5 s and once on start: 16 bytes announcing this unit's epoch, so a peer that restarted or was reinstalled is verified in one check (PROTOCOL.md §9). The 2 s authenticated heartbeat in the original design was never sent, for the reason given there |
+| Backoff | Exponential with jitter, 1.5 s → 15 s, reset on connection |
+| Recovery | Every 5 s the engine re-opens any road that is down — a radio switched off and on, a hotspot that appeared — and flushes the outbox if anything is queued. Returning to the application does the same at once |
+| Store and forward | Frames queue in the outbox while disconnected and flush in order on reconnection, and on every recovery tick |
+| Degraded | Surfaced in the UI with a reason string. The service never silently stops trying. A handset without Bluetooth 5 extended advertising reports the BLE road as degraded rather than open, because a legacy advertisement cannot hold the smallest frame |
+
+**Bringing two handsets up.** Grant the microphone and all three "Nearby devices"
+permissions on both. For the fastest road, bond the two in Android's Bluetooth settings —
+the application dials only bonded handsets and never makes itself discoverable. Either
+turn on one handset's hotspot and join the other to it, or rely on BLE broadcast between
+two Bluetooth 5 handsets; both roads need no bonding. Check the node id in band A differs
+on the two units. Keep the application in the foreground: the engine lives with the
+activity.
 
 **Pairing is the most common cause of demonstration failure.** Devices are paired before
 the session, QR provisioning is the fallback, and a third pre-configured handset is kept

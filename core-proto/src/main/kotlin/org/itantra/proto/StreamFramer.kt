@@ -68,16 +68,25 @@ class StreamFramer(
         count: Int,
     ) {
         if (count <= 0) return
-        // A stream that never yields a valid frame must not grow without bound.
+        // A stream that never yields a valid frame must not grow without bound. What is
+        // dropped is always the *oldest* bytes: the buffered prefix first, and then -- for
+        // a chunk larger than the whole buffer -- the chunk's own leading bytes. Dropping
+        // the chunk's head while keeping a stale prefix used to splice two unrelated runs
+        // of bytes together, which is worse than losing either.
+        if (count >= buffer.size) {
+            discardedBytes += length.toLong() + (count - buffer.size)
+            System.arraycopy(chunk, offset + count - buffer.size, buffer, 0, buffer.size)
+            length = buffer.size
+            return
+        }
         if (length + count > buffer.size) {
-            val keep = minOf(length, buffer.size / 2)
+            val keep = buffer.size - count
             System.arraycopy(buffer, length - keep, buffer, 0, keep)
             discardedBytes += (length - keep).toLong()
             length = keep
         }
-        val room = minOf(count, buffer.size - length)
-        System.arraycopy(chunk, offset + count - room, buffer, length, room)
-        length += room
+        System.arraycopy(chunk, offset, buffer, length, count)
+        length += count
     }
 
     /** @return the next complete frame, or null if more bytes are needed. */

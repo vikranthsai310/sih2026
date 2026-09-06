@@ -25,7 +25,23 @@ package org.itantra.proto
  * that was never recorded — and the next start would reuse it. Being one epoch ahead
  * after a crash costs nothing; being one behind is a total loss of confidentiality.
  */
-class EpochCounter(private val store: Store) {
+class EpochCounter(
+    private val store: Store,
+    /**
+     * Wall-clock milliseconds, or null for a pure counter.
+     *
+     * With a clock, a start never issues an epoch below the number of minutes since
+     * [ORIGIN_MILLIS]. That is what keeps the epoch moving forward across a
+     * **reinstall**, which wipes the persisted counter: a receiver holds the highest
+     * epoch it has verified for each sender and refuses anything lower as a replay, so a
+     * sender whose counter went back to zero was refused until the receiver restarted --
+     * and, worse, a counter back at zero reuses nonces it has already used under this
+     * key. Minutes, because a reinstall never completes inside one, and restarts inside
+     * one minute still get distinct epochs from the counter. A clock reading before the
+     * origin, or absurdly far after it, is ignored and the counter alone applies.
+     */
+    private val clock: (() -> Long)? = null,
+) {
     /**
      * Durable storage for the counter. On device this is backed by DataStore; the
      * interface exists so the ordering above can be tested, including the crash.
@@ -56,7 +72,7 @@ class EpochCounter(private val store: Store) {
      */
     fun start(): Long {
         val previous = store.read() ?: INITIAL - 1
-        val next = previous + 1
+        val next = maxOf(previous + 1, timeSeed())
         require(next <= MAX_EPOCH) {
             "epoch space exhausted at $previous; the key must be rotated"
         }
@@ -89,6 +105,13 @@ class EpochCounter(private val store: Store) {
      */
     fun willWrap(nextSeq: Int): Boolean = nextSeq > MAX_SEQ
 
+    /** Minutes since [ORIGIN_MILLIS], or [INITIAL] when there is no clock or it reads nonsense. */
+    private fun timeSeed(): Long {
+        val millis = clock?.invoke() ?: return INITIAL
+        val minutes = (millis - ORIGIN_MILLIS) / MINUTE_MILLIS
+        return if (minutes in 1 until SANE_MINUTES) minutes else INITIAL
+    }
+
     companion object {
         private const val UNSTARTED = -1L
 
@@ -100,5 +123,13 @@ class EpochCounter(private val store: Store) {
 
         /** `SEQ` is 16 bits. */
         const val MAX_SEQ = 0xFFFF
+
+        /** 2026-01-01T00:00:00Z. Epochs seeded from the clock count minutes from here. */
+        const val ORIGIN_MILLIS = 1_767_225_600_000L
+
+        const val MINUTE_MILLIS = 60_000L
+
+        /** A century. A clock past this is a clock that is wrong, not a date. */
+        const val SANE_MINUTES = 100L * 365 * 24 * 60
     }
 }

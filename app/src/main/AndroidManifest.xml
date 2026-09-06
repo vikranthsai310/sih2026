@@ -39,6 +39,17 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- Android 8 to 11 (minSdk 26 to 30) have neither BLUETOOTH_CONNECT nor BLUETOOTH_SCAN;
+         there, opening a socket, listening, or scanning needs these two, which are granted
+         at install. Without them every call in the Bluetooth net threw a SecurityException
+         the loops swallowed, and a handset on Android 11 showed a working application that
+         reached nobody. BLE *scanning* on those versions additionally needs a location
+         permission, which this application deliberately does not declare (see above), so on
+         Android 11 and below the BLE broadcast road is closed and the bonded RFCOMM and
+         Wi-Fi roads carry the traffic. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />

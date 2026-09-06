@@ -109,7 +109,12 @@ class UtteranceDecoder(
     private var boundary: Boundary? = null
 
     /** A word with an absolute position, or -1 when the decoder did not time it. */
-    private class Placed(val text: String, val atSample: Long)
+    private class Placed(
+        val text: String,
+        val atSample: Long,
+        /** The speaker paused after this word: a clause boundary, spoken as a comma. */
+        var pauseAfter: Boolean = false,
+    )
 
     private class Boundary(val dropBeforeSample: Long)
 
@@ -198,12 +203,7 @@ class UtteranceDecoder(
     }
 
     /** Words decided so far, followed by the latest provisional reading of the open segment. */
-    fun runningText(): String {
-        val words = ArrayList<String>(fixed.size + 8)
-        fixed.mapTo(words) { it.text }
-        provisional?.words?.mapTo(words) { it.text }
-        return words.joinToString(" ")
-    }
+    fun runningText(): String = spoken(fixed + provisional?.words.orEmpty())
 
     /**
      * The speaker has stopped. Decodes whatever is still open and returns the utterance.
@@ -219,9 +219,27 @@ class UtteranceDecoder(
                 provisionalCoversEverything() -> provisional!!.words
                 else -> attributed(decodeSegment(analysedFrames, includeTail = true), Long.MAX_VALUE)
             }
-        val text = (fixed + tail).joinToString(" ") { it.text }
+        val text = spoken(fixed + tail)
         reset()
         return text
+    }
+
+    /**
+     * The words as text, with a comma where the speaker paused.
+     *
+     * The pause is the one piece of prosody a recogniser can recover, and it is worth
+     * carrying: the receiving handset's voice pauses where the speaker did, instead of
+     * reading a whole message in one breath. A comma is ASCII, so it costs one byte on
+     * the wire in every language, and template matching ignores punctuation.
+     */
+    private fun spoken(words: List<Placed>): String {
+        val out = StringBuilder()
+        for ((i, word) in words.withIndex()) {
+            if (i > 0) out.append(' ')
+            out.append(word.text)
+            if (word.pauseAfter && i < words.lastIndex) out.append(',')
+        }
+        return out.toString()
     }
 
     fun reset() {
@@ -258,6 +276,7 @@ class UtteranceDecoder(
             }
         segmentsDecoded++
         boundary = null
+        fixed.lastOrNull()?.pauseAfter = true
         restartFrom(max(0, cutFrame - frames(leadMillis)))
     }
 

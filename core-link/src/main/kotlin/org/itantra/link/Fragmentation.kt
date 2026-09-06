@@ -36,7 +36,7 @@ import org.itantra.proto.Frame
  * Two bytes, not a full sub-header: the enclosing frame already carries `SRC` and `SEQ`,
  * which together identify the message a fragment belongs to.
  */
-class Fragmenter(private val mtu: Int) {
+class Fragmenter(val mtu: Int) {
     init {
         require(mtu > Frame.HEADER_SIZE + Frame.CRC_SIZE + FRAGMENT_HEADER + 1) {
             "an MTU of $mtu leaves no room for payload"

@@ -117,7 +117,21 @@ val copyLexicons by tasks.registering(Copy::class) {
     include("*.txt")
 }
 
-tasks.named("preBuild") { dependsOn(copyDeploymentProfile, copyLexicons) }
+/**
+ * Copies the text-normalisation rules into the APK from `models/rules/`.
+ *
+ * Ten files, one per language, a few kilobytes each. They are what turns `112` into three
+ * spoken digits and `5 km` into "पाँच किलोमीटर" before the voice sees it -- `docs/TTS.md`
+ * section 1. They shipped in the repository from week 7 and were never bundled, so the
+ * voice read every number raw.
+ */
+val copyRules by tasks.registering(Copy::class) {
+    from(rootProject.file("models/rules"))
+    into(layout.buildDirectory.dir("generated/assets/rules"))
+    include("normalise.*.json")
+}
+
+tasks.named("preBuild") { dependsOn(copyDeploymentProfile, copyLexicons, copyRules) }
 
 dependencies {
     implementation(project(":core-audio"))

@@ -147,12 +147,25 @@ this optimisation is directly worth marks.
 
 ### Chunking rules
 
+> **Amended 2026-09-06.** The rules below replaced a 12-word cut at every conjunction.
+> Each cut was synthesised as a sentence of its own — pitch falling to a full stop, a click
+> at each end, a fresh `AudioTrack` per piece released before its tail had played — and a
+> six-word message sounded like three announcements. That was most of what "sounds like a
+> robot" meant, and none of it was the voice. `SpeechShaper`, `AudioPolish` and
+> `VoiceProfile` in `core-tts` are the implementation.
+
 | Rule | Value |
 | --- | --- |
-| Split points | Clause punctuation (`,` `;` `।` `.` `?` `!`), then conjunctions, then a hard split |
-| Minimum chunk | 8 phonemes — shorter chunks make prosody worse than the latency gain is worth |
-| Maximum chunk | 12 words |
-| Underrun policy | If the synthesis thread falls behind the playback clock, the remaining text is synthesised as one block. Never emit a gap mid-sentence |
+| Split points | Sentence marks (`.` `?` `!` `।` `॥`) and clause marks (`,` `;` `:`) only. A phrase keeps its mark, so a clause ending in a comma is synthesised with a continuation contour rather than a full stop |
+| Unpunctuated runs | Left whole up to 24 words; beyond that, cut before a conjunction (in all ten languages) or by count, with a comma added so the voice does not end the phrase |
+| Minimum phrase | 2 words — a lone word joins its neighbour across a clause mark, never across a sentence end |
+| Terminal punctuation | Added when the message has none: the danda for Devanagari, Bengali and Odia, a full stop elsewhere. Recognised speech carries none, and text without any is read as an unfinished sentence |
+| Speaker's pauses | The recogniser writes a comma where the speaker paused ≥ 280 ms, so the receiving voice pauses where the speaker did |
+| Pauses | 170 ms of written silence after a clause, 380 ms after a sentence |
+| Level and edges | Each phrase levelled to −20 dBFS RMS with a −1 dB peak ceiling and at most +14 dB of gain; 6 ms fades at both ends |
+| Voice tuning | `noise_scale`, `noise_w` and `length_scale` from the voice's own `.onnx.json`, at 1.05× the tempo. Left at the library defaults, the English voice ran at the wrong tempo with the wrong variation |
+| Playout | One `AudioTrack` per message, released only after the last sample has played |
+| Underrun policy | Writes block; if synthesis falls behind, delivery stretches rather than tears. Never emit a gap mid-sentence |
 
 An audible gap inside a sentence is worse than 100 ms of extra initial latency. The
 scheduler prioritises continuity over time-to-first-audio once playback has started.

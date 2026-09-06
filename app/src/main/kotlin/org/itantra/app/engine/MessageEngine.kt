@@ -5,12 +5,16 @@ import android.bluetooth.BluetoothDevice
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.itantra.app.platform.NodeIdentity
@@ -100,12 +104,17 @@ class MessageEngine(
     /** Guards the loops that must exist exactly once, however often [start] is called. */
     private var started = false
 
+    /** The loops, held so [stop] can end them rather than leave a second set running. */
+    private val loops = ArrayList<Job>()
+
     private val session =
         Session(
             link = mesh,
             key = NodeIdentity.developmentKey(),
             localSrc = identity.src,
-            epochs = EpochCounter(epochStore),
+            // Seeded from the clock, so a reinstalled handset's epoch still moves forward
+            // and the other units do not refuse it as a replay until they restart.
+            epochs = EpochCounter(epochStore, clock = System::currentTimeMillis),
             templates = templates,
             language = Language.HINDI,
         )
@@ -185,8 +194,8 @@ class MessageEngine(
     fun start() {
         if (!started) {
             started = true
-            scope.launch { receiveLoop() }
-            startRefreshTicker()
+            loops += scope.launch { receiveLoop() }
+            loops += startRefreshTicker()
             // On first run this is what downloads the model for the starting language,
             // rather than waiting for the operator to discover its absence by pressing
             // transmit and getting a template.
@@ -224,10 +233,15 @@ class MessageEngine(
         bluetoothNet = net
         net.start()
 
-        scope.launch {
-            mesh.connect()
-            watchLink()
-        }
+        loops +=
+            scope.launch {
+                mesh.connect()
+                // Announced at once as well as on the tick, so a restarted handset is
+                // known again within a second rather than within five.
+                delay(HELLO_AFTER_CONNECT_MILLIS)
+                if (mesh.state.value == LinkState.CONNECTED) runCatching { mesh.send(session.hello()) }
+                watchLink()
+            }
         refresh()
     }
 
@@ -235,9 +249,13 @@ class MessageEngine(
      * Called when the operator returns to the application, which is how the two commonest
      * problems get fixed: Bluetooth switched on, or another handset paired.
      *
-     * [start] is idempotent, so this is a retry rather than a second engine.
+     * [start] is idempotent, so this is a retry rather than a second engine. Roads that
+     * are down are asked to try again now rather than at the next tick.
      */
-    fun restartIfIdle() = start()
+    fun restartIfIdle() {
+        start()
+        scope.launch { mesh.reconnectDown() }
+    }
 
     /**
      * Peers appear and vanish without the mesh's own state changing — two units down to one
@@ -245,20 +263,38 @@ class MessageEngine(
      * showing a count that had stopped being true. A tick is the honest way to display a
      * number that changes for reasons nothing emits.
      */
-    private fun startRefreshTicker() {
+    private fun startRefreshTicker(): Job =
         scope.launch {
+            var tick = 0L
             while (true) {
                 delay(REFRESH_MILLIS)
                 refresh()
+                if (++tick % RECOVERY_EVERY_TICKS != 0L) continue
+                // The slow work of keeping the net alive, every few seconds: a radio that
+                // was off when the engine started, a road that has gone down, and a
+                // message written while nothing was reachable. None of these announce
+                // themselves, so they are asked after.
+                runCatching {
+                    if (bluetoothNet == null) start()
+                    mesh.reconnectDown()
+                    if (session.queuedCount > 0) session.flushOutbox(System.currentTimeMillis())
+                    // Sixteen bytes saying which epoch this unit is on, so a unit that
+                    // has just met us -- or that we have just restarted on -- finds our
+                    // frames' epoch in one check instead of a search.
+                    if (mesh.state.value == LinkState.CONNECTED) mesh.send(session.hello())
+                }.onFailure { Log.w(TAG, "recovery tick failed", it) }
             }
         }
-    }
 
     fun stop() {
         speaker?.close()
         speech?.close()
         bluetoothNet?.stop()
         bluetoothNet = null
+        // Ended, not abandoned: a second start() on the same scope would otherwise run a
+        // second receive loop beside the first and read every frame twice.
+        loops.forEach { it.cancel() }
+        loops.clear()
         started = false
         scope.launch { mesh.disconnect() }
     }
@@ -279,33 +315,55 @@ class MessageEngine(
 
     // ── receive ──────────────────────────────────────────────────────────────
 
+    /**
+     * Reads the net for as long as the engine runs.
+     *
+     * One frame at a time, and each inside its own guard: a frame that throws on the way
+     * through the session is logged and dropped, not allowed to end the collector. The
+     * first version had no guard, so one malformed packed payload stopped this handset
+     * receiving anything, for the life of the process, while the screen said LINK OK.
+     */
     private suspend fun receiveLoop() {
-        mesh.incoming.collect { wire ->
-            when (val received = session.receive(wire, System.currentTimeMillis())) {
-                is Session.Received.Message -> {
-                    Log.i(TAG, "accepted ${received.wireBytes} B from node ${received.from}")
-                    onMessage(received)
+        while (currentCoroutineContext().isActive) {
+            try {
+                mesh.incoming.collect { wire ->
+                    runCatching { onWire(wire) }
+                        .onFailure { Log.w(TAG, "a frame of ${wire.size} B could not be handled", it) }
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                Log.w(TAG, "the receive loop failed; restarting it", failure)
+                delay(RECEIVE_RESTART_MILLIS)
+            }
+        }
+    }
 
-                is Session.Received.Dropped -> {
-                    // Named, because a channel that hears everything and accepts nothing
-                    // is indistinguishable from a channel that hears nothing at all, and
-                    // the two have entirely different causes.
-                    Log.w(TAG, "dropped ${wire.size} B: ${received.reason} ${received.detail}")
-                    onDropped(received)
-                }
-
-                else -> Unit
+    private fun onWire(wire: ByteArray) {
+        when (val received = session.receive(wire, System.currentTimeMillis())) {
+            is Session.Received.Message -> {
+                Log.i(TAG, "accepted ${received.wireBytes} B from node ${received.from}")
+                onMessage(received)
             }
 
-            // A unit out of direct range is reached by this handset rebroadcasting. The
-            // frame is both read and relayed, which is why the relay decision is taken
-            // aside rather than returned.
-            session.takeRelay()?.let { relay ->
-                scope.launch {
-                    delay(relay.delayMillis)
-                    mesh.send(relay.frame.encode())
-                }
+            is Session.Received.Dropped -> {
+                // Named, because a channel that hears everything and accepts nothing
+                // is indistinguishable from a channel that hears nothing at all, and
+                // the two have entirely different causes.
+                Log.w(TAG, "dropped ${wire.size} B: ${received.reason} ${received.detail}")
+                onDropped(received)
+            }
+
+            else -> Unit
+        }
+
+        // A unit out of direct range is reached by this handset rebroadcasting. The
+        // frame is both read and relayed, which is why the relay decisions are taken
+        // aside rather than returned.
+        for (relay in session.takeRelays()) {
+            scope.launch {
+                delay(relay.delayMillis)
+                mesh.send(relay.frame.encode())
             }
         }
     }
@@ -710,6 +768,9 @@ class MessageEngine(
      */
     fun onLanguageChosen(code: String) {
         language = Language.entries.firstOrNull { it.code == code } ?: return
+        // The session packs and matches in this language too. Left at Hindi, a Tamil
+        // sentence missed every template and went as raw UTF-8 in a frame marked Hindi.
+        session.language = language
         ensurePackFor(language)
         refresh()
     }
@@ -885,6 +946,15 @@ class MessageEngine(
 
         /** How often the screen re-reads the roster. Cheap, and the numbers are live. */
         const val REFRESH_MILLIS = 1_000L
+
+        /** Every fifth tick, the net is nudged: roads reconnected, the outbox flushed. */
+        const val RECOVERY_EVERY_TICKS = 5L
+
+        /** After the receive loop dies, how long before it is started again. */
+        const val RECEIVE_RESTART_MILLIS = 200L
+
+        /** Long enough for the broadcast roads to open before the first hello goes out. */
+        const val HELLO_AFTER_CONNECT_MILLIS = 750L
 
         /**
          * How long a release waits for the recogniser's final answer.
