@@ -37,6 +37,10 @@ models/**/*.onnx
 # espeak-ng's dictionaries: 18 MB of fetched data shared by every Piper voice, and
 # data rather than source. tools/fetch_models.py and the voice archives bring it.
 models/tts/espeak-ng-data/
+# The pruned tree and its archive are build artefacts of tools/build_espeak_min.py.
+# What ships is app/src/main/assets/espeak-ng-data.zip, which is committed.
+models/tts/espeak-min/
+models/tts/espeak-min.zip
 models/tts/**/tokens.txt
 models/tts/**/MODEL_CARD
 models/**/*.bin

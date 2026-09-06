@@ -88,6 +88,15 @@ class ModelStore(context: Context) {
      */
     val espeakData: File get() = File(voices, ESPEAK)
 
+    /**
+     * Expands the bundled espeak data if it is not on disk yet.
+     *
+     * Called before a voice loads. It is the one part of synthesis that ships inside the
+     * installer, because it is the only part that arrives as an archive rather than a
+     * single downloadable file -- see [EspeakData].
+     */
+    fun ensureEspeak(context: Context): File? = EspeakData(context).ensure()
+
     fun voiceFor(languageCode: String): File = File(File(voices, languageCode), VOICE)
 
     fun voiceTokensFor(languageCode: String): File = File(File(voices, languageCode), TOKENS)

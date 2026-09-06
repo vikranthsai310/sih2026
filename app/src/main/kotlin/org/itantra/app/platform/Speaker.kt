@@ -32,7 +32,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * under a non-commercial licence. Those languages transmit and display; they do not speak,
  * and [canSpeak] says so rather than failing at the moment of an alert.
  */
-class Speaker(private val store: ModelStore) {
+class Speaker(
+    private val store: ModelStore,
+    /** Needed only to expand the bundled espeak data on first use. */
+    private val context: android.content.Context,
+) {
     /** Synthesis is far too slow for the main thread, and must not queue behind decoding. */
     private val worker = Executors.newSingleThreadExecutor { r -> Thread(r, "piper").apply { isDaemon = true } }
 
@@ -58,6 +62,8 @@ class Speaker(private val store: ModelStore) {
         loadedFor = null
         if (!canSpeak(languageCode)) return null
 
+        // The data is bundled and expanded once; a voice cannot phonemise without it.
+        store.ensureEspeak(context)
         val built =
             runCatching {
                 SherpaSynthesiser(

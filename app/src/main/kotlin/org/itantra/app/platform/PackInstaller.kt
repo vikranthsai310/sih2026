@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
 
 /**
@@ -33,10 +34,11 @@ import java.io.File
  *
  * ## What it expects
  *
- * The `models` folder itself — the one holding `asr/` and `tts/`, exactly as
- * `tools/fetch_models.py --into models` leaves it. Anything else is refused with a sentence
- * naming what was looked for, because a silent no-op here is indistinguishable from a
- * successful copy of nothing.
+ * Any folder. Every file in it is hashed and looked up in [InstallIndex]: a match is
+ * installed where it belongs, and anything else is left alone. That is why the operator can
+ * simply point this at `Download/` after fetching artefacts in a browser — filenames there
+ * are whatever the server called them, and `model.int8.onnx` could be any of ten languages.
+ * Content decides, so a truncated download is rejected rather than installed as silence.
  */
 class PackInstaller(private val context: Context) {
     data class Result(
@@ -55,8 +57,8 @@ class PackInstaller(private val context: Context) {
     }
 
     /**
-     * @param onProgress called with the file being written, so a copy of two gigabytes is
-     *   visibly working rather than apparently hung
+     * @param onProgress called with each file as it is examined, so hashing two gigabytes
+     *   is visibly working rather than apparently hung
      */
     suspend fun install(
         tree: Uri,
@@ -64,32 +66,119 @@ class PackInstaller(private val context: Context) {
     ): Result =
         withContext(Dispatchers.IO) {
             val root = File(context.getExternalFilesDir(null), "models")
-            val children =
-                runCatching { listing(tree, DocumentsContract.getTreeDocumentId(tree)) }
-                    .getOrNull()
-                    ?: return@withContext Result(0, 0, "That folder could not be read.")
+            val index = InstallIndex(context)
+            if (index.size == 0) {
+                return@withContext Result(0, 0, "The install index is missing from this build.")
+            }
 
-            val names = children.map { it.name }
-            if (EXPECTED.none { it in names }) {
-                return@withContext Result(
-                    0,
-                    0,
-                    "Pick the models folder — the one containing " +
-                        EXPECTED.joinToString(" and ") + ". Found: " +
-                        names.take(4).joinToString(", ").ifEmpty { "nothing" },
-                )
+            val candidates = ArrayList<Entry>()
+            runCatching { collect(tree, DocumentsContract.getTreeDocumentId(tree), candidates, 0) }
+                .getOrNull()
+                ?: return@withContext Result(0, 0, "That folder could not be read.")
+
+            if (candidates.isEmpty()) {
+                return@withContext Result(0, 0, "No files in that folder.")
             }
 
             var files = 0
             var bytes = 0L
-            for (child in children) {
-                if (child.name !in EXPECTED) continue
-                val copied = copyInto(tree, child, File(root, child.name), onProgress)
-                files += copied.first
-                bytes += copied.second
+            var unknown = 0
+            for (entry in candidates) {
+                onProgress(entry.name)
+                val source = DocumentsContract.buildDocumentUriUsingTree(tree, entry.id)
+                val hash =
+                    runCatching {
+                        context.contentResolver.openInputStream(source)?.let(InstallIndex::sha256Of)
+                    }.getOrNull() ?: continue
+
+                val item = index.identify(hash)
+                if (item == null) {
+                    unknown++
+                    continue
+                }
+                val written = copy(source, File(root, item.install), onProgress)
+                if (written > 0) {
+                    files++
+                    bytes += written
+                    // A Piper voice publishes its phoneme table inside the config, and
+                    // sherpa-onnx wants it as a tokens.txt beside the model. Generated here
+                    // rather than asking the operator to download a file that does not
+                    // exist -- tools/piper_tokens.py does the same on a workstation, and
+                    // this reproduces its output.
+                    if (item.install.endsWith("config.json")) {
+                        writeVoiceTokens(File(root, item.install))
+                    }
+                }
             }
-            Result(files, bytes)
+
+            Result(
+                files = files,
+                bytes = bytes,
+                problem =
+                    if (files == 0) {
+                        "Nothing there was recognised. " + unknown + " file(s) checked; " +
+                            "the hashes did not match any language pack."
+                    } else {
+                        null
+                    },
+            )
         }
+
+    /** Depth-limited: a picked folder may be all of Download, and this must terminate. */
+    private fun collect(
+        tree: Uri,
+        parentId: String,
+        into: MutableList<Entry>,
+        depth: Int,
+    ) {
+        if (depth > MAX_DEPTH || into.size >= MAX_FILES) return
+        for (entry in listing(tree, parentId)) {
+            if (entry.isDirectory) {
+                collect(tree, entry.id, into, depth + 1)
+            } else {
+                into += entry
+            }
+        }
+    }
+
+    /**
+     * Turns a Piper config into the token table sherpa-onnx loads.
+     *
+     * The map's own order, not sorted by id: sorting looks tidier and produces a file that
+     * differs from sherpa's own on line one. `tools/piper_tokens.py` carries the check that
+     * proved which is right.
+     */
+    private fun writeVoiceTokens(config: File) {
+        runCatching {
+            val map = JSONObject(config.readText()).getJSONObject("phoneme_id_map")
+            val out = StringBuilder()
+            for (phoneme in map.keys()) {
+                val ids = map.getJSONArray(phoneme)
+                if (ids.length() != 1) return@runCatching
+                out.append(phoneme).append(' ').append(ids.getInt(0)).append('\n')
+            }
+            File(config.parentFile, "tokens.txt").writeText(out.toString())
+        }
+    }
+
+    private fun copy(
+        source: Uri,
+        target: File,
+        onProgress: (String) -> Unit,
+    ): Long {
+        target.parentFile?.mkdirs()
+        onProgress("installing " + target.name)
+        return runCatching {
+            context.contentResolver.openInputStream(source)?.use { input ->
+                // .partial then rename: a copy interrupted by a flat battery must leave no
+                // half a model behind, because a truncated .onnx loads and decodes silence.
+                val staged = File(target.parentFile, target.name + ".partial")
+                val count = staged.outputStream().use { input.copyTo(it) }
+                staged.renameTo(target)
+                count
+            } ?: 0L
+        }.getOrDefault(0L)
+    }
 
     private data class Entry(val id: String, val name: String, val isDirectory: Boolean)
 
@@ -122,44 +211,9 @@ class PackInstaller(private val context: Context) {
         return out
     }
 
-    /** @return files written and bytes written. */
-    private fun copyInto(
-        tree: Uri,
-        entry: Entry,
-        target: File,
-        onProgress: (String) -> Unit,
-    ): Pair<Int, Long> {
-        if (!entry.isDirectory) {
-            val source = DocumentsContract.buildDocumentUriUsingTree(tree, entry.id)
-            target.parentFile?.mkdirs()
-            onProgress(entry.name)
-            val written =
-                runCatching {
-                    context.contentResolver.openInputStream(source)?.use { input ->
-                        // .partial then rename: a copy interrupted by a flat battery must
-                        // leave no half a model behind, because a truncated .onnx loads and
-                        // then decodes silence. Same rule as tools/fetch_models.py.
-                        val staged = File(target.parentFile, target.name + ".partial")
-                        val count = staged.outputStream().use { input.copyTo(it) }
-                        staged.renameTo(target)
-                        count
-                    } ?: 0L
-                }.getOrDefault(0L)
-            return (if (written > 0) 1 else 0) to written
-        }
-
-        var files = 0
-        var bytes = 0L
-        for (child in listing(tree, entry.id)) {
-            val copied = copyInto(tree, child, File(target, child.name), onProgress)
-            files += copied.first
-            bytes += copied.second
-        }
-        return files to bytes
-    }
-
     private companion object {
-        /** What a `models` folder holds. Either alone is enough; a pack may be speech-only. */
-        val EXPECTED = listOf("asr", "tts")
+        /** A picked folder may be all of Download; this keeps the walk finite. */
+        const val MAX_DEPTH = 4
+        const val MAX_FILES = 400
     }
 }
