@@ -68,8 +68,11 @@ Recorded, not invented. Each needs a decision before its phase starts:
   new `AppState` field, and the restrictive-licence count is
   `licences.count { it.isRestrictive && it.shipped }` — both already on the rows the
   screens behind them read. No field was added.
-- **G2 — Board 15 shows sender name per bubble.** `LoggedMessage` carries a node id;
-  whether it carries a name needs checking before the bubble header is drawn.
+- **G2 — Board 15 shows sender name per bubble.** **Resolved in phase 5:** checked, and
+  `LoggedMessage` carries `from` and nothing else — one identifier, already whichever of a
+  name or a node id the engine had. The heading prints it as it comes. Splitting a string
+  that may have no second half, or inventing a node number to sit beside a name, would
+  both be worse than the one true field.
 - **G3 — Board 09 shows a live waveform while synthesis runs.** `OperatingState` has
   `level` for capture; there is no playback level. **Resolved in phase 2:** no waveform is
   drawn in the bubble at all. The bubble carries the 2 dp signal border and the speaking
@@ -162,12 +165,12 @@ Boards 17, 18, 19, 20, 21, 23, 24.
 
 Boards 15, 16, 11, 11·a, 11·b, 25.
 
-- [ ] **5.1** Message log on the Phase 2 bubble component — one bubble, two screens.
+- [x] **5.1** Message log on the Phase 2 bubble component — one bubble, two screens.
       Resolve **G2**.
 - [ ] **5.2** Metrics — one family, two accents; stage table and histogram restyled;
       the not-reportable state as board 16's empty state.
-- [ ] **5.3** Banner system — colour in the icon only, all eleven reasons.
-- [ ] **5.4** Empty and error set — "absent is not zero"; `—` never becomes `0`.
+- [x] **5.3** Banner system — colour in the icon only, all eleven reasons.
+- [x] **5.4** Empty and error set — "absent is not zero"; `—` never becomes `0`.
 
 ### Phase 6 — Splash, wiring and verification
 

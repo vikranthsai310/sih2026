@@ -178,14 +178,16 @@ fun StorageScreen(
             }
         }
 
-        if (groups.isEmpty() && wanted.isEmpty()) {
-            Text(
-                "Nothing is installed and nothing is offered. A build with no model index " +
-                    "cannot say what is missing.",
-                fontSize = Tokens.BodySmall,
-                lineHeight = Tokens.BodySmall * 1.45f,
-                color = p.muted,
-                modifier = Modifier.padding(horizontal = 4.dp),
+        if (groups.isEmpty()) {
+            EmptyState(
+                icon = Icons.Storage,
+                title = "No language packs",
+                body =
+                    "Transmit sends a template, and nothing is spoken aloud until one is " +
+                        "installed.",
+                family = p.orchid,
+                actionLabel = onImport?.let { "Install a language pack" },
+                onAction = onImport,
             )
         }
     }

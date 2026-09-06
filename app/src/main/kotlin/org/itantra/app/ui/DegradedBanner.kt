@@ -1,24 +1,25 @@
 package org.itantra.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.itantra.audio.EngineState
 
 /**
@@ -47,54 +48,102 @@ fun DegradedBanner(
     reason: EngineState.Degraded.Reason,
     modifier: Modifier = Modifier,
 ) {
+    val p = palette
     val advice = adviceFor(reason)
     Row(
         modifier
             .fillMaxWidth()
-            .background(colourFor(reason))
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .background(p.paper, RoundedCornerShape(Tokens.RadiusControl))
+            .border(Tokens.Hairline, p.hairline, RoundedCornerShape(Tokens.RadiusControl))
+            .padding(14.dp)
             // Cleared, not merged. `semantics { contentDescription = ... }` on a container
             // adds to its children rather than replacing them, so the banner would be
-            // announced and then the icon and both lines read again as loose fragments.
-            // One banner, one sentence — task W7.23.
+            // announced and then both lines read again as loose fragments. One banner, one
+            // sentence — task W7.23.
             .clearAndSetSemantics {
                 // Spoken as soon as it appears; an operator will not go looking for it.
                 liveRegion = LiveRegionMode.Assertive
                 contentDescription = Spoken.degraded(reason)
             },
-        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(13.dp),
     ) {
-        Text(advice.icon, fontSize = 22.sp, color = Color.Black)
-        Spacer(Modifier.width(12.dp))
-        Column {
+        Icon(
+            advice.icon,
+            contentDescription = null,
+            tint = severityOf(reason).core(p),
+            modifier = Modifier.padding(top = 1.dp).size(22.dp),
+        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
                 // The engine's own words, verbatim. A banner that paraphrases the state
                 // machine drifts from it.
                 reason.message,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black,
+                fontSize = Tokens.BodySmall,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = Tokens.BodySmall * 1.25f,
+                color = p.ink,
             )
-            Text(advice.doThis, fontSize = 13.sp, color = Color.Black)
+            Text(
+                advice.doThis,
+                fontSize = Tokens.Label,
+                lineHeight = Tokens.Label * 1.4f,
+                color = p.muted,
+            )
         }
     }
 }
 
+/**
+ * How bad it is, which is the only thing the colour says.
+ *
+ * Boards 11·a and 11·b group the eleven reasons under three headings, and the grouping is
+ * the design: *recovers itself* and *needs a person* are different facts about the same
+ * silence, and an operator who reads one as the other either waits for nothing or walks
+ * toward a peer they did not need to reach.
+ */
+internal enum class Severity {
+    /** Clears on its own. Transmit still works. */
+    RECOVERS,
+
+    /** Someone has to do something. */
+    NEEDS_A_PERSON,
+
+    /** Passing, and transmit is disabled while it passes. */
+    TRANSIENT,
+
+    ;
+
+    fun core(p: ItantraPalette) =
+        when (this) {
+            RECOVERS -> p.apricot.core
+            NEEDS_A_PERSON -> p.blush.core
+            TRANSIENT -> p.butter.core
+        }
+}
+
+internal fun severityOf(reason: EngineState.Degraded.Reason): Severity =
+    when {
+        reason == EngineState.Degraded.Reason.MODELS_MISSING -> Severity.TRANSIENT
+        adviceFor(reason).recoversItself -> Severity.RECOVERS
+        else -> Severity.NEEDS_A_PERSON
+    }
+
 /** What the operator can do, which is the part a status message usually omits. */
-data class DegradedAdvice(val icon: String, val doThis: String, val recoversItself: Boolean)
+data class DegradedAdvice(val icon: ImageVector, val doThis: String, val recoversItself: Boolean)
 
 fun adviceFor(reason: EngineState.Degraded.Reason): DegradedAdvice =
     when (reason) {
         EngineState.Degraded.Reason.MICROPHONE_UNAVAILABLE ->
             DegradedAdvice(
-                icon = "🎤",
+                icon = Icons.Mic,
                 doThis = "End the call to start listening again. Receiving still works.",
                 recoversItself = true,
             )
 
         EngineState.Degraded.Reason.BLUETOOTH_OFF ->
             DegradedAdvice(
-                icon = "⏻",
+                icon = Icons.Bluetooth,
                 // The one instruction that is a single tap away, named exactly as the
                 // platform names it. "Enable the radio" sends people looking for a setting
                 // that is not called that.
@@ -104,7 +153,7 @@ fun adviceFor(reason: EngineState.Degraded.Reason): DegradedAdvice =
 
         EngineState.Degraded.Reason.NO_PEERS ->
             DegradedAdvice(
-                icon = "⇢",
+                icon = Icons.Transmit,
                 // Bonding is a prerequisite this application deliberately does not do for
                 // the operator — W6.11 — so the banner has to say so, or the screen reads
                 // as broken when it is merely alone.
@@ -114,7 +163,7 @@ fun adviceFor(reason: EngineState.Degraded.Reason): DegradedAdvice =
 
         EngineState.Degraded.Reason.PERMISSION_DENIED ->
             DegradedAdvice(
-                icon = "⛔",
+                icon = Icons.Mic,
                 // Named where Android actually puts it. Once refused, the request
                 // dialog does not reappear, so pointing at Settings is the only
                 // instruction that works.
@@ -124,7 +173,7 @@ fun adviceFor(reason: EngineState.Degraded.Reason): DegradedAdvice =
 
         EngineState.Degraded.Reason.LINK_DOWN ->
             DegradedAdvice(
-                icon = "⇄",
+                icon = Icons.Bluetooth,
                 // Naming the retry matters: an operator who thinks nothing is happening
                 // starts restarting things, which makes reconnection slower.
                 doThis = "Reconnecting automatically. Move closer to the other unit.",
@@ -133,14 +182,14 @@ fun adviceFor(reason: EngineState.Degraded.Reason): DegradedAdvice =
 
         EngineState.Degraded.Reason.THERMAL ->
             DegradedAdvice(
-                icon = "🌡",
+                icon = Icons.Thermal,
                 doThis = "The handset is hot and running slower. Get it out of the sun.",
                 recoversItself = true,
             )
 
         EngineState.Degraded.Reason.STORAGE_FULL ->
             DegradedAdvice(
-                icon = "▤",
+                icon = Icons.Storage,
                 // The only one that cannot fix itself, so it is the only one that asks
                 // for a decision.
                 doThis = "Delete a language pack or old messages in Settings.",
@@ -149,27 +198,15 @@ fun adviceFor(reason: EngineState.Degraded.Reason): DegradedAdvice =
 
         EngineState.Degraded.Reason.TEMPLATE_MISMATCH ->
             DegradedAdvice(
-                icon = "⚠",
+                icon = Icons.Alert,
                 doThis = "Speak your message instead. Template alerts are disabled.",
                 recoversItself = false,
             )
 
         EngineState.Degraded.Reason.MODELS_MISSING ->
             DegradedAdvice(
-                icon = "⤓",
+                icon = Icons.Hourglass,
                 doThis = "Re-download the language pack in Settings.",
                 recoversItself = false,
             )
     }
-
-/**
- * Amber for conditions that clear themselves, red for those needing a person.
- *
- * The colour carries the same information as the advice, so an operator who cannot read
- * still learns whether this is something to act on — inclusive design rule 3.
- */
-private fun colourFor(reason: EngineState.Degraded.Reason): Color =
-    if (adviceFor(reason).recoversItself) Amber else Danger
-
-private val Amber = Color(0xFFF2B705)
-private val Danger = Color(0xFFEF6C60)

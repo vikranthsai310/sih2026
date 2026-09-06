@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -39,11 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -55,7 +50,6 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.itantra.audio.EngineState
 import java.util.Locale
@@ -534,14 +528,12 @@ private fun ThreadPane(
 ) {
     val p = palette
     if (state.messages.isEmpty()) {
-        Box(modifier.padding(Tokens.ScreenMargin), contentAlignment = Alignment.TopCenter) {
-            Text(
-                "No traffic yet. Hold the circle to speak.",
-                fontSize = Tokens.BodySmall,
-                color = p.muted,
-                textAlign = TextAlign.Center,
-            )
-        }
+        EmptyState(
+            icon = Icons.Transmit,
+            title = "No traffic yet",
+            body = "Hold the circle to speak.",
+            modifier = modifier,
+        )
         return
     }
     LazyColumn(
@@ -550,224 +542,11 @@ private fun ThreadPane(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         items(state.messages) { message ->
-            Bubble(
+            MessageBubble(
                 message = message,
                 speaking = state.speakingFrom != null && state.speakingFrom == message.from,
                 onReplay = onReplay,
             )
-        }
-    }
-}
-
-/**
- * One message.
- *
- * Colour is by *kind*, never by sender: Blush is an alert, Fuchsia is a template that crossed
- * languages, Periwinkle is this unit, Aqua is someone else, Butter is held rather than sent.
- * Each has a second carrier — the side, the tag, the delivery mark, the dashed outline — so
- * the thread still separates with the hue removed.
- *
- * The corner opposite the speaker is 5 dp and the other three are 18 dp, which is what makes
- * a column of bubbles read as a direction rather than as a list of cards.
- */
-@Composable
-private fun Bubble(
-    message: LoggedMessage,
-    speaking: Boolean,
-    onReplay: (String) -> Unit,
-) {
-    val p = palette
-    val mine = message.delivery != LoggedMessage.Delivery.RECEIVED
-    val queued = message.delivery == LoggedMessage.Delivery.PENDING
-    val family =
-        when {
-            message.isAlert -> p.blush
-            queued -> p.butter
-            message.wasTemplate && !mine -> p.fuchsia
-            mine -> p.periwinkle
-            else -> p.aqua
-        }
-    val shape =
-        if (mine) {
-            RoundedCornerShape(18.dp, 18.dp, 5.dp, 18.dp)
-        } else {
-            RoundedCornerShape(18.dp, 18.dp, 18.dp, 5.dp)
-        }
-
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .semantics(mergeDescendants = true) { contentDescription = Spoken.messageRow(message) },
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        if (mine) Spacer(Modifier.weight(1f)) else Avatar(message.from, family)
-
-        Column(
-            Modifier.widthIn(max = if (mine) 250.dp else 222.dp),
-            horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    if (mine) "You" else message.from,
-                    fontSize = Tokens.Caption,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (mine) p.periwinkle.deep else p.orchid.deep,
-                )
-                if (message.wasTemplate) {
-                    Text(
-                        "TEMPLATE",
-                        fontSize = Tokens.Caption,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        color = p.fuchsia.deep,
-                        modifier =
-                            Modifier
-                                .background(p.fuchsia.mid, RoundedCornerShape(Tokens.RadiusInset))
-                                .padding(horizontal = 5.dp, vertical = 3.dp),
-                    )
-                }
-            }
-
-            Column(
-                Modifier
-                    .background(family.tint, shape)
-                    .then(
-                        when {
-                            // Board 09. The arriving message wears a signal border for
-                            // exactly as long as this handset is saying it out loud — no
-                            // separate card, because the sentence is already on screen.
-                            speaking -> Modifier.border(Tokens.SignalBorder, family.core, shape)
-                            queued -> Modifier.dashedOutline(family.core, 18.dp)
-                            else -> Modifier
-                        },
-                    )
-                    .padding(start = 13.dp, end = 13.dp, top = 11.dp, bottom = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(7.dp),
-                horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
-            ) {
-                Text(
-                    message.text,
-                    fontSize = Tokens.Body,
-                    color = p.ink,
-                    lineHeight = Tokens.Body * Tokens.INDIC_LINE_HEIGHT,
-                )
-                MetaLine(message, family, speaking, mine)
-            }
-        }
-
-        // Replay sits outside the bubble, at 64 dp, because it is a target and the bubble
-        // is not. Only on messages that arrived: a message this unit sent was never spoken
-        // by this handset, so there is nothing to say again.
-        if (!mine) {
-            ReplayDisc(family) { onReplay(message.text) }
-        } else {
-            Spacer(Modifier.width(0.dp))
-        }
-    }
-}
-
-/** The sender's initial, so a glance separates two speakers without reading either name. */
-@Composable
-private fun Avatar(
-    from: String,
-    family: ItantraPalette.Family,
-) {
-    val p = palette
-    Box(
-        Modifier
-            .size(32.dp)
-            .background(family.tint, CircleShape)
-            .border(Tokens.Hairline, family.mid, CircleShape)
-            .decorative(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            from.trim().take(1).uppercase(Locale.ROOT),
-            fontSize = Tokens.Label,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold,
-            color = family.deep,
-        )
-    }
-}
-
-/** A 64 dp disc. `heightIn`, never `size`, because a fixed one clipped the glyph at 200 %. */
-@Composable
-private fun ReplayDisc(
-    family: ItantraPalette.Family,
-    onClick: () -> Unit,
-) {
-    val p = palette
-    Box(
-        Modifier
-            .sizeIn(minWidth = Tokens.TouchTarget, minHeight = Tokens.TouchTarget)
-            .background(p.paper, CircleShape)
-            .border(Tokens.Hairline, family.mid, CircleShape)
-            .clickable(onClick = onClick)
-            .semantics(mergeDescendants = true) { contentDescription = "Say it again" },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(Icons.Replay, contentDescription = null, tint = family.core, modifier = Modifier.size(24.dp))
-    }
-}
-
-/**
- * The evidence line, inside the bubble where a reader already is.
- *
- * `21 B · sent in தமிழ் · heard in हिन्दी` is the most interesting sentence this application
- * can print — one byte of payload, rendered from a shared table, spoken in a language the
- * sender never selected — so it is typeset rather than tucked into a caption.
- */
-@Composable
-private fun MetaLine(
-    message: LoggedMessage,
-    family: ItantraPalette.Family,
-    speaking: Boolean,
-    mine: Boolean,
-) {
-    val p = palette
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(
-            buildString {
-                append("${message.frameBytes} B")
-                message.sentInLanguage?.let { append(" · sent in $it") }
-                append(" · ${message.language}")
-                append(" · ${message.age}")
-            },
-            fontSize = Tokens.Instrument,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Medium,
-            color = family.deep,
-            lineHeight = Tokens.Instrument * Tokens.INDIC_LINE_HEIGHT,
-            modifier = Modifier.decorative(),
-        )
-        if (mine) {
-            Icon(
-                when (message.delivery) {
-                    LoggedMessage.Delivery.DELIVERED -> Icons.TickDouble
-                    LoggedMessage.Delivery.FAILED -> Icons.Cross
-                    else -> Icons.Tick
-                },
-                contentDescription = null,
-                tint =
-                    when (message.delivery) {
-                        LoggedMessage.Delivery.DELIVERED -> p.mint.core
-                        LoggedMessage.Delivery.FAILED -> p.blush.core
-                        else -> p.muted
-                    },
-                modifier = Modifier.size(16.dp),
-            )
-        }
-        if (speaking) {
-            Icon(Icons.Speaking, contentDescription = null, tint = family.core, modifier = Modifier.size(14.dp))
         }
     }
 }
@@ -1047,7 +826,7 @@ private fun TransmitCircle(
                             Modifier
                                 .alpha(0.5f)
                                 .background(p.butter.tint)
-                                .dashedOutline(p.butter.mid, Tokens.TransmitCircle / 2)
+                                .dashedEdge(p.butter.mid, Tokens.TransmitCircle / 2)
                         DockState.PHONE ->
                             Modifier
                                 .background(p.periwinkle.tint)
@@ -1280,31 +1059,6 @@ private fun Hairline() {
     val p = palette
     Box(Modifier.fillMaxWidth().height(Tokens.Hairline).background(p.hairline))
 }
-
-/**
- * A dashed outline, for the busy circle and for a message held rather than sent.
- *
- * `Modifier.border` draws solid only, and the distinction matters: a queued frame and a
- * delivered one must not be separated by fill alone, because Butter against Periwinkle is a
- * hue difference and hue is exactly what Field Mode and a colour-blind operator both remove.
- */
-private fun Modifier.dashedOutline(
-    colour: Color,
-    radius: androidx.compose.ui.unit.Dp,
-): Modifier =
-    drawBehind {
-        val stroke = Tokens.SignalBorder.toPx()
-        val r = radius.toPx()
-        drawRoundRect(
-            color = colour,
-            cornerRadius = CornerRadius(r, r),
-            style =
-                Stroke(
-                    width = stroke,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(stroke * 3, stroke * 2), 0f),
-                ),
-        )
-    }
 
 /** The halo's scale and opacity envelope, matching the canvas's `@keyframes halo`. */
 private const val HALO_FROM = 0.86f

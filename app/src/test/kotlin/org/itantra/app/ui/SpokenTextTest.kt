@@ -77,7 +77,13 @@ class SpokenTextTest {
                 "$reason is announced without telling the operator what to do",
                 adviceFor(reason).doThis in spoken,
             )
-            assertFalse("the banner icon reached the announcement", adviceFor(reason).icon in spoken)
+            // The glyph is an ImageVector now, so it cannot reach a string at all. What is
+            // still worth asserting is that the advice does -- the part of a banner that
+            // says what to do is the part a listener most needs.
+            assertTrue(
+                "the advice did not reach the announcement",
+                adviceFor(reason).doThis.isEmpty() || spoken.contains(adviceFor(reason).doThis),
+            )
         }
     }
 
