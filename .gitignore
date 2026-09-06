@@ -68,3 +68,6 @@ venv/
 # Fetched by tools/fetch_sherpa.sh, verified by checksum. Not tracked: 47 MB of
 # native code does not belong in git history.
 libs/
+
+# Local Android SDK location — machine-specific, never committed.
+local.properties
