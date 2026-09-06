@@ -133,12 +133,12 @@ The largest phase. Boards 06, 07, 07·a, 09, 10.
 
 Boards 12, 13, 14, 22.
 
-- [ ] **3.1** Alert compose — Paper tiles on a hairline, colour in the 32 dp icon alone,
+- [x] **3.1** Alert compose — Paper tiles on a hairline, colour in the 32 dp icon alone,
       three carriers (icon, border, dot) so greyscale still separates.
-- [ ] **3.2** Dock geometry restated in Blush, so the thumb lands in the same place.
-- [ ] **3.3** Confirm — equal-weight targets preserved exactly.
-- [ ] **3.4** Incoming alert on a locked handset — full-bleed, identical in both palettes.
-- [ ] **3.5** Alert self-test as six measured steps.
+- [x] **3.2** Dock geometry restated in Blush, so the thumb lands in the same place.
+- [x] **3.3** Confirm — equal-weight targets preserved exactly.
+- [x] **3.4** Incoming alert on a locked handset — full-bleed, identical in both palettes.
+- [x] **3.5** Alert self-test as six measured steps.
 
 ### Phase 4 — Control room and settings
 
