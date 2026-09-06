@@ -80,11 +80,27 @@ class PackInstaller(private val context: Context) {
                 return@withContext Result(0, 0, "No files in that folder.")
             }
 
+            // Size before hash. A model is identified by SHA-256, but hashing everything in
+            // `Download` means reading gigabytes of somebody's video library before reaching
+            // the four files that matter -- which looks exactly like the application having
+            // done nothing at all. Only a file whose length already matches an indexed
+            // artefact is worth reading, and that is almost always just those four.
+            val sizes = index.expectedSizes()
+            val worthReading = candidates.filter { it.bytes in sizes }
+            if (worthReading.isEmpty()) {
+                return@withContext Result(
+                    0,
+                    0,
+                    "Checked " + candidates.size + " file(s); none is the size of a " +
+                        "language-pack file. Downloaded the models yet?",
+                )
+            }
+
             var files = 0
             var bytes = 0L
             var unknown = 0
-            for (entry in candidates) {
-                onProgress(entry.name)
+            for ((n, entry) in worthReading.withIndex()) {
+                onProgress("checking " + entry.name + " (" + (n + 1) + " of " + worthReading.size + ")")
                 val source = DocumentsContract.buildDocumentUriUsingTree(tree, entry.id)
                 val hash =
                     runCatching {
@@ -116,8 +132,9 @@ class PackInstaller(private val context: Context) {
                 bytes = bytes,
                 problem =
                     if (files == 0) {
-                        "Nothing there was recognised. " + unknown + " file(s) checked; " +
-                            "the hashes did not match any language pack."
+                        "Nothing installed. " + unknown + " file(s) were the right size " +
+                            "but the wrong content -- an interrupted download would do that. " +
+                            "Try downloading them again."
                     } else {
                         null
                     },
@@ -180,7 +197,12 @@ class PackInstaller(private val context: Context) {
         }.getOrDefault(0L)
     }
 
-    private data class Entry(val id: String, val name: String, val isDirectory: Boolean)
+    private data class Entry(
+        val id: String,
+        val name: String,
+        val isDirectory: Boolean,
+        val bytes: Long,
+    )
 
     private fun listing(
         tree: Uri,
@@ -194,6 +216,7 @@ class PackInstaller(private val context: Context) {
                 DocumentsContract.Document.COLUMN_DOCUMENT_ID,
                 DocumentsContract.Document.COLUMN_DISPLAY_NAME,
                 DocumentsContract.Document.COLUMN_MIME_TYPE,
+                DocumentsContract.Document.COLUMN_SIZE,
             ),
             null,
             null,
@@ -205,6 +228,7 @@ class PackInstaller(private val context: Context) {
                         id = cursor.getString(0),
                         name = cursor.getString(1),
                         isDirectory = cursor.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR,
+                        bytes = if (cursor.isNull(3)) -1L else cursor.getLong(3),
                     )
             }
         }

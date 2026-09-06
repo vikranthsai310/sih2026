@@ -21,6 +21,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import org.itantra.app.engine.MessageEngine
 import org.itantra.app.platform.DataStoreEpochStore
+import org.itantra.app.platform.InstallIndex
 import org.itantra.app.platform.ModelStore
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.PackInstaller
@@ -29,6 +30,7 @@ import org.itantra.app.platform.SherpaSpeech
 import org.itantra.app.platform.Speaker
 import org.itantra.app.ui.AppActions
 import org.itantra.app.ui.AppState
+import org.itantra.app.ui.Download
 import org.itantra.app.ui.ItantraApp
 import org.itantra.app.ui.LicenceRow
 import org.itantra.app.ui.PackRow
@@ -36,6 +38,7 @@ import org.itantra.app.ui.TransportOption
 import org.itantra.asr.BiasingLexicon
 import org.itantra.audio.EngineState
 import org.itantra.proto.TemplateProfile
+import java.io.File
 
 /**
  * The operating screen, hosted, over a real Bluetooth net. Tasks **W1.11**, **W3.12**.
@@ -90,8 +93,14 @@ class MainActivity : ComponentActivity() {
      */
     private val choosePackFolder =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
-            if (tree == null) return@registerForActivityResult
-            packStatus = "Copying…"
+            if (tree == null) {
+                // Cancelled, or no folder picker on this handset. Either way the operator
+                // pressed something and must be told what came of it: a control that
+                // sometimes does nothing and says nothing is one nobody presses twice.
+                packStatus = "No folder chosen."
+                return@registerForActivityResult
+            }
+            packStatus = "Reading that folder…"
             lifecycleScope.launch {
                 val result =
                     PackInstaller(applicationContext).install(tree) { name ->
@@ -138,6 +147,7 @@ class MainActivity : ComponentActivity() {
                         licences = licences(),
                         distributionNotice = DISTRIBUTION_NOTICE,
                         packStatus = packStatus,
+                        downloads = missingFor(currentLanguageCode()),
                     ),
                 actions =
                     AppActions(
@@ -145,7 +155,7 @@ class MainActivity : ComponentActivity() {
                         onAlert = { running?.onAlert() },
                         onLanguageChosen = { running?.onLanguageChosen(it) },
                         onReplay = { running?.onReplay(it) },
-                        onImportPacks = { choosePackFolder.launch(null) },
+                        onImportPacks = ::pickPackFolder,
                         readLicence = ::readLicence,
                     ),
             )
@@ -191,6 +201,22 @@ class MainActivity : ComponentActivity() {
                     },
             )
         }
+
+    /**
+     * What the current language still needs, listed with the address to fetch it from.
+     *
+     * Only what is absent: a handset that already has Hindi should not be shown 250 MB of
+     * addresses it does not need. The application cannot follow these itself — it has no
+     * INTERNET permission, per constraint C2 — so they are text for the operator's browser.
+     */
+    private fun missingFor(code: String): List<Download> {
+        val store = ModelStore(applicationContext)
+        if (store.hasPack(code) && store.hasVoice(code)) return emptyList()
+        val models = File(applicationContext.getExternalFilesDir(null), "models")
+        return InstallIndex(applicationContext).forLanguage(code)
+            .filterNot { File(models, it.install).isFile }
+            .map { Download(kind = it.kind, bytes = it.bytes, url = it.url) }
+    }
 
     private fun currentLanguageCode(): String = engine?.state?.value?.languageCode.orEmpty().ifEmpty { "hi" }
 
@@ -305,6 +331,20 @@ class MainActivity : ComponentActivity() {
                 speaker = Speaker(ModelStore(applicationContext), applicationContext),
             ).also { it.start() }
         return true
+    }
+
+    /**
+     * Opens the system folder picker, and says so.
+     *
+     * The status is set **before** the launch, so the press is acknowledged even if no
+     * activity answers the intent. A handset with no document provider throws
+     * `ActivityNotFoundException` here, and an unhandled one would be a crash where a
+     * sentence is wanted.
+     */
+    private fun pickPackFolder() {
+        packStatus = "Opening the folder picker…"
+        runCatching { choosePackFolder.launch(null) }
+            .onFailure { packStatus = "This handset has no folder picker to open." }
     }
 
     /**

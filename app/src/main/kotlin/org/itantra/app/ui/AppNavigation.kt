@@ -93,6 +93,8 @@ data class AppState(
     val distributionNotice: String? = null,
     /** What the last language-pack import did, or is doing. */
     val packStatus: String? = null,
+    /** What this handset still needs, and where to get it. */
+    val downloads: List<Download> = emptyList(),
 )
 
 /** What the shell can ask the engine to do. */
@@ -167,6 +169,7 @@ fun ItantraApp(
                     onDelete = { },
                     onImport = actions.onImportPacks,
                     status = state.packStatus,
+                    downloads = state.downloads,
                 )
 
             Destination.LICENCES ->

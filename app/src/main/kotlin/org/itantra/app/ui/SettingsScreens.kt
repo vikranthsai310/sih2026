@@ -199,6 +199,8 @@ fun StorageScreen(
     onImport: (() -> Unit)? = null,
     /** What the last import did, or what it is doing now. */
     status: String? = null,
+    /** What this handset still needs, with the address to fetch each from. */
+    downloads: List<Download> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize().background(Paper).padding(16.dp)) {
@@ -224,11 +226,12 @@ fun StorageScreen(
                     },
             ) {
                 Text("INSTALL A LANGUAGE PACK", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
-                // Said plainly, because the operator has to find the right folder and the
-                // wrong one produces a copy of nothing.
+                // The two steps, in order, because the second one is useless without the
+                // first and an operator who taps this with an empty Download folder should
+                // be told why nothing happened before it happens.
                 Text(
-                    "Copy the models folder onto this phone, then pick it here. " +
-                        "It is the folder containing asr and tts.",
+                    "1. Download the files below in your browser.\n" +
+                        "2. Tap here and pick the folder you saved them in — usually Download.",
                     fontSize = 12.sp,
                     color = Muted,
                 )
@@ -247,6 +250,31 @@ fun StorageScreen(
                 fontSize = 14.sp,
                 color = Muted,
             )
+            Spacer(Modifier.height(12.dp))
+        }
+
+        if (downloads.isNotEmpty()) {
+            Text("FILES TO DOWNLOAD", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Muted)
+            Spacer(Modifier.height(4.dp))
+            // The address in full, selectable, because this application cannot open it —
+            // it has no INTERNET permission and is not getting one. The browser does the
+            // fetching and this does the verifying.
+            for (download in downloads) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Text(
+                        "%s · %.0f MB".format(download.kind, download.bytes / 1_048_576.0),
+                        fontSize = 12.sp,
+                        color = Ink,
+                    )
+                    Text(
+                        download.url,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = Muted,
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
         }
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -283,6 +311,13 @@ fun StorageScreen(
         }
     }
 }
+
+/** One artefact the operator has to fetch in a browser before importing it. */
+data class Download(
+    val kind: String,
+    val bytes: Long,
+    val url: String,
+)
 
 data class PackRow(
     val name: String,

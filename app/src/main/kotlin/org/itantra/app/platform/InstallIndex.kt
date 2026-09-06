@@ -59,6 +59,15 @@ class InstallIndex(context: Context) {
     /** @return where this content belongs, or null if it is not something we asked for. */
     fun identify(sha256: String): Item? = items.firstOrNull { it.sha256 == sha256.lowercase() }
 
+    /**
+     * Every byte-count an artefact could have.
+     *
+     * A cheap pre-filter: a file whose length matches nothing here cannot be a pack file,
+     * and reading it to find that out is what makes importing from a full `Download` folder
+     * appear to hang.
+     */
+    fun expectedSizes(): Set<Long> = items.mapTo(HashSet()) { it.bytes }
+
     /** Everything for one language, so the storage screen can list what to download. */
     fun forLanguage(language: String): List<Item> = items.filter { it.language == language }
 
