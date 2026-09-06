@@ -168,6 +168,23 @@ data class OperatingState(
     val metrics: BandFMetrics = BandFMetrics(),
     /** Frames held because the link is down. Zero is not shown. */
     val queued: Int = 0,
+    /**
+     * Who this handset is speaking aloud right now, or null when it is not speaking.
+     *
+     * The engine has always known this -- [org.itantra.app.platform.Speaker] takes an
+     * `onFirstAudio` and an `onFinished` and `MessageEngine` was already passing the first
+     * of them to time band F's TTS stage. What it never did was *say* so, which left the
+     * screen unable to draw the one moment the whole product exists for: a sentence spoken
+     * by a person eleven kilometres away coming out of this handset's speaker.
+     *
+     * It is the sender's identifier, not a name -- `node 02` -- because the frame format
+     * carries no names and inventing one would be inventing a feature. See
+     * `docs/REDESIGN.md` gap G2.
+     *
+     * This is the only field added for the redesign, and it changes nothing about what is
+     * spoken, when, or in which language.
+     */
+    val speakingFrom: String? = null,
 )
 
 /**

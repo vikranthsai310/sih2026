@@ -390,7 +390,15 @@ class MessageEngine(
                 messages = (listOf(entry) + _state.value.messages).take(MAX_ON_SCREEN),
                 metrics = _state.value.metrics.copy(lastFrameBytes = message.wireBytes),
             )
-        speakArrival(message.text, alert = message.frame.type == MessageType.ALERT, writtenIn = writtenIn)
+        // Both halves of this call arrived from different branches and both are needed:
+        // `writtenIn` picks the voice for text in another unit's script, `from` is what the
+        // screen draws the speaking indicator against.
+        speakArrival(
+            message.text,
+            from = entry.from,
+            alert = message.frame.type == MessageType.ALERT,
+            writtenIn = writtenIn,
+        )
     }
 
     /**
@@ -403,6 +411,7 @@ class MessageEngine(
      */
     private fun speakArrival(
         text: String,
+        from: String,
         alert: Boolean,
         writtenIn: Language = language,
     ) {
@@ -417,13 +426,24 @@ class MessageEngine(
             languageCode = voice.code,
             text = text,
             onFirstAudio = {
+                // The same instant that stops the TTS clock starts the screen's speaking
+                // state: the first chunk reaching the audio device is both the latency the
+                // problem statement asks for and the moment a listener has heard something.
                 _state.value =
                     _state.value.copy(
+                        speakingFrom = from,
                         metrics =
                             _state.value.metrics.copy(
                                 ttsMillis = SystemClock.elapsedRealtime() - receivedAt,
                             ),
                     )
+            },
+            // Cleared on the same callback that ends the utterance, so the indicator cannot
+            // outlive the sound. `Speaker.speak` runs onFinished on its worker whatever
+            // happened -- finished, barged in by a newer message, or failed mid-sentence --
+            // which is exactly the guarantee this needs to not stick on.
+            onFinished = {
+                _state.value = _state.value.copy(speakingFrom = null)
             },
         )
         if (alert) {
