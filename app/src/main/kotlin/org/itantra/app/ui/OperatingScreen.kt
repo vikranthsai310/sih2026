@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.itantra.audio.EngineState
+import java.util.Locale
 
 /**
  * The main screen. Tasks **W1.11**, **W1.31**, **W1.32**, **W1.34**;
@@ -182,7 +183,18 @@ data class BandFMetrics(
     val ttsMillis: Long? = null,
     val totalMillis: Long? = null,
     val realTimeFactor: Double? = null,
-    val cpuPercent: Double? = null,
+    /**
+     * Processor time the utterance used, counted in cores rather than as a percentage.
+     *
+     * `1.07` means one core was busy for the whole interval and a second one for a
+     * fourteenth of it. The measurement is unchanged from when this was a percentage —
+     * it is the same quantity divided by a hundred — but "107 %" invites the reading
+     * "107 % of the handset", which is impossible, and a strip a jury photographs cannot
+     * afford a number that looks broken. See [cpuCoreCount].
+     */
+    val cpuCores: Double? = null,
+    /** Cores the handset had online when [cpuCores] was taken, so the figure has a scale. */
+    val cpuCoreCount: Int? = null,
     val lastFrameBytes: Int? = null,
     /** Audio actually captured for the last utterance, when one was recognised. */
     val audioMillis: Long? = null,
@@ -670,7 +682,7 @@ private fun InstrumentBand(state: OperatingState) {
             buildString {
                 append("TOTAL ${ms(m.totalMillis)}")
                 append(" · RTF ${m.realTimeFactor?.let { "%.2f".format(it) } ?: "—"}")
-                append(" · CPU ${m.cpuPercent?.let { "%.1f %%".format(it) } ?: "—"}")
+                append(" · CPU ${cpuLabel(m.cpuCores, m.cpuCoreCount)}")
                 // The compression figure, on screen, on every message. Demonstration step 3
                 // points at this rather than at a slide.
                 m.lastFrameBytes?.let { append(" · $it B ${m.compressionRatio}×") }
@@ -684,6 +696,22 @@ private fun InstrumentBand(state: OperatingState) {
 
 private fun ms(value: Long?): String = value?.let { "$it ms" } ?: "—"
 
+/**
+ * Processor use for the strip: `1.07/8 cores`, or `1.07 cores` when the count is unknown.
+ *
+ * The denominator is the point. On an eight-core handset 1.07 cores is about an eighth of
+ * the device, and printing the two together answers "how much of this handset was that"
+ * without silently scaling the measurement by a number the reader cannot see.
+ */
+internal fun cpuLabel(
+    cores: Double?,
+    of: Int?,
+): String {
+    if (cores == null) return "—"
+    val used = "%.2f".format(Locale.ROOT, cores)
+    return if (of != null && of > 0) "$used/$of cores" else "$used cores"
+}
+
 /** Band F read aloud as a sentence, since a monospace strip is unreadable glyph by glyph. */
 internal fun spokenMetrics(m: BandFMetrics): String {
     val parts = ArrayList<String>()
@@ -693,6 +721,15 @@ internal fun spokenMetrics(m: BandFMetrics): String {
     m.ttsMillis?.let { parts += "Speech $it" }
     m.lastFrameBytes?.let {
         parts += "Last frame $it bytes, ${m.compressionRatio} times smaller than audio"
+    }
+    // The strip shows these two; a listener who cannot see it was being told less than a
+    // sighted operator standing next to them.
+    m.realTimeFactor?.let { parts += "Real time factor ${"%.2f".format(Locale.ROOT, it)}" }
+    m.cpuCores?.let {
+        val used = "%.2f".format(Locale.ROOT, it)
+        parts += m.cpuCoreCount
+            ?.let { n -> "Processor $used of $n cores" }
+            ?: "Processor $used cores"
     }
     // Silence is stated. An empty announcement leaves a listener unsure whether the strip
     // was read at all or simply had nothing in it.

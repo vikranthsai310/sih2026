@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.os.Process
 import android.os.SystemClock
+import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -30,6 +31,7 @@ import org.itantra.link.BluetoothNet
 import org.itantra.link.LinkState
 import org.itantra.link.MeshLink
 import org.itantra.link.Session
+import org.itantra.link.WifiBroadcastLink
 import org.itantra.proto.EpochCounter
 import org.itantra.proto.Language
 import org.itantra.proto.MessageType
@@ -86,6 +88,8 @@ class MessageEngine(
      * rather than all at once at startup.
      */
     private val lexicons: (String) -> BiasingLexicon? = { null },
+    /** Null leaves the Wi-Fi channel out; the Bluetooth one still runs. */
+    private val wifiContext: android.content.Context? = null,
     /** Null on a handset with no voice installed; arrivals are then shown but not spoken. */
     private val speaker: Speaker? = null,
 ) {
@@ -206,6 +210,13 @@ class MessageEngine(
         // keeps breaking on demonstration day.
         mesh.addPeer(BROADCAST_PEER, BleBroadcastLink(bluetooth, scope))
 
+        // The same channel over Wi-Fi. One handset's hotspot is enough: no data plan, no
+        // internet, no pairing, and every unit joined to it receives the same datagram.
+        // The two radios fail differently, which is the reason for running both. A frame
+        // arriving by both roads is delivered once, because the replay window discards the
+        // second copy.
+        wifiContext?.let { mesh.addPeer(WIFI_PEER, WifiBroadcastLink(it, scope)) }
+
         // Bonded handsets are still used where they exist: RFCOMM is ~200 kbps against a
         // few advertisements a second, so a paired pair gets the better link for free. It
         // is no longer a requirement for the application to work.
@@ -271,8 +282,19 @@ class MessageEngine(
     private suspend fun receiveLoop() {
         mesh.incoming.collect { wire ->
             when (val received = session.receive(wire, System.currentTimeMillis())) {
-                is Session.Received.Message -> onMessage(received)
-                is Session.Received.Dropped -> onDropped(received)
+                is Session.Received.Message -> {
+                    Log.i(TAG, "accepted ${received.wireBytes} B from node ${received.from}")
+                    onMessage(received)
+                }
+
+                is Session.Received.Dropped -> {
+                    // Named, because a channel that hears everything and accepts nothing
+                    // is indistinguishable from a channel that hears nothing at all, and
+                    // the two have entirely different causes.
+                    Log.w(TAG, "dropped ${wire.size} B: ${received.reason} ${received.detail}")
+                    onDropped(received)
+                }
+
                 else -> Unit
             }
 
@@ -616,7 +638,8 @@ class MessageEngine(
                 linkMillis = null,
                 totalMillis = null,
                 realTimeFactor = null,
-                cpuPercent = null,
+                cpuCores = null,
+                cpuCoreCount = null,
                 lastFrameBytes = wireBytes,
                 // No audio was recorded, so the ratio falls back to the protocol convention.
                 audioMillis = null,
@@ -630,34 +653,39 @@ class MessageEngine(
             linkMillis = if (tx != null && final != null) tx - final else null,
             totalMillis = if (tx != null && endpoint != null) tx - endpoint else null,
             realTimeFactor = heard.realTimeFactor,
-            cpuPercent = cpuSincePress(),
+            cpuCores = coresSincePress(),
+            cpuCoreCount = Runtime.getRuntime().availableProcessors(),
             lastFrameBytes = wireBytes,
             audioMillis = heard.audioMillis,
         )
     }
 
     /**
-     * Processor time this utterance used, as a percentage of one core.
+     * Processor time this utterance used, counted in **cores**.
      *
      * `Process.getElapsedCpuTime` is this process's own CPU milliseconds, so no assumption
      * about the kernel's tick rate is needed and nothing else on the handset is counted.
      * Divided by elapsed wall time from the press, which is the interval an operator would
      * point at.
      *
-     * It can exceed 100 %, and that is not an error: the decoder runs four threads, so
-     * 260 % means two and a half cores were busy. Presented as it is rather than divided by
-     * the core count, because "how much of this handset was this using" is the question, and
-     * a figure quietly scaled by a core count nobody can see is not an answer to it.
+     * The value exceeds 1.0 whenever more than one core was busy, and that is not an error:
+     * the decoder is multi-threaded, so 2.6 means two and a half cores. This used to be
+     * reported as a percentage of one core, which is the convention `top` uses and which
+     * put "CPU 107 %" on the strip. That reads as 107 % of the handset, which is
+     * impossible, and a number that looks broken is worse than no number on the strip a
+     * jury photographs. Same measurement, divided by a hundred, and shown beside the core
+     * count so it has a scale — the count is *displayed* rather than divided out, because
+     * scaling by a figure the reader cannot see answers nothing.
      *
      * This is **not** the Efficiency criterion's number. That one asks for CPU during *idle
      * listening*, which is a different measurement in a different state and belongs in the
      * bench scorecard.
      */
-    private fun cpuSincePress(): Double? {
+    private fun coresSincePress(): Double? {
         if (wallAtPressMillis == 0L) return null
         val wall = SystemClock.elapsedRealtime() - wallAtPressMillis
         val cpu = Process.getElapsedCpuTime() - cpuAtPressMillis
-        return if (wall > 0 && cpu >= 0) cpu * 100.0 / wall else null
+        return if (wall > 0 && cpu >= 0) cpu.toDouble() / wall else null
     }
 
     /** What the screen says about the last attempt at speech. Null when it simply worked. */
@@ -814,8 +842,13 @@ class MessageEngine(
         /** Enough for the 100-utterance run docs/EVALUATION.md section 4 asks for. */
         const val MAX_TRACES = 200
 
+        private const val TAG = "itantra-net"
+
         /** The broadcast channel's entry in the mesh. There is exactly one. */
         const val BROADCAST_PEER = "ble-broadcast"
+
+        /** The Wi-Fi channel's entry in the mesh. There is exactly one. */
+        const val WIFI_PEER = "wifi-broadcast"
 
         /** How long a unit stays counted after its last transmission. */
         const val PEER_MEMORY_MILLIS = 60_000L

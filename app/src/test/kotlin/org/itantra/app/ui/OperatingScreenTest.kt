@@ -84,6 +84,56 @@ class OperatingScreenTest {
         assertFalse("Total" in spoken)
     }
 
+    // ── processor use is stated in cores, not as a percentage ────────────────
+
+    /**
+     * The strip used to print `CPU 107.0 %`, which reads as 107 % of the handset and so
+     * reads as broken. The measurement was right — the decoder is multi-threaded and one
+     * core plus a sliver of a second is exactly what it used — but the unit invited the
+     * wrong denominator. Cores carry their own scale.
+     */
+    @Test
+    fun `more than one core busy is stated as cores rather than as over 100 percent`() {
+        val label = cpuLabel(1.07, 8)
+        assertEquals("1.07/8 cores", label)
+        assertFalse("a percentage sign invites the wrong denominator", "%" in label)
+    }
+
+    /** Multi-threaded decoding genuinely uses several cores; the figure is not clamped. */
+    @Test
+    fun `several busy cores are reported in full`() {
+        assertEquals("2.60/8 cores", cpuLabel(2.6, 8))
+    }
+
+    /** Without a core count the figure still has a unit, just no scale to sit against. */
+    @Test
+    fun `an unknown core count still names the unit`() {
+        assertEquals("1.07 cores", cpuLabel(1.07, null))
+        assertEquals("1.07 cores", cpuLabel(1.07, 0))
+    }
+
+    /** Unmeasured is a dash, like every other figure on the strip — never a zero. */
+    @Test
+    fun `unmeasured processor use is a dash`() {
+        assertEquals("—", cpuLabel(null, 8))
+        assertEquals("—", cpuLabel(null, null))
+    }
+
+    /**
+     * The strip shows processor use and real-time factor; a listener who cannot see it was
+     * being told strictly less than a sighted operator standing beside them.
+     */
+    @Test
+    fun `processor use and real time factor are announced too`() {
+        val spoken =
+            spokenMetrics(
+                BandFMetrics(totalMillis = 780, realTimeFactor = 0.41, cpuCores = 1.07, cpuCoreCount = 8),
+            )
+        assertTrue(spoken, "Processor 1.07 of 8 cores" in spoken)
+        assertTrue(spoken, "Real time factor 0.41" in spoken)
+        assertFalse("'%' reached the announcement", "%" in spoken)
+    }
+
     // ── the state the screen is given ────────────────────────────────────────
 
     @Test
