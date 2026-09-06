@@ -320,6 +320,11 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.RECORD_AUDIO,
                 Manifest.permission.BLUETOOTH_CONNECT,
                 Manifest.permission.BLUETOOTH_SCAN,
+                // Declared in the manifest since week 6 and never asked for, so every
+                // advertisement was refused with a SecurityException the radio swallowed.
+                // It is a runtime permission from Android 12 like the other two, and on a
+                // broadcast channel it is the one that actually transmits.
+                Manifest.permission.BLUETOOTH_ADVERTISE,
             )
         } else {
             arrayOf(Manifest.permission.RECORD_AUDIO)

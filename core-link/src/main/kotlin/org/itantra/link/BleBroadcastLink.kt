@@ -255,7 +255,7 @@ class BleBroadcastLink(
                 // Session fragments to the link's MTU, so this should not happen -- and if
                 // it does, dropping it silently is how a channel looks alive and carries
                 // nothing.
-                Log.w(TAG, "frame of ${frame.size} B exceeds the ${mtu} B advertisement; dropped")
+                Log.w(TAG, "frame of ${frame.size} B exceeds the $mtu B advertisement; dropped")
                 _metrics.update { it.copy(framesLost = it.framesLost + 1) }
                 continue
             }
