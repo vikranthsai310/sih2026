@@ -64,6 +64,16 @@ import org.itantra.bench.UtteranceTrace
 fun MetricsScreen(
     traces: List<UtteranceTrace>,
     onExportCsv: () -> Unit,
+    /**
+     * What the last export did, or why it refused.
+     *
+     * The export used to set a status the operator could not see: it lands in the shared
+     * pack-status string, which only the storage screen rendered. Pressing EXPORT CSV here
+     * therefore looked exactly like the empty lambda it had just replaced -- a control that
+     * takes a press and shows nothing. Most presses are refusals, and the refusal *is* the
+     * useful output, so it has to appear on the screen the button is on.
+     */
+    status: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val summary = LatencySummary.of(traces)
@@ -100,6 +110,10 @@ fun MetricsScreen(
 
         Spacer(Modifier.height(24.dp))
         ExportRow(onExportCsv)
+        if (status != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(status, fontSize = 13.sp, color = Muted)
+        }
     }
 }
 

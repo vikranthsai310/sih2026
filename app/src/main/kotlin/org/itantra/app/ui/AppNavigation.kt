@@ -161,7 +161,12 @@ fun ItantraApp(
                     onSelect = actions.onLanguageChosen,
                 )
 
-            Destination.METRICS -> MetricsScreen(traces = state.traces, onExportCsv = actions.onExportCsv)
+            Destination.METRICS ->
+                MetricsScreen(
+                    traces = state.traces,
+                    onExportCsv = actions.onExportCsv,
+                    status = state.packStatus,
+                )
 
             Destination.MODE ->
                 ModeAndTransportScreen(transports = state.transports)
