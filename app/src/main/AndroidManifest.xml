@@ -36,8 +36,19 @@
       to the operating screen, and an operator who swipes back off a settings page has left
       the net.
     -->
+    <!--
+      The launcher icon is the transmit mark from band C, not the Smart India Hackathon
+      logo. SIH's logo is the organiser's mark: an application wearing it on the home screen
+      reads as SIH's own software rather than an entry to it, and that is a claim this
+      project has no standing to make. "iTantra" is likewise ISRO's title for the problem
+      statement rather than branding of ours - REQUIREMENTS.md section 0 says so - so the
+      icon is the one thing here that is genuinely the application's: the carrier leaving
+      the antenna.
+    -->
     <application
         android:enableOnBackInvokedCallback="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="iTantra"
         android:supportsRtl="true"
         android:theme="@style/Theme.ITantra">

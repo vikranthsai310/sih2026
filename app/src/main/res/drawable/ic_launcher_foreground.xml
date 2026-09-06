@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The transmit mark: a carrier leaving an antenna.
+
+  The same ((•)) that fills band C of the operating screen, drawn as geometry rather than
+  as text so it is crisp at every density and can be themed. Using the application's own
+  symbol rather than an organisation's logo is deliberate — see the note in
+  AndroidManifest.xml beside android:icon.
+
+  Everything sits inside the 66 dp safe circle of the 108 dp adaptive canvas, so no launcher
+  mask can clip a wave off.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- The source. Filled, because it is the one solid thing on the screen it comes from. -->
+    <path
+        android:fillColor="#101010"
+        android:pathData="M 54,46 a 8,8 0 1 0 0.01,0 z" />
+
+    <!-- Inner pair -->
+    <path
+        android:pathData="M 66.7,41.3 A 18,18 0 0 1 66.7,66.7"
+        android:strokeColor="#101010"
+        android:strokeWidth="7"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M 41.3,41.3 A 18,18 0 0 0 41.3,66.7"
+        android:strokeColor="#101010"
+        android:strokeWidth="7"
+        android:strokeLineCap="round" />
+
+    <!-- Outer pair -->
+    <path
+        android:pathData="M 75.2,32.8 A 30,30 0 0 1 75.2,75.2"
+        android:strokeColor="#101010"
+        android:strokeWidth="7"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M 32.8,32.8 A 30,30 0 0 0 32.8,75.2"
+        android:strokeColor="#101010"
+        android:strokeWidth="7"
+        android:strokeLineCap="round" />
+</vector>

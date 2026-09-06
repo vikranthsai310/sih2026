@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Tokens.Paper. The launcher icon is the application's own palette rather than a
+      decorative one: docs/UX.md rule 5 makes this a monochrome product, and an icon in
+      colours the interface never uses would be the only place that claim is broken.
+    -->
+    <color name="ic_launcher_background">#FFFFFFFF</color>
+</resources>
