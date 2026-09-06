@@ -98,10 +98,45 @@ class SherpaSynthesiser(
         shouldContinue: () -> Boolean = { true },
     ) {
         val track = createTrack()
-        var started = false
         try {
             track.play()
-            tts.generateWithCallback(text, speakerId, speed) { chunk ->
+            tts.generateWithCallback(text, speakerId, speed, sink(track, onFirstAudio, shouldContinue))
+        } finally {
+            // stop() lets what is already queued drain; flush() would discard it and
+            // clip the last word.
+            runCatching { track.stop() }
+            track.release()
+        }
+    }
+
+    /**
+     * The audio callback sherpa calls from C, as an **object expression rather than a
+     * lambda**. That is not a style choice and must not be tidied into one.
+     *
+     * `generateWithCallbackImpl` finds this object's method through JNI, by the exact
+     * signature `invoke([F)Ljava/lang/Integer;`. Kotlin 2.0 compiles a lambda to an
+     * `invokedynamic`, and D8 desugars that into a synthetic class carrying only the
+     * erased `Object invoke(Object)` — so the method the native side asks for does not
+     * exist in any build, and the first attempt to speak aborts the whole process:
+     *
+     * ```
+     * NoSuchMethodError: no non-static method "Lg2/f0;.invoke([F)Ljava/lang/Integer;"
+     * ```
+     *
+     * An object expression is compiled to a real class with the specialised method, which
+     * is what JNI can find. R8 would still delete it as unreachable — nothing in the
+     * bytecode calls it — so `app/proguard-rules.pro` keeps it explicitly. Both halves are
+     * needed; either one alone leaves a handset that crashes the moment it is spoken to.
+     */
+    private fun sink(
+        track: AudioTrack,
+        onFirstAudio: () -> Unit,
+        shouldContinue: () -> Boolean,
+    ): (FloatArray) -> Int =
+        object : (FloatArray) -> Int {
+            private var started = false
+
+            override fun invoke(chunk: FloatArray): Int {
                 if (!started) {
                     started = true
                     onFirstAudio()
@@ -111,15 +146,9 @@ class SherpaSynthesiser(
                 // returning short and leaving a hole in the middle of a sentence.
                 track.write(shorts, 0, shorts.size, AudioTrack.WRITE_BLOCKING)
                 // sherpa reads 1 as "keep going" and 0 as "stop".
-                if (shouldContinue()) 1 else 0
+                return if (shouldContinue()) 1 else 0
             }
-        } finally {
-            // stop() lets what is already queued drain; flush() would discard it and
-            // clip the last word.
-            runCatching { track.stop() }
-            track.release()
         }
-    }
 
     /**
      * Speaks each clause in turn, so the first sound arrives after one short clause

@@ -22,6 +22,28 @@
     native <methods>;
 }
 
+# The rule above protects sherpa's classes. It does not protect **ours**, and the callback
+# handed to `OfflineTts.generateWithCallback` is ours. `generateWithCallbackImpl` finds its
+# method from C, by the exact signature `invoke([F)Ljava/lang/Integer;`. Nothing in the
+# bytecode calls that method -- every Kotlin and Java call goes through the erased bridge
+# `Object invoke(Object)` -- so R8 sees it as unreachable and deletes it, and the handset
+# aborts the first time it tries to speak:
+#
+#     NoSuchMethodError: no non-static method "Lg2/f0;.invoke([F)Ljava/lang/Integer;"
+#       at com.k2fsa.sherpa.onnx.OfflineTts.generateWithCallbackImpl(...)
+#
+# This rule is one half of the fix and does nothing on its own. The other half is in
+# `SherpaSynthesiser.sink`, which must stay an object expression: Kotlin 2.0 compiles a
+# lambda to an `invokedynamic` that D8 desugars into a class carrying only the bridge, so
+# with a lambda there is no specialised method for this rule to keep. Verified by
+# disassembling the release APK, where it survives as
+# `Lorg/itantra/tts/f;.invoke([F)Ljava/lang/Integer;` -- renamed, which is harmless,
+# because JNI reaches the class through `GetObjectClass` and only the method name and
+# signature have to match.
+-keepclassmembers class * implements kotlin.jvm.functions.Function1 {
+    java.lang.Integer invoke(float[]);
+}
+
 # ── our own native entry points ──────────────────────────────────────────────
 #
 # The RNNoise binding declares `external` methods that librnnoise_jni.so looks up by name.
