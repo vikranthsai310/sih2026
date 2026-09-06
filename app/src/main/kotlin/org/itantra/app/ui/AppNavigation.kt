@@ -109,6 +109,13 @@ data class AppState(
     val packStatus: String? = null,
     /** Every file every language can use, with whether this handset has it, for the storage screen. */
     val downloads: List<Download> = emptyList(),
+    /**
+     * The colophon on the about screen — `build 1.0 · 27.1 MB · Apache-2.0`.
+     *
+     * Null rather than a placeholder: a build line nobody supplied is not a build line, and
+     * board 24 prints nothing where this screen has nothing to say.
+     */
+    val buildLine: String? = null,
 )
 
 /** What the shell can ask the engine to do. */
@@ -238,6 +245,7 @@ fun ItantraApp(
                 AboutScreen(
                     components = state.licences,
                     distributionNotice = state.distributionNotice,
+                    buildLine = state.buildLine,
                     onOpenLicence = {
                         licence = it
                         where = Destination.LICENCE_TEXT

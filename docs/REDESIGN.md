@@ -153,10 +153,10 @@ Boards 17, 18, 19, 20, 21, 23, 24.
       current values. Resolve **G1**.
 - [x] **4.2** Language — own script first, speaks / recognises-only marking.
 - [x] **4.3** Mode and transport — every choice shows its cost.
-- [ ] **4.4** Storage — the capacity bar as its own legend.
-- [ ] **4.5** Pack import — two steps, in order.
+- [x] **4.4** Storage — the capacity bar as its own legend.
+- [x] **4.5** Pack import — two steps, in order.
 - [x] **4.6** Text size — new screen, new `Destination`. Resolve **G4**.
-- [ ] **4.7** About and licences — set as a document.
+- [x] **4.7** About and licences — set as a document.
 
 ### Phase 5 — Log, metrics, banners, empty states
 

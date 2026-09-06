@@ -26,6 +26,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
@@ -541,416 +543,6 @@ data class LanguageOption(
         }
 }
 
-/**
- * Task **W7.21**. Storage: every language, every file, and what to do about each.
- *
- * ## Why every language is listed, not just the chosen one
- *
- * This screen used to show only what the *current* language was missing — two rows, at
- * most. An operator provisioning a handset for a net that speaks Tamil and Hindi and
- * Odia had to switch language, come back, download, switch, come back, download. The
- * list of what a handset can be given is fixed and small — ten recognisers, seven voices
- * — so it is shown whole, grouped by language, with each file's state on its row.
- *
- * ## What a row does
- *
- * A file this handset does not have is a download: the tap hands its address to the
- * browser. A file it does have says so, and offers to delete it, with its licence beside
- * the size because that is where the decision is made. Three languages have no
- * permissively licensed voice at all; their row says that rather than showing nothing,
- * because a missing row reads as an oversight and a stated absence reads as a decision.
- *
- * The application cannot fetch any of these itself — it has no HTTP client, per
- * constraint C2 — so every download is done by the browser and verified here by SHA-256
- * when the operator taps install.
- */
-@Composable
-fun StorageScreen(
-    packs: List<PackRow>,
-    onDelete: (PackRow) -> Unit,
-    /** Opens the file picker. Null hides the control, for a build without an installer. */
-    onImport: (() -> Unit)? = null,
-    /** What the last import did, or what it is doing now. */
-    status: String? = null,
-    /** Every file any language can use, for all ten, with whether this handset has it. */
-    downloads: List<Download> = emptyList(),
-    /** The ten languages in their fixed order, for the names on the headings. */
-    languages: List<LanguageOption> = emptyList(),
-    /** The language chosen on the operating screen, marked so the operator finds it first. */
-    currentLanguage: String = "",
-    /** Hands one address to the browser. Null leaves the rows as plain text. */
-    onDownload: ((Download) -> Unit)? = null,
-    /** Hands several addresses to the browser, one after another. */
-    onDownloadAll: ((List<Download>) -> Unit)? = null,
-    modifier: Modifier = Modifier,
-) {
-    val missing = downloads.filter { !it.installed }
-    val groups = languageGroups(downloads, languages)
-    // Rows this list of languages does not explain: espeak's data, shared by every voice.
-    val shared =
-        packs.filter { pack ->
-            downloads.none { it.languageCode == pack.languageCode && it.kind == pack.kind }
-        }
-
-    LazyColumn(
-        modifier.fillMaxSize().background(Paper),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        item {
-            Text("STORAGE", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
-            Text(
-                "%.1f MB used by language packs".format(packs.sumOf { it.bytes } / 1_048_576.0),
-                fontSize = 14.sp,
-                color = Muted,
-                fontFamily = FontFamily.Monospace,
-            )
-        }
-
-        if (onImport != null) {
-            item {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .border(2.dp, Ink, RoundedCornerShape(6.dp))
-                        .clickable { onImport() }
-                        .padding(12.dp)
-                        .semantics {
-                            contentDescription = "Install language pack files you have downloaded"
-                        },
-                ) {
-                    Text("INSTALL DOWNLOADED FILES", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
-                    // The two steps, in order, because the second one is useless without the
-                    // first and an operator who taps this with an empty Download folder should
-                    // be told why nothing happened before it happens.
-                    Text(
-                        "1. Tap DOWNLOAD on the files below. Your browser saves them.\n" +
-                            "2. Tap here, open Downloads, and select them all.",
-                        fontSize = 12.sp,
-                        color = Muted,
-                    )
-                }
-                if (status != null) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(status, fontSize = 13.sp, color = Ink, fontFamily = FontFamily.Monospace)
-                }
-            }
-        }
-
-        if (missing.size > 1 && onDownloadAll != null) {
-            item {
-                ActionRow(
-                    title = "DOWNLOAD EVERYTHING MISSING",
-                    detail =
-                        "${missing.size} files, ${describeSize(missing.sumOf { it.bytes })}. " +
-                            "Opens each in your browser in turn.",
-                    description =
-                        "Download all ${missing.size} missing files, " +
-                            describeSize(missing.sumOf { it.bytes }) + ". Opens your browser.",
-                    onClick = { onDownloadAll(missing) },
-                )
-            }
-        }
-
-        item {
-            Spacer(Modifier.height(4.dp))
-            Text("LANGUAGE PACKS", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Muted)
-            Text(
-                "Each language needs a recogniser to hear speech and a voice to speak it. " +
-                    "Tap a file to download it.",
-                fontSize = 12.sp,
-                color = Muted,
-            )
-        }
-
-        items(groups, key = { it.code }) { group ->
-            LanguagePackCard(
-                group = group,
-                current = group.code == currentLanguage,
-                packs = packs,
-                onDelete = onDelete,
-                onDownload = onDownload,
-                onDownloadAll = onDownloadAll,
-            )
-        }
-
-        if (shared.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(4.dp))
-                Text("SHARED BY EVERY LANGUAGE", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Muted)
-            }
-            items(shared, key = { it.name }) { pack -> InstalledRow(pack, onDelete) }
-        }
-    }
-}
-
-/** One language's files, in the order the operator needs them: hearing before speaking. */
-internal data class LanguageGroup(
-    val code: String,
-    val nativeName: String,
-    val englishName: String,
-    val files: List<Download>,
-) {
-    val missing: List<Download> get() = files.filter { !it.installed }
-    val hasVoice: Boolean get() = files.any { it.kind == "voice" }
-    val canHear: Boolean get() = files.any { it.kind == "recogniser" && it.installed }
-    val canSpeak: Boolean get() = files.any { it.kind == "voice" && it.installed }
-
-    /** One line saying what this language can do on this handset right now. */
-    fun readiness(): String =
-        when {
-            canHear && canSpeak -> "Ready: hears and speaks"
-            canHear && !hasVoice -> "Ready: hears. No voice exists, so arrivals show as text"
-            canHear -> "Hears. Download the voice to speak arrivals aloud"
-            canSpeak -> "Speaks. Download the recogniser to hear speech"
-            else -> "Nothing installed"
-        }
-}
-
-/**
- * Groups the index by language, in the fixed language order.
- *
- * Every language is listed even where nothing is downloadable for it, so the count on
- * the screen is always ten and an absent voice is a stated fact on that language's card.
- */
-internal fun languageGroups(
-    downloads: List<Download>,
-    languages: List<LanguageOption>,
-): List<LanguageGroup> {
-    val byLanguage = downloads.groupBy { it.languageCode }
-    val order =
-        languages.map { Triple(it.code, it.nativeName, it.englishName) }
-            .ifEmpty { byLanguage.keys.map { Triple(it, it, it) } }
-    return order.map { (code, native, english) ->
-        LanguageGroup(
-            code = code,
-            nativeName = native,
-            englishName = english,
-            files = byLanguage[code].orEmpty().sortedBy { if (it.kind == "recogniser") 0 else 1 },
-        )
-    }
-}
-
-@Composable
-private fun LanguagePackCard(
-    group: LanguageGroup,
-    current: Boolean,
-    packs: List<PackRow>,
-    onDelete: (PackRow) -> Unit,
-    onDownload: ((Download) -> Unit)?,
-    onDownloadAll: ((List<Download>) -> Unit)?,
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .border(if (current) 2.dp else 1.dp, if (current) Ink else Muted, RoundedCornerShape(6.dp))
-            .padding(12.dp)
-            .semantics { contentDescription = "${group.englishName}. ${group.readiness()}." },
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(group.nativeName, fontSize = 20.sp, color = Ink, modifier = Modifier.weight(1f))
-            if (current) {
-                Text("CURRENT", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Ink)
-            }
-        }
-        Text(group.englishName + " · " + group.readiness(), fontSize = 12.sp, color = Muted)
-        Spacer(Modifier.height(6.dp))
-
-        for (file in group.files) {
-            val onDisk = packs.firstOrNull { it.languageCode == file.languageCode && it.kind == file.kind }
-            if (file.installed && onDisk != null) {
-                InstalledRow(onDisk, onDelete)
-            } else {
-                DownloadRow(file, onDownload)
-                if (onDisk != null) {
-                    // The file is here and the engine will not use it: a copy cut short, or
-                    // a voice without the metadata sherpa needs. Saying nothing here is how
-                    // an operator installs the same file three times. Downloading again
-                    // replaces it; this control frees the space meanwhile.
-                    UnusableRow(onDisk, onDelete)
-                }
-            }
-            Spacer(Modifier.height(6.dp))
-        }
-
-        if (!group.hasVoice) {
-            Text(
-                "voice · none exists under a permissive licence. Messages arriving in " +
-                    "${group.englishName} are shown as text.",
-                fontSize = 12.sp,
-                color = Danger,
-                modifier = Modifier.padding(horizontal = 2.dp),
-            )
-            Spacer(Modifier.height(6.dp))
-        }
-
-        val missing = group.missing
-        if (missing.size > 1 && onDownloadAll != null) {
-            ActionRow(
-                title = "DOWNLOAD BOTH",
-                detail = describeSize(missing.sumOf { it.bytes }) + ", one after the other.",
-                description = "Download both files for ${group.englishName}. Opens your browser.",
-                onClick = { onDownloadAll(missing) },
-            )
-        }
-    }
-}
-
-/** A file this handset does not have. The tap hands its address to the browser. */
-@Composable
-private fun DownloadRow(
-    file: Download,
-    onDownload: ((Download) -> Unit)?,
-) {
-    // Tappable, because a row that looks like an item and does nothing when pressed is
-    // worse than no row at all. This application has no HTTP client and opens no outbound
-    // connection: the fetching is done by a program whose job it is, and the verifying is
-    // still done here, by SHA-256.
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = ROW_DP.dp)
-            .border(1.dp, Ink, RoundedCornerShape(6.dp))
-            .then(if (onDownload == null) Modifier else Modifier.clickable { onDownload(file) })
-            .padding(10.dp)
-            .semantics {
-                contentDescription =
-                    "Download the " + file.kind + ", " + describeSize(file.bytes) + ". Opens your browser."
-            },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                file.kind + " · " + describeSize(file.bytes),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Ink,
-            )
-            Text(file.url, fontSize = 9.sp, fontFamily = FontFamily.Monospace, color = Muted, maxLines = 2)
-        }
-        Text("DOWNLOAD ›", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ink)
-    }
-}
-
-/** A copy that is on the handset and cannot be used, with the one thing to do about it. */
-@Composable
-private fun UnusableRow(
-    pack: PackRow,
-    onDelete: (PackRow) -> Unit,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-            .semantics {
-                contentDescription =
-                    "A copy of the ${pack.kind} is on this handset but cannot be used. " +
-                    "Download it again to replace it, or delete it."
-            },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            "A copy is here (${describeSize(pack.bytes)}) but cannot be used — " +
-                "incomplete, or not in the form the engine loads. Downloading again replaces it.",
-            fontSize = 12.sp,
-            color = Danger,
-            modifier = Modifier.weight(1f),
-        )
-        if (pack.deletable) {
-            Text(
-                "DELETE",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Danger,
-                modifier =
-                    Modifier
-                        .padding(start = 8.dp)
-                        .clickable { onDelete(pack) }
-                        .semantics {
-                            contentDescription = "Delete the unusable ${pack.name}, ${describeSize(pack.bytes)}"
-                        },
-            )
-        }
-    }
-}
-
-/** A file this handset has, with its licence, and the control to remove it where that frees space. */
-@Composable
-private fun InstalledRow(
-    pack: PackRow,
-    onDelete: (PackRow) -> Unit,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = ROW_DP.dp)
-            .border(1.dp, Muted, RoundedCornerShape(6.dp))
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                pack.kind.ifEmpty { pack.name } + " · installed",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Ink,
-            )
-            Text(
-                "%.1f MB · %s".format(pack.bytes / 1_048_576.0, pack.licence),
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                color = if (pack.isRestrictive) Danger else Muted,
-            )
-        }
-        // Shown only where it does something. espeak's data is bundled in the installer and
-        // shared by every language: deleting it frees nothing, because the next synthesis
-        // expands it again.
-        if (pack.deletable) {
-            Text(
-                "DELETE",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Danger,
-                modifier =
-                    Modifier
-                        .clickable { onDelete(pack) }
-                        .semantics { contentDescription = "Delete ${pack.name}, ${describeSize(pack.bytes)}" },
-            )
-        } else {
-            Text(
-                "IN APP",
-                fontSize = 14.sp,
-                color = Muted,
-                modifier =
-                    Modifier.semantics {
-                        contentDescription = "${pack.name} ships inside the app and cannot be deleted"
-                    },
-            )
-        }
-    }
-}
-
-@Composable
-private fun ActionRow(
-    title: String,
-    detail: String,
-    description: String,
-    onClick: () -> Unit,
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = ROW_DP.dp)
-            .border(2.dp, Ink, RoundedCornerShape(6.dp))
-            .clickable { onClick() }
-            .padding(12.dp)
-            .semantics { contentDescription = description },
-    ) {
-        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ink)
-        Text(detail, fontSize = 12.sp, color = Muted)
-    }
-}
-
 /** Bytes an operator can act on: "0 MB" for a 66 kB file reads as nothing to download. */
 internal fun describeSize(bytes: Long): String =
     when {
@@ -998,11 +590,27 @@ data class PackRow(
 }
 
 /**
- * Task **W7.21**, the about screen.
+ * Task **W7.21**, board 24. About and licences — set as a document, not as a settings list.
  *
- * Every third-party component is listed with its licence, including the two restrictive
- * ones. Disclosing them in the product rather than only in a repository file is the
- * difference between a disclosure and a technicality.
+ * ## Why the copyleft notice is first and not last
+ *
+ * GPL-3.0 obliges this build to offer the corresponding source. An obligation discharged at
+ * the bottom of a scrolling list is discharged in form only, so it is the first thing on the
+ * screen, on a red rule, in the voice of a notice rather than a row.
+ *
+ * ## Why "considered, not used" exists at all
+ *
+ * A licence page that lists only what shipped answers "what is in this" and not "what did
+ * you refuse". Whisper.cpp and a vendor voice SDK were both evaluated and both rejected —
+ * one for speed on entry-tier hardware, one because it is proprietary — and a reader
+ * checking whether anything closed-source is in here is better served by seeing the
+ * rejection than by inferring it from an absence. The leader dots are the typographic device
+ * a bibliography uses for exactly this: an entry and its disposition, coupled across a gap.
+ *
+ * ## The two that are marked
+ *
+ * A restrictive licence gets a dot **and** the licence name **and** a sentence saying what
+ * it constrains. Three carriers, because the entire cost of getting this wrong is legal.
  */
 @Composable
 fun AboutScreen(
@@ -1010,86 +618,194 @@ fun AboutScreen(
     /** The one sentence a GPL-3.0 obligation is discharged by. Null when nothing is copyleft. */
     distributionNotice: String? = null,
     onOpenLicence: (LicenceRow) -> Unit = { },
+    /** Build identity for the colophon. Null lines are simply absent. */
+    buildLine: String? = null,
     modifier: Modifier = Modifier,
 ) {
+    val p = palette
     val (inBuild, considered) = components.partition { it.shipped }
-    Column(modifier.fillMaxSize().background(Paper).padding(16.dp)) {
-        Text("LICENCES", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
-        Spacer(Modifier.height(12.dp))
+    Column(
+        modifier
+            .fillMaxSize()
+            .background(p.ground),
+    ) {
+        Column(
+            Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                "About",
+                fontSize = Tokens.Title,
+                fontWeight = FontWeight.Bold,
+                color = p.ink,
+                modifier = Modifier.padding(start = 2.dp, bottom = 4.dp),
+            )
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (distributionNotice != null) {
-                item {
-                    // Not a footnote. GPL-3.0 obliges the distributor to say this, and a
-                    // reader looking for it should find it before the list rather than after.
+            distributionNotice?.let { notice ->
+                Column(
+                    Modifier
+                        .drawLeftRule(p.blush.core)
+                        .padding(start = 14.dp, top = 2.dp, bottom = 2.dp)
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = "Copyleft notice. $notice"
+                        },
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     Text(
-                        distributionNotice,
-                        fontSize = 13.sp,
-                        color = Ink,
-                        modifier = Modifier.padding(bottom = 4.dp),
+                        "Copyleft notice",
+                        fontSize = Tokens.Label,
+                        fontWeight = FontWeight.SemiBold,
+                        color = p.blush.deep,
+                    )
+                    Text(
+                        notice,
+                        fontSize = Tokens.Label,
+                        lineHeight = Tokens.Label * 1.5f,
+                        color = p.muted,
                     )
                 }
             }
 
-            item { SectionHeading("IN THIS BUILD") }
-            items(inBuild) { row -> LicenceEntry(row, onOpenLicence) }
+            if (inBuild.isNotEmpty()) {
+                SettingsLabel("IN THIS BUILD", top = 8.dp)
+                Column(Modifier.fillMaxWidth()) {
+                    inBuild.forEach { row ->
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(p.hairline))
+                        ComponentRow(row) { onOpenLicence(row) }
+                    }
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(p.hairline))
+                }
+            }
 
             if (considered.isNotEmpty()) {
-                item { SectionHeading("CONSIDERED, NOT USED") }
-                items(considered) { row -> LicenceEntry(row, onOpenLicence) }
+                SettingsLabel("CONSIDERED, NOT USED", top = 8.dp)
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    considered.forEach { row -> RejectedRow(row) }
+                }
             }
+        }
+
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(p.paper)
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            buildLine?.let { SettingsInstrument(it) }
+            SettingsInstrument("no proprietary voice SDK anywhere")
         }
     }
 }
 
+/** One component that shipped. Restrictive ones carry a dot, a name and a sentence. */
 @Composable
-private fun SectionHeading(text: String) {
-    Text(
-        text,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Bold,
-        color = Muted,
-        modifier = Modifier.padding(top = 12.dp),
-    )
-}
-
-@Composable
-private fun LicenceEntry(
+private fun ComponentRow(
     row: LicenceRow,
-    onOpen: (LicenceRow) -> Unit,
+    onOpen: () -> Unit,
 ) {
+    val p = palette
+    val openable = row.licenceFile != null
     Column(
         Modifier
             .fillMaxWidth()
-            .then(if (row.licenceFile != null) Modifier.clickable { onOpen(row) } else Modifier)
-            .semantics {
+            .heightIn(min = 52.dp)
+            .then(if (openable) Modifier.clickable(onClick = onOpen) else Modifier)
+            .padding(horizontal = 2.dp, vertical = 11.dp)
+            .semantics(mergeDescendants = true) {
                 contentDescription =
                     buildString {
-                        append(row.component)
-                        append(". ")
-                        append(row.licence)
-                        append(". ")
-                        append(if (row.shipped) "In this build. " else "Not used. ")
-                        row.note?.let { append(it) }
-                        if (row.licenceFile != null) append(" Tap to read the licence.")
+                        append("${row.component}, ${row.licence}")
+                        row.note?.let { append(". $it") }
+                        if (openable) append(". Opens the licence text.")
                     }
             },
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(row.component, fontSize = 16.sp, color = if (row.shipped) Ink else Muted)
-        Text(
-            // A restrictive licence is only worth a warning colour when the thing is
-            // actually here. Colouring an unused candidate red says the opposite of what
-            // the row means.
-            if (row.licenceFile != null) "${row.licence}  ›" else row.licence,
-            fontSize = 13.sp,
-            fontFamily = FontFamily.Monospace,
-            color = if (row.isRestrictive && row.shipped) Danger else Muted,
-        )
-        if (row.note != null) {
-            Text(row.note, fontSize = 12.sp, color = Muted)
+        Row(
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                row.component,
+                fontSize = Tokens.Body,
+                fontWeight = FontWeight.Medium,
+                lineHeight = Tokens.Body * 1.3f,
+                color = p.ink,
+                modifier = Modifier.weight(1f),
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                if (row.isRestrictive) {
+                    Box(Modifier.size(6.dp).background(p.blush.core, CircleShape))
+                }
+                Text(
+                    row.licence,
+                    fontSize = Tokens.Instrument,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Medium,
+                    color = if (row.isRestrictive) p.blush.deep else p.muted,
+                )
+            }
+        }
+        row.note?.let {
+            Text(it, fontSize = Tokens.Label, lineHeight = Tokens.Label * 1.4f, color = p.muted)
         }
     }
 }
+
+/** One component that was evaluated and rejected, with why, coupled by leader dots. */
+@Composable
+private fun RejectedRow(row: LicenceRow) {
+    val p = palette
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${row.component}, not used. ${row.note ?: row.licence}"
+            },
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            row.component,
+            fontSize = Tokens.Status,
+            lineHeight = Tokens.Status * 1.35f,
+            color = p.muted,
+        )
+        Box(
+            Modifier
+                .weight(1f)
+                .padding(bottom = 5.dp)
+                .height(1.dp)
+                .background(p.hairline),
+        )
+        Text(
+            row.note ?: row.licence,
+            fontSize = Tokens.Instrument,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Medium,
+            color = p.muted,
+        )
+    }
+}
+
+/** A 2 dp rule down the left edge — the notice's own margin mark. */
+private fun Modifier.drawLeftRule(colour: Color): Modifier =
+    drawBehind {
+        drawRect(
+            color = colour,
+            size = Size(2.dp.toPx(), size.height),
+        )
+    }
 
 /**
  * A licence, in full and verbatim.
