@@ -7,10 +7,8 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.DocumentsContract
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -85,31 +83,32 @@ class MainActivity : ComponentActivity() {
     private var packStatus by mutableStateOf<String?>(null)
 
     /**
-     * The folder picker, and the whole answer to "no language installed" on a handset that
+     * The file picker, and the whole answer to "no language installed" on a handset that
      * has never met a developer's machine.
      *
-     * The Storage Access Framework asks for nothing in the manifest: the operator chooses a
-     * folder and the system grants access to that folder alone, for this copy. The packs can
-     * reach the phone any way at all — cable, SD card, another phone — and end up somewhere
-     * `Android/data/` has not let a file manager reach since Android 11.
+     * **Files, not a folder.** `ACTION_OPEN_DOCUMENT_TREE` cannot be granted over
+     * `Download` on Android 11 and later — the picker lists the folder, lists the files
+     * inside it, and then refuses with "Can't use this folder" — and `Download` is exactly
+     * where a browser puts things. Picking the files themselves carries no such
+     * restriction and is one step shorter besides.
+     *
+     * Nothing is declared in the manifest for this: the system grants access to precisely
+     * the files chosen, for this copy. The packs can reach the handset any way at all.
      */
-    private val choosePackFolder =
-        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
-            if (tree == null) {
-                // Cancelled, or no folder picker on this handset. Either way the operator
-                // pressed something and must be told what came of it: a control that
-                // sometimes does nothing and says nothing is one nobody presses twice.
-                packStatus = "No folder chosen."
+    private val choosePackFiles =
+        registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { files ->
+            if (files.isEmpty()) {
+                // Cancelled. A control that sometimes does nothing and says nothing is one
+                // nobody presses twice.
+                packStatus = "No files chosen."
                 return@registerForActivityResult
             }
-            packStatus = "Reading that folder…"
+            packStatus = "Checking " + files.size + " file(s)…"
             lifecycleScope.launch {
                 val result =
-                    PackInstaller(applicationContext).install(tree) { name ->
-                        packStatus = "Copying $name"
-                    }
+                    PackInstaller(applicationContext).installFiles(files) { packStatus = it }
                 packStatus = result.describe()
-                // Newly installed packs are only found on the next look, and the engine
+                // A newly installed pack is only found on the next look, and the engine
                 // caches what it loaded. Re-asking costs nothing and saves a restart.
                 engine?.restartIfIdle()
                 engine?.onLanguageChosen(currentLanguageCode())
@@ -344,23 +343,12 @@ class MainActivity : ComponentActivity() {
      * sentence is wanted.
      */
     private fun pickPackFolder() {
-        packStatus = "Opening the folder picker…"
-        runCatching { choosePackFolder.launch(downloadsFolder()) }
-            .onFailure { packStatus = "This handset has no folder picker to open." }
+        packStatus = "Opening the file picker…"
+        // Any type: a model is an .onnx and a token table is a .txt, and a handset that
+        // filters by MIME will hide one or the other.
+        runCatching { choosePackFiles.launch(arrayOf("*/*")) }
+            .onFailure { packStatus = "This handset has no file picker to open." }
     }
-
-    /**
-     * Opens the picker already inside `Download`, because that is where a browser puts
-     * things and navigating a file picker is exactly where this goes wrong.
-     *
-     * A hint, not a restriction: the operator can still go anywhere. Null on a handset
-     * whose provider does not recognise the id, which simply opens the picker where it
-     * would have opened anyway.
-     */
-    private fun downloadsFolder(): Uri? =
-        runCatching {
-            DocumentsContract.buildDocumentUri(EXTERNAL_STORAGE_PROVIDER, "primary:Download")
-        }.getOrNull()
 
     /**
      * The deployment profile, from the asset the build copies out of `models/`.

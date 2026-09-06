@@ -231,7 +231,7 @@ fun StorageScreen(
                 // be told why nothing happened before it happens.
                 Text(
                     "1. Download the files below in your browser.\n" +
-                        "2. Tap here and pick the folder you saved them in — usually Download.",
+                        "2. Tap here, open Downloads, and select them all.",
                     fontSize = 12.sp,
                     color = Muted,
                 )

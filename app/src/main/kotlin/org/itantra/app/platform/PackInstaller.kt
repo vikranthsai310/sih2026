@@ -57,6 +57,69 @@ class PackInstaller(private val context: Context) {
     }
 
     /**
+     * Installs files the operator picked directly.
+     *
+     * This is the path that works. `ACTION_OPEN_DOCUMENT_TREE` cannot be granted over
+     * `Download` at all on Android 11 and later — the picker shows the folder, shows the
+     * files in it, and answers "Can't use this folder" — which is precisely where a browser
+     * puts a download. Picking the files themselves carries no such restriction.
+     *
+     * @param onProgress called per file, because hashing 198 MB is not instant
+     */
+    suspend fun installFiles(
+        files: List<Uri>,
+        onProgress: (String) -> Unit,
+    ): Result =
+        withContext(Dispatchers.IO) {
+            val root = File(context.getExternalFilesDir(null), "models")
+            val index = InstallIndex(context)
+            if (index.size == 0) {
+                return@withContext Result(0, 0, "The install index is missing from this build.")
+            }
+
+            var installed = 0
+            var bytes = 0L
+            var unrecognised = 0
+            for ((n, uri) in files.withIndex()) {
+                onProgress("checking " + (n + 1) + " of " + files.size + "…")
+                val hash =
+                    runCatching {
+                        context.contentResolver.openInputStream(uri)?.let(InstallIndex::sha256Of)
+                    }.getOrNull()
+                if (hash == null) {
+                    unrecognised++
+                    continue
+                }
+                val item = index.identify(hash)
+                if (item == null) {
+                    unrecognised++
+                    continue
+                }
+                val written = copy(uri, File(root, item.install), onProgress)
+                if (written > 0) {
+                    installed++
+                    bytes += written
+                    if (item.install.endsWith("config.json")) {
+                        writeVoiceTokens(File(root, item.install))
+                    }
+                }
+            }
+
+            Result(
+                files = installed,
+                bytes = bytes,
+                problem =
+                    when {
+                        installed > 0 && unrecognised == 0 -> null
+                        installed > 0 -> null
+                        else ->
+                            "None of the " + files.size + " file(s) matched a language pack. " +
+                                "An interrupted download does this — try downloading again."
+                    },
+            )
+        }
+
+    /**
      * @param onProgress called with each file as it is examined, so hashing two gigabytes
      *   is visibly working rather than apparently hung
      */
