@@ -18,7 +18,7 @@ import androidx.compose.ui.graphics.Color
  * desk — and a screen that spends its entire contrast budget on being survivable is a
  * screen nobody can tell apart from a terminal emulator.
  *
- * So both exist. **Spectrum** is the default: seven families, each carrying one meaning.
+ * So both exist. **Spectrum** is the default: nine families, each carrying one meaning.
  * **Field** is rule 5 restored exactly — the monochrome tokens that were here before this
  * file, unchanged, with colour surviving only on the three states that cannot lose it.
  *
@@ -56,7 +56,6 @@ data class ItantraPalette(
     /** True when this is the sunlight-legible monochrome set. Screens that must not lose a
      *  distinction in greyscale can branch on it — sparingly, and never for layout. */
     val fieldMode: Boolean,
-    // ── neutrals ─────────────────────────────────────────────────────────────
     /** Chrome and cards. Warmer than pure white, which shimmers under sun. */
     val paper: Color,
     /** The thread ground, a half-step warmer than [paper] so chrome and dock lift off it. */
@@ -73,7 +72,6 @@ data class ItantraPalette(
     val muted: Color,
     /** Text and glyphs on a `core` fill. */
     val onAccent: Color,
-    // ── the seven families ───────────────────────────────────────────────────
     /** Identity. This unit, its name, its node, the transmit control. */
     val periwinkle: Family,
     /** The link, and anything live on it — a seized floor, a speaking bubble. */
@@ -135,7 +133,7 @@ data class ItantraPalette(
 
     companion object {
         /**
-         * The default. Seven families, from `iTantra Screens v2`.
+         * The default. Nine families, from `iTantra Screens v2`.
          *
          * The hexes are the canvas's own, transcribed rather than approximated, so a
          * reviewer holding the design file beside this can check them one at a time.
@@ -153,7 +151,14 @@ data class ItantraPalette(
                 onAccent = Color(0xFFFFFFFF),
                 periwinkle = Family(Color(0xFFE8EAFF), Color(0xFFC7CEFF), Color(0xFF4F5BD5), Color(0xFF2F3A8F)),
                 aqua = Family(Color(0xFFDFF7F7), Color(0xFFB5EDEC), Color(0xFF0E7C7B), Color(0xFF0F4C4C)),
-                sky = Family(Color(0xFFE4F3FE), Color(0xFFBEE3FB), Color(0xFF0369A1), Color(0xFF0C4A6E), track = Color(0xFFDCE9F2)),
+                sky =
+                    Family(
+                        Color(0xFFE4F3FE),
+                        Color(0xFFBEE3FB),
+                        Color(0xFF0369A1),
+                        Color(0xFF0C4A6E),
+                        track = Color(0xFFDCE9F2),
+                    ),
                 blush = Family(Color(0xFFFFE7EA), Color(0xFFFFC7CE), Color(0xFFBE123C), Color(0xFF9F1239)),
                 orchid = Family(Color(0xFFF0EBFE), Color(0xFFD7C9FC), Color(0xFF7C3AED), Color(0xFF4C1D95)),
                 mint = Family(Color(0xFFE3F7EC), Color(0xFFB8ECD0), Color(0xFF1B7F3B), Color(0xFF14532D)),

@@ -6,6 +6,8 @@ import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.StartOffsetType
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -94,7 +96,7 @@ private fun loop(
     durationMillis: Int,
     label: String,
     easing: Easing = Ease.Continuous,
-    delayMillis: Int = 0,
+    offsetMillis: Int = 0,
     reverse: Boolean = false,
     stillValue: Float,
 ): Float {
@@ -105,8 +107,15 @@ private fun loop(
         targetValue = 1f,
         animationSpec =
             infiniteRepeatable(
-                animation = tween(durationMillis, delayMillis = delayMillis, easing = easing),
+                animation = tween(durationMillis, easing = easing),
                 repeatMode = if (reverse) RepeatMode.Reverse else RepeatMode.Restart,
+                // FastForward, not `tween(delayMillis = ...)`. A delay inside the tween is
+                // part of the spec that `infiniteRepeatable` repeats, so it is paid on
+                // EVERY iteration: two halves 900 ms apart would run at 1600 and 2500 ms
+                // and beat against each other instead of holding formation, and bar n of
+                // the equaliser would run at 720 + 90n. FastForward starts the loop already
+                // that far in and leaves the period alone, which is what a phase offset is.
+                initialStartOffset = StartOffset(offsetMillis, StartOffsetType.FastForward),
             ),
         label = label,
     )
@@ -128,7 +137,7 @@ fun haloProgress(offsetMillis: Int = 0): Float =
     loop(
         durationMillis = Tokens.HALO_MILLIS,
         label = "halo",
-        delayMillis = offsetMillis,
+        offsetMillis = offsetMillis,
         stillValue = 1f,
     )
 
@@ -150,7 +159,7 @@ fun equaliserBars(): List<Float> =
             durationMillis = Tokens.EQ_MILLIS,
             label = "eq$bar",
             easing = Ease.Swell,
-            delayMillis = bar * Tokens.EQ_STAGGER_MILLIS,
+            offsetMillis = bar * Tokens.EQ_STAGGER_MILLIS,
             reverse = true,
             stillValue = 0.35f,
         ).coerceIn(0.2f, 1f)
@@ -176,7 +185,7 @@ fun pulseAlpha(): Float {
  */
 @Composable
 fun arcProgress(offsetMillis: Int = 0): Float =
-    loop(Tokens.ARC_MILLIS, "arc", delayMillis = offsetMillis, stillValue = 0f)
+    loop(Tokens.ARC_MILLIS, "arc", offsetMillis = offsetMillis, stillValue = 0f)
 
 /**
  * The splash progress sheen, as a 0..1 sweep across the track.

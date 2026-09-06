@@ -16,6 +16,7 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,10 +44,13 @@ import org.itantra.app.ui.AppActions
 import org.itantra.app.ui.AppState
 import org.itantra.app.ui.Download
 import org.itantra.app.ui.ItantraApp
+import org.itantra.app.ui.ItantraTheme
 import org.itantra.app.ui.LicenceRow
+import org.itantra.app.ui.LocalReducedMotion
 import org.itantra.app.ui.PackRow
 import org.itantra.app.ui.TransportOption
 import org.itantra.app.ui.describeSize
+import org.itantra.app.ui.rememberReducedMotion
 import org.itantra.asr.BiasingLexicon
 import org.itantra.audio.EngineState
 import org.itantra.link.LinkState
@@ -194,33 +198,44 @@ class MainActivity : ComponentActivity() {
             // the operator speaks, and ten languages' worth of stat calls each time is
             // not what the main thread is for.
             val onDisk = remember(packStatus, diskVersion) { installedPacks() to allDownloads() }
-            ItantraApp(
-                state =
-                    AppState(
-                        operating = running?.state?.collectAsState()?.value ?: startingState(),
-                        traces = running?.traces?.collectAsState()?.value.orEmpty(),
-                        languages = running?.languageOptions().orEmpty().ifEmpty { languageNames() },
-                        transports = transports(),
-                        packs = onDisk.first,
-                        licences = licences(),
-                        distributionNotice = DISTRIBUTION_NOTICE,
-                        packStatus = packStatus,
-                        downloads = onDisk.second,
-                    ),
-                actions =
-                    AppActions(
-                        onTransmitChange = { running?.onTransmit(it) },
-                        onAlert = { running?.onAlert() },
-                        onLanguageChosen = { running?.onLanguageChosen(it) },
-                        onReplay = { running?.onReplay(it) },
-                        onImportPacks = ::pickPackFolder,
-                        onDownload = ::openInBrowser,
-                        onDownloadAll = ::openAllInBrowser,
-                        onDeletePack = ::deletePack,
-                        onExportCsv = ::exportReport,
-                        readLicence = ::readLicence,
-                    ),
-            )
+            // The palette and the reduced-motion answer are put in force here, once, for
+            // the whole tree. Until this existed both composition locals fell back to their
+            // static defaults everywhere -- which meant Spectrum was correct by accident and
+            // `reducedMotion` was permanently false, so every "and it stops when asked"
+            // branch in Motion.kt was unreachable code that could never have been shown to
+            // work. Field Mode has no control yet; when it gets one it sets `fieldMode`
+            // here and nothing else in the application changes.
+            CompositionLocalProvider(LocalReducedMotion provides rememberReducedMotion()) {
+                ItantraTheme(fieldMode = false) {
+                    ItantraApp(
+                        state =
+                            AppState(
+                                operating = running?.state?.collectAsState()?.value ?: startingState(),
+                                traces = running?.traces?.collectAsState()?.value.orEmpty(),
+                                languages = running?.languageOptions().orEmpty().ifEmpty { languageNames() },
+                                transports = transports(),
+                                packs = onDisk.first,
+                                licences = licences(),
+                                distributionNotice = DISTRIBUTION_NOTICE,
+                                packStatus = packStatus,
+                                downloads = onDisk.second,
+                            ),
+                        actions =
+                            AppActions(
+                                onTransmitChange = { running?.onTransmit(it) },
+                                onAlert = { running?.onAlert() },
+                                onLanguageChosen = { running?.onLanguageChosen(it) },
+                                onReplay = { running?.onReplay(it) },
+                                onImportPacks = ::pickPackFolder,
+                                onDownload = ::openInBrowser,
+                                onDownloadAll = ::openAllInBrowser,
+                                onDeletePack = ::deletePack,
+                                onExportCsv = ::exportReport,
+                                readLicence = ::readLicence,
+                            ),
+                    )
+                }
+            }
         }
     }
 
