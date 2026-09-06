@@ -36,6 +36,24 @@ import androidx.compose.ui.unit.dp
  * arithmetic rather than judgement. Anyone can diff a glyph against the canvas by searching
  * the design file for its `i-` name in the KDoc above it.
  *
+ * ## The four that are not transcribed
+ *
+ * `iTantra Screens v2` defines **thirty-one** symbols and references **thirty-five**. Four
+ * are used and never drawn, so `<use href="#…">` resolves to nothing and the control renders
+ * as a label above an empty square:
+ *
+ * | Missing | References | Where |
+ * | --- | --- | --- |
+ * | `i-bin` | 5 | the delete control on every installed pack row, board 20 |
+ * | `i-plus` | 1 | install a language pack, board 20 |
+ * | `i-pause` | 1 | the HOLD flank in phone mode, board 10 |
+ * | `i-hourglass` | 1 | the loading banner, board 11·b |
+ *
+ * [Bin], [Plus], [Pause] and [Hourglass] are therefore **drawn** — the set's own vocabulary
+ * applied to its gaps, at the same 2 px stroke on the same 24 unit grid — and each says so
+ * in its own KDoc. If the canvas later defines one, replace it with the transcription and
+ * delete the note. Every other glyph in this file is verbatim.
+ *
  * ## Colour
  *
  * Every path is built in black and tinted at the call site, the way `Icon(tint = …)`
@@ -420,6 +438,50 @@ object Icons {
             "Pause",
             24f,
             Part("M9.5 6.5v11M14.5 6.5v11", width = 2.6f, cap = StrokeCap.Round),
+        )
+    }
+
+    /**
+     * `i-bin` — **drawn here, not ported.** Five references, no symbol.
+     *
+     * The delete control on every installed pack row, board 20. See [Pause] for the audit:
+     * the canvas defines thirty-one symbols and references thirty-five.
+     */
+    val Bin: ImageVector by lazy {
+        vector(
+            "Bin",
+            24f,
+            Part(
+                "M5 7h14M9.5 7V5.2a1.6 1.6 0 011.6-1.6h1.8A1.6 1.6 0 0114.5 5.2V7" +
+                    "M6.7 7l.9 12.2a1.8 1.8 0 001.8 1.6h5.2a1.8 1.8 0 001.8-1.6L17.3 7" +
+                    "M10.3 10.9v6.3M13.7 10.9v6.3",
+                width = 2f,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round,
+            ),
+        )
+    }
+
+    /** `i-plus` — **drawn here, not ported.** The install control on board 20. */
+    val Plus: ImageVector by lazy {
+        vector(
+            "Plus",
+            24f,
+            Part("M12 5.5v13M5.5 12h13", width = 2.4f, cap = StrokeCap.Round),
+        )
+    }
+
+    /** `i-hourglass` — **drawn here, not ported.** The loading banner, board 11·b. */
+    val Hourglass: ImageVector by lazy {
+        vector(
+            "Hourglass",
+            24f,
+            Part(
+                "M6.5 3h11M6.5 21h11M7.6 3v3.4L12 10.9l4.4-4.5V3M7.6 21v-3.4L12 13.1l4.4 4.5V21",
+                width = 2f,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round,
+            ),
         )
     }
 
