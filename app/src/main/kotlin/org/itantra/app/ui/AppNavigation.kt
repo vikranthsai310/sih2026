@@ -3,11 +3,9 @@ package org.itantra.app.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,8 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.itantra.bench.UtteranceTrace
@@ -68,6 +63,25 @@ enum class Destination(val title: String) {
     METRICS("METRICS"),
     MODE("MODE & TRANSPORT"),
     STORAGE("STORAGE"),
+
+    /**
+     * The alert path, run against this handset only. Board 22.
+     *
+     * Its own destination rather than a control inside settings, because it is six measured
+     * steps and a verdict — a screen's worth of answer to "did the alert actually sound on
+     * *this* model of phone", which vendor audio policy makes a real question.
+     */
+    TEST_ALERT("TEST ALERT"),
+
+    /**
+     * Text size. Board 23, and gap **G4** resolved.
+     *
+     * Purely additive: no existing route changes, and the screen sets nothing. Android owns
+     * text scaling; what was missing was somewhere to *see* the interface at 200 % and watch
+     * the Indic line box hold. See [TextSizeScreen].
+     */
+    TEXT_SIZE("TEXT SIZE"),
+
     LICENCES("LICENCES"),
 
     /**
@@ -147,10 +161,43 @@ fun ItantraApp(
         return
     }
 
+    // Three screens draw their own header because their boards do: the control room's title
+    // sits over a hero card, and the self-test and text-size headers are part of the sheet
+    // they head. Wrapping them in SubScreen's bar would show two back controls.
+    if (where in OwnHeader) {
+        when (where) {
+            Destination.MENU ->
+                ControlRoomScreen(
+                    state = state,
+                    onOpen = { where = it },
+                    onBack = { where = back(where) },
+                    modifier = modifier,
+                )
+
+            Destination.TEST_ALERT ->
+                AlertSelfTestScreen(
+                    steps = emptyList(),
+                    lastRun = null,
+                    verdict = null,
+                    device = null,
+                    // Nothing reaches AndroidAlertAudio from here yet, and this branch does
+                    // not add engine code. A null draws the control unavailable instead of
+                    // shipping a button that silently does nothing.
+                    onRun = null,
+                    onBack = { where = back(where) },
+                    modifier = modifier,
+                )
+
+            Destination.TEXT_SIZE ->
+                TextSizeScreen(onBack = { where = back(where) }, modifier = modifier)
+
+            else -> Unit
+        }
+        return
+    }
+
     SubScreen(title = where.title, onBack = { where = back(where) }, modifier = modifier) {
         when (where) {
-            Destination.MENU -> MenuScreen(onOpen = { where = it })
-
             Destination.MESSAGES ->
                 MessageLogScreen(
                     messages = state.operating.messages,
@@ -207,10 +254,14 @@ fun ItantraApp(
                     )
                 }
 
-            Destination.OPERATING -> Unit
+            Destination.OPERATING, Destination.MENU, Destination.TEST_ALERT, Destination.TEXT_SIZE -> Unit
         }
     }
 }
+
+/** Destinations whose board draws its own back header. */
+private val OwnHeader =
+    setOf(Destination.MENU, Destination.TEST_ALERT, Destination.TEXT_SIZE)
 
 /** One step towards the operating screen, wherever we are. */
 private fun back(from: Destination): Destination =
@@ -263,42 +314,5 @@ private fun SubScreen(
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.Rule))
         content()
-    }
-}
-
-/** The list behind ☰. One row per screen, and nothing that is not a screen. */
-@Composable
-private fun MenuScreen(onOpen: (Destination) -> Unit) {
-    val rows =
-        listOf(
-            Destination.MESSAGES to "Everything sent and received, last 24 hours",
-            Destination.LANGUAGE to "What this unit speaks and reads",
-            Destination.METRICS to "Measured latency, from real utterances",
-            Destination.MODE to "Push-to-talk, and the radio in use",
-            Destination.STORAGE to "Language packs on this handset",
-            Destination.LICENCES to "What this application is built from",
-        )
-    LazyColumn(Modifier.fillMaxSize().padding(Tokens.ScreenMargin)) {
-        item {
-            // The heading the other six screens each carry for themselves.
-            Text("SETTINGS", fontSize = Tokens.Title, fontWeight = FontWeight.Bold, color = Tokens.Ink)
-            Spacer(Modifier.height(Tokens.Grid))
-        }
-        items(rows) { (destination, blurb) ->
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = Tokens.TouchTarget)
-                    .clickable { onOpen(destination) }
-                    .semantics { contentDescription = destination.title + ". " + blurb }
-                    .padding(vertical = Tokens.Grid),
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text(destination.title, fontSize = Tokens.Body, fontWeight = FontWeight.Bold, color = Tokens.Ink)
-                Text(blurb, fontSize = Tokens.Status, color = Tokens.Muted)
-            }
-            Spacer(Modifier.height(1.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.Rule))
-        }
     }
 }

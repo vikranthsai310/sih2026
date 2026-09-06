@@ -63,9 +63,11 @@ photograph — see Phase 6.
 
 Recorded, not invented. Each needs a decision before its phase starts:
 
-- **G1 — Board 17 tiles show current values** (language, transport, storage used, pack
-  count). `AppState` already carries `languages`, `transports`, `packs`, so most resolve.
-  Storage *used* is computed inside `StorageScreen` today and is not in `AppState`.
+- **G1 — Board 17 tiles show current values.** **Resolved in phase 4:** every value comes
+  from state that already existed. Storage used is `packs.sumOf { it.bytes }` rather than a
+  new `AppState` field, and the restrictive-licence count is
+  `licences.count { it.isRestrictive && it.shipped }` — both already on the rows the
+  screens behind them read. No field was added.
 - **G2 — Board 15 shows sender name per bubble.** `LoggedMessage` carries a node id;
   whether it carries a name needs checking before the bubble header is drawn.
 - **G3 — Board 09 shows a live waveform while synthesis runs.** `OperatingState` has
@@ -75,8 +77,11 @@ Recorded, not invented. Each needs a decision before its phase starts:
   measures something. A playback waveform would have been an animation with no signal
   behind it — decoration shaped exactly like instrumentation, on the one screen whose
   whole claim is that its numbers are real.
-- **G4 — Board 23 (Text size)** needs a destination in the `Destination` enum. That is a
-  navigation edit, which touches `AppNavigation`. Additive only — no existing route changes.
+- **G4 — Board 23 (Text size).** **Resolved in phase 4:** `Destination.TEXT_SIZE` added,
+  additive, no existing route changed. The screen sets nothing — Android owns text scaling
+  and a second control would be a setting kept in two places. It reports the scale in force
+  and renders the type ramp at it, so 200 % and the 1.4 × Indic box are demonstrated rather
+  than asserted.
 - **G5 — Field Mode.** The v2 palette is the pastel Spectrum. The monochrome palette in
   `Tokens.kt` today is the sunlight-legible one and `docs/UX.md` rule 5 requires it. Both
   survive: Spectrum is the default, Field Mode restores monochrome, and the two share one
@@ -144,13 +149,13 @@ Boards 12, 13, 14, 22.
 
 Boards 17, 18, 19, 20, 21, 23, 24.
 
-- [ ] **4.1** Control room — hero unit card, then 2-up destination tiles showing their
+- [x] **4.1** Control room — hero unit card, then 2-up destination tiles showing their
       current values. Resolve **G1**.
 - [ ] **4.2** Language — own script first, speaks / recognises-only marking.
 - [ ] **4.3** Mode and transport — every choice shows its cost.
 - [ ] **4.4** Storage — the capacity bar as its own legend.
 - [ ] **4.5** Pack import — two steps, in order.
-- [ ] **4.6** Text size — new screen, new `Destination`. Resolve **G4**.
+- [x] **4.6** Text size — new screen, new `Destination`. Resolve **G4**.
 - [ ] **4.7** About and licences — set as a document.
 
 ### Phase 5 — Log, metrics, banners, empty states

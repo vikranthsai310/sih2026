@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -43,29 +42,27 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/**
- * The alert path. Tasks **W5.17**–**W5.20**; `docs/REDESIGN.md` phase 3 — boards 12, 13, 14
- * and 22 of *iTantra Screens v2*.
- *
- * ## The one rule the redesign changed, and why it is an improvement
- *
- * The tiles used to be six saturated red rectangles. They are now **Paper on a hairline with
- * the emergency in the 32 dp icon alone**, and that is not a softening — it is the greyscale
- * test applied. Six red rectangles differ only in a glyph and a word, so under sunlight,
- * under a colour-vision deficiency, or in Field Mode they collapse into one another. A white
- * tile with a distinct silhouette separates by *shape*, which survives all three.
- *
- * `ALL CLEAR` is the exception that proves it: Mint border, Mint icon, and a Mint dot beside
- * the label. It is the only one of the six that is good news, and colouring it as an
- * emergency would be a lie told in the fastest-read part of the interface.
- *
- * ## Three rules from `docs/UX.md` that did not change
- *
- * 1. **Icon plus word, never a word alone.** The operator this product exists for may not
- *    read; the icon is the primary carrier and the word confirms it for those who do.
- * 2. **Targets are 96 dp** on anything that sends. Gloves, darkness, a moving vehicle.
- * 3. **The safe option is never smaller than the dangerous one.** See [AlertConfirmScreen].
- */
+// The alert path. Tasks **W5.17**–**W5.20**; `docs/REDESIGN.md` phase 3 — boards 12, 13, 14
+// and 22 of *iTantra Screens v2*.
+//
+// ## The one rule the redesign changed, and why it is an improvement
+//
+// The tiles used to be six saturated red rectangles. They are now **Paper on a hairline with
+// the emergency in the 32 dp icon alone**, and that is not a softening — it is the greyscale
+// test applied. Six red rectangles differ only in a glyph and a word, so under sunlight,
+// under a colour-vision deficiency, or in Field Mode they collapse into one another. A white
+// tile with a distinct silhouette separates by *shape*, which survives all three.
+//
+// `ALL CLEAR` is the exception that proves it: Mint border, Mint icon, and a Mint dot beside
+// the label. It is the only one of the six that is good news, and colouring it as an
+// emergency would be a lie told in the fastest-read part of the interface.
+//
+// ## Three rules from `docs/UX.md` that did not change
+//
+// 1. **Icon plus word, never a word alone.** The operator this product exists for may not
+// read; the icon is the primary carrier and the word confirms it for those who do.
+// 2. **Targets are 96 dp** on anything that sends. Gloves, darkness, a moving vehicle.
+// 3. **The safe option is never smaller than the dangerous one.** See [AlertConfirmScreen].
 
 /** The six template alerts. One byte of payload; 21 bytes on the wire, authenticated. */
 enum class AlertTemplate(val code: Int, val label: String) {
@@ -443,7 +440,12 @@ fun AlertConfirmScreen(
                     Icon(Icons.Play, contentDescription = null, tint = p.aqua.core, modifier = Modifier.size(18.dp))
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Hear it back", fontSize = Tokens.BodySmall, fontWeight = FontWeight.SemiBold, color = p.aqua.deep)
+                    Text(
+                        "Hear it back",
+                        fontSize = Tokens.BodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = p.aqua.deep,
+                    )
                     Text("Already spoken once on open", fontSize = Tokens.Instrument, color = p.muted)
                 }
             }
@@ -721,7 +723,13 @@ fun AlertSelfTestScreen(
     lastRun: String?,
     verdict: String?,
     device: String?,
-    onRun: () -> Unit,
+    /**
+     * Runs the path. **Null when nothing is wired behind it**, which is the case in this
+     * build: `AndroidAlertAudio` owns the six steps and no action reaches it, and
+     * `docs/REDESIGN.md` forbids this branch from adding engine code. A null here draws the
+     * control unavailable rather than drawing a button that does nothing when pressed.
+     */
+    onRun: (() -> Unit)?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -785,10 +793,20 @@ fun AlertSelfTestScreen(
                         Modifier.size(38.dp).background(p.mint.tint, RoundedCornerShape(12.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(Icons.AllClear, contentDescription = null, tint = p.mint.core, modifier = Modifier.size(22.dp))
+                        Icon(
+                            Icons.AllClear,
+                            contentDescription = null,
+                            tint = p.mint.core,
+                            modifier = Modifier.size(22.dp),
+                        )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(verdict, fontSize = Tokens.BodySmall, fontWeight = FontWeight.SemiBold, color = p.mint.deep)
+                        Text(
+                            verdict,
+                            fontSize = Tokens.BodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = p.mint.deep,
+                        )
                         device?.let {
                             Text(it, fontSize = Tokens.Label, lineHeight = Tokens.Label * 1.35f, color = p.muted)
                         }
@@ -809,21 +827,45 @@ fun AlertSelfTestScreen(
             Modifier
                 .fillMaxWidth()
                 .background(p.paper)
-                .padding(start = Tokens.ScreenMargin, end = Tokens.ScreenMargin, top = 12.dp, bottom = Tokens.ScreenMargin),
+                .padding(
+                    start = Tokens.ScreenMargin,
+                    end = Tokens.ScreenMargin,
+                    top = 12.dp,
+                    bottom = Tokens.ScreenMargin,
+                ),
         ) {
+            val armed = onRun != null
             Row(
                 Modifier
                     .fillMaxWidth()
                     .heightIn(min = Tokens.SecondaryAction)
                     .background(p.paper, RoundedCornerShape(Tokens.RadiusCard))
-                    .border(Tokens.SignalBorder, p.blush.core, RoundedCornerShape(Tokens.RadiusCard))
-                    .clickable(onClick = onRun)
-                    .semantics(mergeDescendants = true) { contentDescription = "Run the alert test" },
+                    .border(
+                        Tokens.SignalBorder,
+                        if (armed) p.blush.core else p.hairline,
+                        RoundedCornerShape(Tokens.RadiusCard),
+                    )
+                    .clickable(enabled = armed) { onRun?.invoke() }
+                    .then(if (armed) Modifier else Modifier.alpha(0.5f))
+                    .semantics(mergeDescendants = true) {
+                        contentDescription =
+                            if (armed) "Run the alert test" else "Run the test, not available in this build"
+                    },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(11.dp, Alignment.CenterHorizontally),
             ) {
-                Icon(Icons.Alert, contentDescription = null, tint = p.blush.core, modifier = Modifier.size(24.dp))
-                Text("Run the test", fontSize = Tokens.Body, fontWeight = FontWeight.SemiBold, color = p.blush.deep)
+                Icon(
+                    Icons.Alert,
+                    contentDescription = null,
+                    tint = if (armed) p.blush.core else p.muted,
+                    modifier = Modifier.size(24.dp),
+                )
+                Text(
+                    if (armed) "Run the test" else "Not wired in this build",
+                    fontSize = Tokens.Body,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (armed) p.blush.deep else p.muted,
+                )
             }
         }
     }

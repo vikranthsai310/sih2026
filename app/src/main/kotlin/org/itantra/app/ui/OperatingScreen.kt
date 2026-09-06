@@ -498,7 +498,7 @@ private fun LanguageChip(
                             Modifier.semantics(mergeDescendants = true) {
                                 contentDescription =
                                     option.nativeName + ", " + option.englishName +
-                                        if (current) ". Current." else ""
+                                    if (current) ". Current." else ""
                             },
                         ) {
                             Text(
