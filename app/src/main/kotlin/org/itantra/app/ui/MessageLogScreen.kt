@@ -169,7 +169,7 @@ data class LoggedMessage(
      */
     val fromSpeech: Boolean = false,
 ) {
-    enum class Delivery { PENDING, SENT, DELIVERED, RECEIVED, FAILED }
+    enum class Delivery { PENDING, SENT, DELIVERED, RECEIVED, FAILED, REFUSED }
 
     /**
      * Delivery as a symbol, because it is scanned rather than read.
@@ -184,6 +184,8 @@ data class LoggedMessage(
             Delivery.DELIVERED -> "✓✓ delivered"
             Delivery.RECEIVED -> confidence?.let { dots(it) } ?: "received"
             Delivery.FAILED -> "✕ NOT DELIVERED"
+            // Heard and refused: the fault is between the units, not in this one's sending.
+            Delivery.REFUSED -> "✕ NOT READ"
         }
 
     /** Recognition confidence as filled dots — readable without reading. */

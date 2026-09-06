@@ -65,6 +65,8 @@ object Spoken {
             // is the worst state this screen can fail to communicate, so it is said in
             // full words rather than left as a mark.
             LoggedMessage.Delivery.FAILED -> "NOT delivered"
+            // Heard from another unit and refused. The text of the entry says why.
+            LoggedMessage.Delivery.REFUSED -> "heard but NOT read"
         }
 
     fun confidenceWord(level: Int): String =

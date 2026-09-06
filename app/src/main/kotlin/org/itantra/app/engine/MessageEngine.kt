@@ -370,13 +370,16 @@ class MessageEngine(
 
     private fun onMessage(message: Session.Received.Message) {
         synchronized(heardFrom) { heardFrom[message.from] = SystemClock.elapsedRealtime() }
+        // A template is rendered in this unit's language; free text arrives in the
+        // sender's, whatever this unit is set to, and is read and spoken as such.
+        val writtenIn = if (message.wasTemplate) language else message.frame.language
         val entry =
             LoggedMessage(
                 from = "node ${message.from}",
                 text = message.text,
                 age = "now",
                 frameBytes = message.wireBytes,
-                language = displayNameFor(language),
+                language = displayNameFor(writtenIn),
                 wasTemplate = message.wasTemplate,
                 isAlert = message.frame.type == MessageType.ALERT,
                 delivery = LoggedMessage.Delivery.RECEIVED,
@@ -387,7 +390,7 @@ class MessageEngine(
                 messages = (listOf(entry) + _state.value.messages).take(MAX_ON_SCREEN),
                 metrics = _state.value.metrics.copy(lastFrameBytes = message.wireBytes),
             )
-        speakArrival(message.text, alert = message.frame.type == MessageType.ALERT)
+        speakArrival(message.text, alert = message.frame.type == MessageType.ALERT, writtenIn = writtenIn)
     }
 
     /**
@@ -401,11 +404,17 @@ class MessageEngine(
     private fun speakArrival(
         text: String,
         alert: Boolean,
+        writtenIn: Language = language,
     ) {
         val speaker = speaker ?: return
         val receivedAt = SystemClock.elapsedRealtime()
+        // Free text from a unit set to another language is in that language's script. A
+        // Hindi voice given Telugu text produces nothing a listener can use; the Telugu
+        // voice, where this handset has it, does. Where it does not, this unit's own
+        // voice is tried, which is at least the honest failure the screen already shows.
+        val voice = if (writtenIn != language && speaker.canSpeak(writtenIn.code)) writtenIn else language
         speaker.speak(
-            languageCode = language.code,
+            languageCode = voice.code,
             text = text,
             onFirstAudio = {
                 _state.value =
@@ -433,17 +442,62 @@ class MessageEngine(
     private var alerting = false
 
     /**
-     * A dropped frame is shown only when the operator can do something about it.
+     * A frame that was heard and refused is put in the message log, marked as not read.
      *
-     * A wrong key or a frame from an unpaired transmitter is ordinary background noise on a
-     * shared radio channel and reporting it would train people to ignore the banner. A
-     * sustained forgery attempt is not.
+     * The banner is still raised only for a sustained forgery attempt: a wrong key or a
+     * frame from an unpaired transmitter is ordinary background noise on a shared radio
+     * channel, and a banner for it would train people to ignore the banner.
+     *
+     * "Nothing arrived" and "something arrived and was refused" are different faults with
+     * different cures, and until this the screen showed them identically -- the reason was
+     * in logcat, where an operator in the field cannot read it. Duplicates (a frame that
+     * came by two roads) and this unit's own frames heard back are normal and stay quiet.
      */
     private fun onDropped(dropped: Session.Received.Dropped) {
         if (dropped.reason == Session.Reason.UNDER_ATTACK) {
             degrade(EngineState.Degraded.Reason.TEMPLATE_MISMATCH)
         }
+        val explanation =
+            when (dropped.reason) {
+                Session.Reason.NOT_AUTHENTIC, Session.Reason.UNDER_ATTACK ->
+                    "Heard a frame that did not verify. The other unit is on a different key " +
+                        "or an older build of this application."
+                Session.Reason.WRONG_KEY -> "Heard a frame from a unit with a different key."
+                Session.Reason.MALFORMED -> "Heard a corrupt frame."
+                Session.Reason.UNREADABLE -> "Heard a frame that could not be read: ${dropped.detail}."
+                Session.Reason.NOT_FOR_US ->
+                    if (dropped.detail.startsWith("another unit")) {
+                        "Another unit on the channel has this unit's node id. Reinstall one of them."
+                    } else {
+                        return
+                    }
+                Session.Reason.REPLAYED -> return
+            }
+        val now = SystemClock.elapsedRealtime()
+        // One line per fault, not one per frame: a unit on the wrong key sends a frame a
+        // second and the log would be nothing else.
+        if (explanation == lastDropShown && now - lastDropShownAt < DROP_NOTE_REPEAT_MILLIS) return
+        lastDropShown = explanation
+        lastDropShownAt = now
+        val entry =
+            LoggedMessage(
+                from =
+                    dropped.detail.substringAfter("src ", "").substringBefore(' ').ifEmpty { "channel" }.let {
+                        if (it == "channel") it else "node $it"
+                    },
+                text = explanation,
+                age = "now",
+                frameBytes = 0,
+                language = displayNameFor(language),
+                wasTemplate = false,
+                isAlert = false,
+                delivery = LoggedMessage.Delivery.REFUSED,
+            )
+        _state.value = _state.value.copy(messages = (listOf(entry) + _state.value.messages).take(MAX_ON_SCREEN))
     }
+
+    private var lastDropShown: String? = null
+    private var lastDropShownAt = 0L
 
     // ── send ─────────────────────────────────────────────────────────────────
 
@@ -952,6 +1006,9 @@ class MessageEngine(
 
         /** After the receive loop dies, how long before it is started again. */
         const val RECEIVE_RESTART_MILLIS = 200L
+
+        /** The same refusal is shown again only after this long. */
+        const val DROP_NOTE_REPEAT_MILLIS = 10_000L
 
         /** Long enough for the broadcast roads to open before the first hello goes out. */
         const val HELLO_AFTER_CONNECT_MILLIS = 750L
