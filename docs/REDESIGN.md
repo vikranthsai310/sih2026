@@ -69,8 +69,12 @@ Recorded, not invented. Each needs a decision before its phase starts:
 - **G2 — Board 15 shows sender name per bubble.** `LoggedMessage` carries a node id;
   whether it carries a name needs checking before the bubble header is drawn.
 - **G3 — Board 09 shows a live waveform while synthesis runs.** `OperatingState` has
-  `level` for capture; there is no playback level. The waveform is either driven by a new
-  UI-only animation or drawn as a static frozen form.
+  `level` for capture; there is no playback level. **Resolved in phase 2:** no waveform is
+  drawn in the bubble at all. The bubble carries the 2 dp signal border and the speaking
+  glyph, and the only motion stays on the dock, which is driven by `level` and therefore
+  measures something. A playback waveform would have been an animation with no signal
+  behind it — decoration shaped exactly like instrumentation, on the one screen whose
+  whole claim is that its numbers are real.
 - **G4 — Board 23 (Text size)** needs a destination in the `Destination` enum. That is a
   navigation edit, which touches `AppNavigation`. Additive only — no existing route changes.
 - **G5 — Field Mode.** The v2 palette is the pastel Spectrum. The monochrome palette in
@@ -109,18 +113,18 @@ The token layer everything else is drawn from. Nothing user-visible changes alon
 
 The largest phase. Boards 06, 07, 07·a, 09, 10.
 
-- [ ] **2.1** Chrome header replacing bands A + B — unit, node, link dot, peer count,
+- [x] **2.1** Chrome header replacing bands A + B — unit, node, link dot, peer count,
       language chip, ☰.
-- [ ] **2.2** The thread replacing band E — received left, mine right, sender and node
+- [x] **2.2** The thread replacing band E — received left, mine right, sender and node
       above, ticks and byte count in the bubble meta row.
-- [ ] **2.3** The dock replacing bands C + D — 132 dp circle, flanked by two 64 dp
+- [x] **2.3** The dock replacing bands C + D — 132 dp circle, flanked by two 64 dp
       squares (ALERT, REPLAY), raised, thumb-height.
-- [ ] **2.4** Transmit states — idle, floor-seized-mic-closed (still), live (halos +
+- [x] **2.4** Transmit states — idle, floor-seized-mic-closed (still), live (halos +
       equaliser), on the same geometry.
-- [ ] **2.5** Receiving — the arriving bubble carries the 2 dp Aqua signal border and the
+- [x] **2.5** Receiving — the arriving bubble carries the 2 dp Aqua signal border and the
       speaking indicator; no separate receive card. Resolve **G3**.
-- [ ] **2.6** Phone mode — the dock as a duplex panel rather than a button.
-- [ ] **2.7** Band F as the instrument strip under the dock; queued sends stay in the
+- [x] **2.6** Phone mode — the dock as a duplex panel rather than a button.
+- [x] **2.7** Band F as the instrument strip under the dock; queued sends stay in the
       thread as dashed Butter bubbles rather than collapsing to a counter.
 - [ ] **2.8** `OperatingScreenTest` still green; touch targets still ≥ 64 dp; 200 % type
       still does not truncate.

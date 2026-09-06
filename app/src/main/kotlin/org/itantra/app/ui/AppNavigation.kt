@@ -141,6 +141,7 @@ fun ItantraApp(
             onAlert = actions.onAlert,
             onLanguageSelected = actions.onLanguageChosen,
             onMenu = { where = Destination.MENU },
+            onReplay = actions.onReplay,
             modifier = modifier,
         )
         return
