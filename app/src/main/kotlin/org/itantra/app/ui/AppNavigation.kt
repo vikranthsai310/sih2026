@@ -91,6 +91,8 @@ data class AppState(
     val licences: List<LicenceRow> = emptyList(),
     /** The sentence GPL-3.0 obliges this build to show. Null when nothing copyleft ships. */
     val distributionNotice: String? = null,
+    /** What the last language-pack import did, or is doing. */
+    val packStatus: String? = null,
 )
 
 /** What the shell can ask the engine to do. */
@@ -102,6 +104,8 @@ data class AppActions(
     val readLicence: (String) -> String?,
     /** Speaks a logged message again. The control existed here with nothing behind it. */
     val onReplay: (String) -> Unit,
+    /** Opens the folder picker so a pack can be copied onto this handset. */
+    val onImportPacks: () -> Unit,
 )
 
 @Composable
@@ -157,7 +161,13 @@ fun ItantraApp(
                     onTransportChange = { },
                 )
 
-            Destination.STORAGE -> StorageScreen(packs = state.packs, onDelete = { })
+            Destination.STORAGE ->
+                StorageScreen(
+                    packs = state.packs,
+                    onDelete = { },
+                    onImport = actions.onImportPacks,
+                    status = state.packStatus,
+                )
 
             Destination.LICENCES ->
                 AboutScreen(

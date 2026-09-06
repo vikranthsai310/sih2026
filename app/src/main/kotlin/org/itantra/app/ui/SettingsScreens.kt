@@ -195,6 +195,10 @@ data class LanguageOption(
 fun StorageScreen(
     packs: List<PackRow>,
     onDelete: (PackRow) -> Unit,
+    /** Opens the folder picker. Null hides the control, for a build without an installer. */
+    onImport: (() -> Unit)? = null,
+    /** What the last import did, or what it is doing now. */
+    status: String? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize().background(Paper).padding(16.dp)) {
@@ -207,6 +211,43 @@ fun StorageScreen(
             fontFamily = FontFamily.Monospace,
         )
         Spacer(Modifier.height(12.dp))
+
+        if (onImport != null) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .border(2.dp, Ink, RoundedCornerShape(6.dp))
+                    .clickable { onImport() }
+                    .padding(12.dp)
+                    .semantics {
+                        contentDescription = "Install a language pack from a folder on this device"
+                    },
+            ) {
+                Text("INSTALL A LANGUAGE PACK", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+                // Said plainly, because the operator has to find the right folder and the
+                // wrong one produces a copy of nothing.
+                Text(
+                    "Copy the models folder onto this phone, then pick it here. " +
+                        "It is the folder containing asr and tts.",
+                    fontSize = 12.sp,
+                    color = Muted,
+                )
+            }
+            if (status != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(status, fontSize = 13.sp, color = Ink, fontFamily = FontFamily.Monospace)
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
+        if (packs.isEmpty()) {
+            Text(
+                "No language packs on this handset. Transmit sends a template and nothing " +
+                    "is spoken aloud until one is installed.",
+                fontSize = 14.sp,
+                color = Muted,
+            )
+        }
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(packs) { pack ->

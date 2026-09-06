@@ -18,10 +18,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import org.itantra.app.engine.MessageEngine
 import org.itantra.app.platform.DataStoreEpochStore
 import org.itantra.app.platform.ModelStore
 import org.itantra.app.platform.NodeIdentity
+import org.itantra.app.platform.PackInstaller
 import org.itantra.app.platform.PushToTalkKey
 import org.itantra.app.platform.SherpaSpeech
 import org.itantra.app.platform.Speaker
@@ -74,6 +76,35 @@ class MainActivity : ComponentActivity() {
     /** Set once the operator has said no, since Android will not ask a second time. */
     private var permissionRefused by mutableStateOf(false)
 
+    /** What the language-pack copy is doing, for the storage screen. */
+    private var packStatus by mutableStateOf<String?>(null)
+
+    /**
+     * The folder picker, and the whole answer to "no language installed" on a handset that
+     * has never met a developer's machine.
+     *
+     * The Storage Access Framework asks for nothing in the manifest: the operator chooses a
+     * folder and the system grants access to that folder alone, for this copy. The packs can
+     * reach the phone any way at all — cable, SD card, another phone — and end up somewhere
+     * `Android/data/` has not let a file manager reach since Android 11.
+     */
+    private val choosePackFolder =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+            if (tree == null) return@registerForActivityResult
+            packStatus = "Copying…"
+            lifecycleScope.launch {
+                val result =
+                    PackInstaller(applicationContext).install(tree) { name ->
+                        packStatus = "Copying $name"
+                    }
+                packStatus = result.describe()
+                // Newly installed packs are only found on the next look, and the engine
+                // caches what it loaded. Re-asking costs nothing and saves a restart.
+                engine?.restartIfIdle()
+                engine?.onLanguageChosen(currentLanguageCode())
+            }
+        }
+
     private val identity by lazy { NodeIdentity.of(installationId(), unitName()) }
 
     private val transmitKey =
@@ -106,6 +137,7 @@ class MainActivity : ComponentActivity() {
                         packs = installedPacks(),
                         licences = licences(),
                         distributionNotice = DISTRIBUTION_NOTICE,
+                        packStatus = packStatus,
                     ),
                 actions =
                     AppActions(
@@ -113,6 +145,7 @@ class MainActivity : ComponentActivity() {
                         onAlert = { running?.onAlert() },
                         onLanguageChosen = { running?.onLanguageChosen(it) },
                         onReplay = { running?.onReplay(it) },
+                        onImportPacks = { choosePackFolder.launch(null) },
                         readLicence = ::readLicence,
                     ),
             )
@@ -137,13 +170,29 @@ class MainActivity : ComponentActivity() {
         )
 
     /**
-     * Language packs on this handset, which is none of them.
+     * Language packs on this handset, read from disk.
      *
-     * `models/` carries no acoustic model and no voice, so the honest answer is an empty
-     * list and the screen's own "0.0 MB used" line. A row invented to make the screen look
-     * populated would be the one thing a storage screen must never do.
+     * This returned an empty list unconditionally, so a handset carrying 2.2 GB of models
+     * reported "0.0 MB used by language packs" — the one screen whose job is to say what is
+     * taking up space was the one place that never looked.
      */
-    private fun installedPacks(): List<PackRow> = emptyList()
+    private fun installedPacks(): List<PackRow> =
+        ModelStore(applicationContext).installedPacks().map {
+            PackRow(
+                name = "${it.languageCode} · ${it.kind}",
+                bytes = it.bytes,
+                // Apache-2.0 for the IndicConformer models, MIT for the Piper voices, and
+                // GPL-3.0 for espeak's data — the row a jury looks at is the last one.
+                licence =
+                    when (it.kind) {
+                        "voice" -> "MIT"
+                        "espeak data" -> "GPL-3.0"
+                        else -> "Apache-2.0"
+                    },
+            )
+        }
+
+    private fun currentLanguageCode(): String = engine?.state?.value?.languageCode.orEmpty().ifEmpty { "hi" }
 
     /**
      * What is inside the installer, and what was looked at and left out.
@@ -158,7 +207,7 @@ class MainActivity : ComponentActivity() {
             LicenceRow(
                 "k2-fsa / sherpa-onnx",
                 "Apache-2.0",
-                "Recognition and synthesis library. Its acoustic models are not published yet",
+                "Recognition and synthesis library. Its acoustic models are fetched at setup",
                 licenceFile = "Apache-2.0.txt",
             ),
             LicenceRow(
@@ -168,11 +217,14 @@ class MainActivity : ComponentActivity() {
                     "Copyleft, and the reason for the notice above",
                 licenceFile = "GPL-3.0.txt",
             ),
+            LicenceRow("microsoft / onnxruntime", "MIT", "Inference engine beneath sherpa-onnx"),
             LicenceRow(
-                "microsoft / onnxruntime",
-                "MIT",
-                "Inference engine beneath sherpa-onnx",
+                "AI4Bharat IndicConformer",
+                "Apache-2.0",
+                "The recogniser's acoustic models, all ten languages",
+                licenceFile = "Apache-2.0.txt",
             ),
+            LicenceRow("rhasspy / piper", "MIT", "The voices, six of the ten languages"),
             LicenceRow(
                 "AndroidX, Jetpack Compose",
                 "Apache-2.0",
@@ -190,11 +242,6 @@ class MainActivity : ComponentActivity() {
                 "Apache-2.0",
                 "QR encoding, for pairing (W6.11)",
                 licenceFile = "Apache-2.0.txt",
-            ),
-            LicenceRow(
-                "Android SpeechRecognizer",
-                "Platform service",
-                "On-device recognition, standing in for the models named above",
             ),
             LicenceRow(
                 "Meta MMS",

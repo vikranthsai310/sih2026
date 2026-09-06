@@ -105,6 +105,39 @@ class ModelStore(context: Context) {
             voiceFor(languageCode).let { it.isFile() && it.length() > MIN_VOICE_BYTES } &&
             voiceTokensFor(languageCode).isFile()
 
+    /** One installed artefact, for the storage screen. */
+    data class Installed(
+        val languageCode: String,
+        val kind: String,
+        val bytes: Long,
+    )
+
+    /**
+     * What is on this handset, read from disk rather than from a list of what should be.
+     *
+     * The storage screen previously returned an empty list unconditionally, so a handset
+     * with 2.2 GB of packs reported "0.0 MB used by language packs". A screen whose job is
+     * to say what is taking up space must not be the one place that does not look.
+     */
+    fun installedPacks(): List<Installed> {
+        val out = ArrayList<Installed>()
+        File(root.path).listFiles()?.sortedBy { it.name }?.forEach { dir ->
+            if (!dir.isDirectory) return@forEach
+            val model = File(dir, MODEL)
+            if (model.isFile()) out += Installed(dir.name, "recogniser", model.length())
+        }
+        File(voices.path).listFiles()?.sortedBy { it.name }?.forEach { dir ->
+            if (!dir.isDirectory) return@forEach
+            if (dir.name == ESPEAK) {
+                out += Installed("all", "espeak data", dir.walkBottomUp().sumOf { if (it.isFile) it.length() else 0 })
+                return@forEach
+            }
+            val voice = File(dir, VOICE)
+            if (voice.isFile()) out += Installed(dir.name, "voice", voice.length())
+        }
+        return out
+    }
+
     /** Every language with a usable pack, for the language screen. */
     fun installed(codes: Iterable<String>): Set<String> = codes.filterTo(HashSet()) { hasPack(it) }
 
