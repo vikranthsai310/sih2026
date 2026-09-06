@@ -451,11 +451,18 @@ private fun LanguagePackCard(
         Spacer(Modifier.height(6.dp))
 
         for (file in group.files) {
-            val installed = packs.firstOrNull { it.languageCode == file.languageCode && it.kind == file.kind }
-            if (file.installed && installed != null) {
-                InstalledRow(installed, onDelete)
+            val onDisk = packs.firstOrNull { it.languageCode == file.languageCode && it.kind == file.kind }
+            if (file.installed && onDisk != null) {
+                InstalledRow(onDisk, onDelete)
             } else {
                 DownloadRow(file, onDownload)
+                if (onDisk != null) {
+                    // The file is here and the engine will not use it: a copy cut short, or
+                    // a voice without the metadata sherpa needs. Saying nothing here is how
+                    // an operator installs the same file three times. Downloading again
+                    // replaces it; this control frees the space meanwhile.
+                    UnusableRow(onDisk, onDelete)
+                }
             }
             Spacer(Modifier.height(6.dp))
         }
@@ -516,6 +523,48 @@ private fun DownloadRow(
             Text(file.url, fontSize = 9.sp, fontFamily = FontFamily.Monospace, color = Muted, maxLines = 2)
         }
         Text("DOWNLOAD ›", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ink)
+    }
+}
+
+/** A copy that is on the handset and cannot be used, with the one thing to do about it. */
+@Composable
+private fun UnusableRow(
+    pack: PackRow,
+    onDelete: (PackRow) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+            .semantics {
+                contentDescription =
+                    "A copy of the ${pack.kind} is on this handset but cannot be used. " +
+                    "Download it again to replace it, or delete it."
+            },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "A copy is here (${describeSize(pack.bytes)}) but cannot be used — " +
+                "incomplete, or not in the form the engine loads. Downloading again replaces it.",
+            fontSize = 12.sp,
+            color = Danger,
+            modifier = Modifier.weight(1f),
+        )
+        if (pack.deletable) {
+            Text(
+                "DELETE",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Danger,
+                modifier =
+                    Modifier
+                        .padding(start = 8.dp)
+                        .clickable { onDelete(pack) }
+                        .semantics {
+                            contentDescription = "Delete the unusable ${pack.name}, ${describeSize(pack.bytes)}"
+                        },
+            )
+        }
     }
 }
 

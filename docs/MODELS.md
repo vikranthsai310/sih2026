@@ -45,6 +45,18 @@ Two publishers for one language set is worth stating rather than hiding: the Odi
 were converted by someone else, and the `source` field in each pack's `asr` block records
 which. Both are AI4Bharat's IndicConformer underneath, both permissively licensed.
 
+**A Piper voice is stamped on the handset, not re-downloaded from somewhere else.** Added
+2026-09-06, after an operator downloaded the English voice, installed it, and was shown
+"download" again. The install index points at `rhasspy/piper-voices`, and a file from there
+carries none of the ONNX metadata sherpa-onnx reads (`sample_rate`, `n_speakers`,
+`comment = piper`, …); `ModelStore.hasVoice` refuses such a file, correctly, because sherpa
+would otherwise `exit(-1)`. sherpa's own re-exports exist for only two of the six voices,
+and the whole of the conversion is seven `metadata_props` pairs appended to the model —
+verified: the English voice is 63 201 294 bytes from Piper and 63 201 425 from sherpa. So
+`PiperVoiceMetadata` appends them at install, from the bundled `.onnx.json`, and repairs any
+voice installed before it existed at the next start. Every Piper voice is usable, not only
+the ones somebody re-exported.
+
 **Voices, checked rather than assumed.** Piper publishes voices for Hindi, Marathi,
 Malayalam, Telugu, Bengali and English, and none for **Tamil, Gujarati, Kannada or Odia** —
 verified against the `rhasspy/piper-voices` repository tree, which has no `ta`, `gu`, `kn`

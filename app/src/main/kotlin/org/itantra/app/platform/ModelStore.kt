@@ -154,6 +154,10 @@ class ModelStore(context: Context) {
      * settles it without touching sixty megabytes. A voice that fails this is reported as
      * absent, which the language screen already knows how to say, instead of ending the
      * process.
+     *
+     * It should rarely fail now: the importer stamps a raw Piper voice with the metadata at
+     * install, and the activity repairs any installed before it did — [PiperVoiceMetadata].
+     * This check stays as the last line, because the cost of it being wrong is the process.
      */
     private fun isLoadableVoice(model: File): Boolean {
         val key = model.path + ':' + model.length()

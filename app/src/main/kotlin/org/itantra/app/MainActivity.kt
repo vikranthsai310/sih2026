@@ -22,8 +22,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.itantra.app.engine.MessageEngine
 import org.itantra.app.platform.DataStoreEpochStore
 import org.itantra.app.platform.EspeakData
@@ -31,6 +33,7 @@ import org.itantra.app.platform.InstallIndex
 import org.itantra.app.platform.ModelStore
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.PackInstaller
+import org.itantra.app.platform.PiperVoiceMetadata
 import org.itantra.app.platform.PushToTalkKey
 import org.itantra.app.platform.ReportExport
 import org.itantra.app.platform.SherpaSpeech
@@ -165,6 +168,21 @@ class MainActivity : ComponentActivity() {
         // whether a language can be spoken. It used to be expanded lazily inside the voice
         // loader, behind a check that required it to already be there.
         EspeakData(applicationContext).ensure()
+
+        // A voice installed straight from Piper's repository before the importer learned
+        // to stamp it has been sitting here unusable, shown as "download" ever since. Off
+        // the main thread: a stamp is a sixty-megabyte copy, and there may be six.
+        lifecycleScope.launch(Dispatchers.IO) {
+            val voices = File(applicationContext.getExternalFilesDir(null), "models/tts")
+            val repaired = PiperVoiceMetadata.ensureAll(voices)
+            if (repaired > 0) {
+                withContext(Dispatchers.Main) {
+                    packStatus = "$repaired voice${if (repaired == 1) "" else "s"} made usable."
+                    diskVersion++
+                    engine?.onLanguageChosen(currentLanguageCode())
+                }
+            }
+        }
 
         if (!startEngine()) permissions.launch(requiredPermissions())
 

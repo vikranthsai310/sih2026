@@ -105,6 +105,13 @@ class PackInstaller(private val context: Context) {
                     if (item.install.endsWith("config.json")) {
                         writeVoiceTokens(File(root, item.install))
                     }
+                    // A voice straight from Piper's repository carries none of the metadata
+                    // sherpa-onnx reads, and without it the file would sit here unusable
+                    // and the screen would keep saying "download". See PiperVoiceMetadata.
+                    if (item.kind == "voice") {
+                        onProgress("preparing " + item.language + " voice")
+                        PiperVoiceMetadata.ensure(File(root, item.install))
+                    }
                 }
             }
 
@@ -189,6 +196,13 @@ class PackInstaller(private val context: Context) {
                     // this reproduces its output.
                     if (item.install.endsWith("config.json")) {
                         writeVoiceTokens(File(root, item.install))
+                    }
+                    // A voice straight from Piper's repository carries none of the metadata
+                    // sherpa-onnx reads, and without it the file would sit here unusable
+                    // and the screen would keep saying "download". See PiperVoiceMetadata.
+                    if (item.kind == "voice") {
+                        onProgress("preparing " + item.language + " voice")
+                        PiperVoiceMetadata.ensure(File(root, item.install))
                     }
                 }
             }
