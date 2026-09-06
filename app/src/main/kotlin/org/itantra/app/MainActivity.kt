@@ -7,8 +7,10 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -343,9 +345,22 @@ class MainActivity : ComponentActivity() {
      */
     private fun pickPackFolder() {
         packStatus = "Opening the folder picker…"
-        runCatching { choosePackFolder.launch(null) }
+        runCatching { choosePackFolder.launch(downloadsFolder()) }
             .onFailure { packStatus = "This handset has no folder picker to open." }
     }
+
+    /**
+     * Opens the picker already inside `Download`, because that is where a browser puts
+     * things and navigating a file picker is exactly where this goes wrong.
+     *
+     * A hint, not a restriction: the operator can still go anywhere. Null on a handset
+     * whose provider does not recognise the id, which simply opens the picker where it
+     * would have opened anyway.
+     */
+    private fun downloadsFolder(): Uri? =
+        runCatching {
+            DocumentsContract.buildDocumentUri(EXTERNAL_STORAGE_PROVIDER, "primary:Download")
+        }.getOrNull()
 
     /**
      * The deployment profile, from the asset the build copies out of `models/`.
@@ -450,6 +465,9 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val PROFILE_ASSET = "templates.json"
+
+        /** Android's own provider for the shared storage volumes. */
+        const val EXTERNAL_STORAGE_PROVIDER = "com.android.externalstorage.documents"
 
         /**
          * The GPL-3.0 notice, shown because this build earns it.
