@@ -29,6 +29,7 @@ import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.PackInstaller
 import org.itantra.app.platform.PushToTalkKey
 import org.itantra.app.platform.SherpaSpeech
+import org.itantra.app.platform.SmallArtefacts
 import org.itantra.app.platform.Speaker
 import org.itantra.app.ui.AppActions
 import org.itantra.app.ui.AppState
@@ -135,6 +136,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Token tables and voice configs, out of the installer and onto the disk. Free
+        // after the first run, and it means a language pack is one or two downloads
+        // rather than four, two of which a browser refuses to save.
+        SmallArtefacts(applicationContext).ensure()
+
         if (!startEngine()) permissions.launch(requiredPermissions())
 
         setContent {
@@ -217,7 +223,7 @@ class MainActivity : ComponentActivity() {
         val store = ModelStore(applicationContext)
         if (store.hasPack(code) && store.hasVoice(code)) return emptyList()
         val models = File(applicationContext.getExternalFilesDir(null), "models")
-        return InstallIndex(applicationContext).forLanguage(code)
+        return InstallIndex(applicationContext).downloadableFor(code)
             .filterNot { File(models, it.install).isFile }
             .map { Download(kind = it.kind, bytes = it.bytes, url = it.url) }
     }

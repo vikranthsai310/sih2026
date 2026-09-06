@@ -6,9 +6,10 @@
       "sha256": "915c71e04dd7e5378a4057fdebb252b3a587188e4e99db6d7ce0909ad5ad05fa",
       "bytes": 197595593,
       "install": "asr/hi/model.int8.onnx",
-      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/hi/model.int8.onnx",
+      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/hi/model.int8.onnx?download=true",
       "language": "hi",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": false
     },
     {
       "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2",
@@ -16,15 +17,17 @@
       "install": "asr/tokens.txt",
       "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/tokens.txt",
       "language": "hi",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": true
     },
     {
       "sha256": "e9120a534f69df065314be468bf15579f1b92a4cd8c07ad119b80b69244718a8",
       "bytes": 197595578,
       "install": "asr/bn/model.int8.onnx",
-      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/bn/model.int8.onnx",
+      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/bn/model.int8.onnx?download=true",
       "language": "bn",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": false
     },
     {
       "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2",
@@ -32,15 +35,17 @@
       "install": "asr/tokens.txt",
       "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/tokens.txt",
       "language": "bn",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": true
     },
     {
       "sha256": "1ea81e55c4b9b12624c9d02a5b9c1b6f7c871c78a55ff52d333f81cb5136eaf2",
       "bytes": 197595593,
       "install": "asr/mr/model.int8.onnx",
-      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/mr/model.int8.onnx",
+      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/mr/model.int8.onnx?download=true",
       "language": "mr",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": false
     },
     {
       "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2",
@@ -48,15 +53,17 @@
       "install": "asr/tokens.txt",
       "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/tokens.txt",
       "language": "mr",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": true
     },
     {
       "sha256": "710f176e33080f1be84b4f38bb5f33be3f522dcf4f191bf4d5cc89f7a85924f3",
       "bytes": 197595693,
       "install": "asr/te/model.int8.onnx",
-      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/te/model.int8.onnx",
+      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/te/model.int8.onnx?download=true",
       "language": "te",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": false
     },
     {
       "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2",
@@ -64,15 +71,17 @@
       "install": "asr/tokens.txt",
       "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/tokens.txt",
       "language": "te",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": true
     },
     {
       "sha256": "dcbdfa9f773db910508b40b703cb76c5974e8d4c6f123ea81265b40853c3f0c2",
       "bytes": 197595555,
       "install": "asr/ml/model.int8.onnx",
-      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/ml/model.int8.onnx",
+      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/ml/model.int8.onnx?download=true",
       "language": "ml",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": false
     },
     {
       "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2",
@@ -80,15 +89,17 @@
       "install": "asr/tokens.txt",
       "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/tokens.txt",
       "language": "ml",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": true
     },
     {
       "sha256": "abb7b59d706b8d27ba3fb5e5e3db7671c9e1a09bf7bc6122de507c60030e65fb",
       "bytes": 197595513,
       "install": "asr/ta/model.int8.onnx",
-      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/ta/model.int8.onnx",
+      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/ta/model.int8.onnx?download=true",
       "language": "ta",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": false
     },
     {
       "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2",
@@ -96,15 +107,17 @@
       "install": "asr/tokens.txt",
       "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/tokens.txt",
       "language": "ta",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": true
     },
     {
       "sha256": "822ed7f0b809bbd479275bf91c913d05564b88c0d082bbcba2f37999b88cb598",
       "bytes": 197595461,
       "install": "asr/gu/model.int8.onnx",
-      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/gu/model.int8.onnx",
+      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/gu/model.int8.onnx?download=true",
       "language": "gu",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": false
     },
     {
       "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2",
@@ -112,15 +125,17 @@
       "install": "asr/tokens.txt",
       "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/tokens.txt",
       "language": "gu",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": true
     },
     {
       "sha256": "b226ce7e4ea35b0dd66991964bd00e011b6b14b0fcdf4f7d1cccd777781c94dc",
       "bytes": 197595728,
       "install": "asr/kn/model.int8.onnx",
-      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/kn/model.int8.onnx",
+      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/kn/model.int8.onnx?download=true",
       "language": "kn",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": false
     },
     {
       "sha256": "ee60967630213f31951817ac8b402b92ec18cce80718a24a49b388e56672dfb2",
@@ -128,15 +143,17 @@
       "install": "asr/tokens.txt",
       "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/tokens.txt",
       "language": "kn",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": true
     },
     {
       "sha256": "175d16b83013d0426883beeb5783808f9b08fa3117827606cac417ec14c0223f",
       "bytes": 137677313,
       "install": "asr/or/model.int8.onnx",
-      "url": "https://huggingface.co/OpenVoiceOS/ai4bharat-indicconformer-or-onnx/resolve/main/model.int8.onnx",
+      "url": "https://huggingface.co/OpenVoiceOS/ai4bharat-indicconformer-or-onnx/resolve/main/model.int8.onnx?download=true",
       "language": "or",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": false
     },
     {
       "sha256": "5d0dd452e34581c34f5636ed1860c2ef086988bc837570e0805045101cef9130",
@@ -144,15 +161,17 @@
       "install": "asr/or/tokens.txt",
       "url": "https://huggingface.co/OpenVoiceOS/ai4bharat-indicconformer-or-onnx/resolve/main/vocab.txt",
       "language": "or",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": true
     },
     {
       "sha256": "28b9261a53028a7c99ff0799f44fb53f19c78b68cc4cf40637ac9c16cb1fbc6f",
       "bytes": 174610057,
       "install": "asr/en/model.int8.onnx",
-      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/en/model.int8.onnx",
+      "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/en/model.int8.onnx?download=true",
       "language": "en",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": false
     },
     {
       "sha256": "89c165b98df7af718ec0e872177279bfad4ade51331f1be92753c9583a1ef30d",
@@ -160,15 +179,17 @@
       "install": "asr/en/tokens.txt",
       "url": "https://huggingface.co/parismitaglobalsolutions/indicconformer-sherpa-onnx/resolve/main/en/tokens.txt",
       "language": "en",
-      "kind": "recogniser"
+      "kind": "recogniser",
+      "bundled": true
     },
     {
       "sha256": "169964b0871667f6793416d4b35e97357a68ba1ad01df8580c28048989ee7693",
       "bytes": 63516050,
       "install": "tts/hi/model.onnx",
-      "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/hi/hi_IN/pratham/medium/hi_IN-pratham-medium.onnx",
+      "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/hi/hi_IN/pratham/medium/hi_IN-pratham-medium.onnx?download=true",
       "language": "hi",
-      "kind": "voice"
+      "kind": "voice",
+      "bundled": false
     },
     {
       "sha256": "b68edd2cd7950dd436314013b7cd12e9699e5a3f6fe5af5af94294cf6aa7b9fd",
@@ -176,15 +197,17 @@
       "install": "tts/hi/config.json",
       "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/hi/hi_IN/pratham/medium/hi_IN-pratham-medium.onnx.json",
       "language": "hi",
-      "kind": "voice tokens"
+      "kind": "voice tokens",
+      "bundled": true
     },
     {
       "sha256": "f2e7518ed5534a755024a48c71b80bf617efaf12570bbdf3ce255a9526a8afd3",
       "bytes": 76782515,
       "install": "tts/bn/model.onnx",
-      "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/bn/bn_BD/google/medium/bn_BD-google-medium.onnx",
+      "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/bn/bn_BD/google/medium/bn_BD-google-medium.onnx?download=true",
       "language": "bn",
-      "kind": "voice"
+      "kind": "voice",
+      "bundled": false
     },
     {
       "sha256": "bc7e5e39e2a874bdad186620576ce18089b5a06c5645e258bcea3d56fdb11c0a",
@@ -192,15 +215,17 @@
       "install": "tts/bn/config.json",
       "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/bn/bn_BD/google/medium/bn_BD-google-medium.onnx.json",
       "language": "bn",
-      "kind": "voice tokens"
+      "kind": "voice tokens",
+      "bundled": true
     },
     {
       "sha256": "e1200d474a74ebd6d1737be2c7affe56f1f9efc18915d4595d7f5c2b15cf06f4",
       "bytes": 76768179,
       "install": "tts/mr/model.onnx",
-      "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/mr/mr_IN/google/medium/mr_IN-google-medium.onnx",
+      "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/mr/mr_IN/google/medium/mr_IN-google-medium.onnx?download=true",
       "language": "mr",
-      "kind": "voice"
+      "kind": "voice",
+      "bundled": false
     },
     {
       "sha256": "11055302ee1e3c9902e5e96c03cbfc0a9eec29b1b06b91ef52a3c66e9873edbb",
@@ -208,15 +233,17 @@
       "install": "tts/mr/config.json",
       "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/mr/mr_IN/google/medium/mr_IN-google-medium.onnx.json",
       "language": "mr",
-      "kind": "voice tokens"
+      "kind": "voice tokens",
+      "bundled": true
     },
     {
       "sha256": "c3518ad4e3ca8ea6059c1e002f3772068f634960f58b237a96ff629db1c6200e",
       "bytes": 62950044,
       "install": "tts/te/model.onnx",
-      "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/te/te_IN/maya/medium/te_IN-maya-medium.onnx",
+      "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/te/te_IN/maya/medium/te_IN-maya-medium.onnx?download=true",
       "language": "te",
-      "kind": "voice"
+      "kind": "voice",
+      "bundled": false
     },
     {
       "sha256": "c07074aadf0a33e230647611af9041e1fb6609b995d017ee95009586a491508f",
@@ -224,15 +251,17 @@
       "install": "tts/te/config.json",
       "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/te/te_IN/maya/medium/te_IN-maya-medium.onnx.json",
       "language": "te",
-      "kind": "voice tokens"
+      "kind": "voice tokens",
+      "bundled": true
     },
     {
       "sha256": "e881130516a874306972a07dcf262e6900140430c5658131121744a80ef3f11b",
       "bytes": 62950044,
       "install": "tts/ml/model.onnx",
-      "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/ml/ml_IN/arjun/medium/ml_IN-arjun-medium.onnx",
+      "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/ml/ml_IN/arjun/medium/ml_IN-arjun-medium.onnx?download=true",
       "language": "ml",
-      "kind": "voice"
+      "kind": "voice",
+      "bundled": false
     },
     {
       "sha256": "2804f070954e56545e88101b70331d444402187899d0a6ff03e5d44bee813245",
@@ -240,15 +269,17 @@
       "install": "tts/ml/config.json",
       "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/ml/ml_IN/arjun/medium/ml_IN-arjun-medium.onnx.json",
       "language": "ml",
-      "kind": "voice tokens"
+      "kind": "voice tokens",
+      "bundled": true
     },
     {
       "sha256": "d11e403a02bdf5a670c877b3dc56e0e1c8cece6fb30289586314dffdc0a78cb0",
       "bytes": 63201294,
       "install": "tts/en/model.onnx",
-      "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx",
+      "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx?download=true",
       "language": "en",
-      "kind": "voice"
+      "kind": "voice",
+      "bundled": false
     },
     {
       "sha256": "f66847424aed0bf99ecbb5d7cfde47c0a906f426a0daf7c46f305e7d21afd886",
@@ -256,7 +287,8 @@
       "install": "tts/en/config.json",
       "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx.json",
       "language": "en",
-      "kind": "voice tokens"
+      "kind": "voice tokens",
+      "bundled": true
     }
   ]
 }

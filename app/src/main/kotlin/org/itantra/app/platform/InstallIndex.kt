@@ -35,6 +35,15 @@ class InstallIndex(context: Context) {
         val url: String,
         val language: String,
         val kind: String,
+        /**
+         * Whether this artefact ships inside the installer rather than being downloaded.
+         *
+         * A browser will not save a file the server marks `Content-Disposition: inline`,
+         * and Hugging Face marks every `text/plain` file that way whatever query is
+         * appended. The token tables and voice configs are 2–66 kB, so they are bundled
+         * and never appear in a list of things to fetch.
+         */
+        val bundled: Boolean,
     )
 
     private val items: List<Item> =
@@ -50,6 +59,7 @@ class InstallIndex(context: Context) {
                     url = o.getString("url"),
                     language = o.getString("language"),
                     kind = o.getString("kind"),
+                    bundled = o.optBoolean("bundled", false),
                 )
             }
         }.getOrDefault(emptyList())
@@ -70,6 +80,9 @@ class InstallIndex(context: Context) {
 
     /** Everything for one language, so the storage screen can list what to download. */
     fun forLanguage(language: String): List<Item> = items.filter { it.language == language }
+
+    /** Only what the operator must actually fetch: the large binaries. */
+    fun downloadableFor(language: String): List<Item> = items.filter { it.language == language && !it.bundled }
 
     /** Sizes matter to somebody about to download on mobile data. */
     fun bytesFor(language: String): Long = forLanguage(language).sumOf { it.bytes }
@@ -94,6 +107,78 @@ class InstallIndex(context: Context) {
 }
 
 /**
+ * The small text artefacts, shipped in the installer and expanded once.
+ *
+ * Token tables and voice configs are 2–66 kB each and cannot be downloaded on a phone: a
+ * browser renders a `text/plain` response rather than saving it, and Hugging Face serves
+ * every one of them that way whatever query string is appended. Forty kilobytes in the APK
+ * removes the whole problem, and leaves the download list holding only the large binaries
+ * — which do save, given `?download=true`.
+ *
+ * A voice's `tokens.txt` is generated from its config here rather than shipped, because the
+ * two would then disagree if either changed. `tools/piper_tokens.py` carries the check that
+ * this ordering is the one sherpa-onnx publishes.
+ */
+class SmallArtefacts(private val context: Context) {
+    private val models: File get() = File(context.getExternalFilesDir(null), "models")
+
+    /** @return how many files were written. Zero once they are already there. */
+    fun ensure(): Int {
+        // A sentinel of its own, not one of the files it writes. Using the shared token
+        // table as the marker meant a handset that had already imported that one file by
+        // hand was judged complete, and the other fifteen were never expanded.
+        val done = File(models, MARKER)
+        if (done.isFile()) return 0
+        var written = 0
+        runCatching {
+            context.assets.open(ASSET).use { raw ->
+                ZipInputStream(raw).use { zip ->
+                    while (true) {
+                        val entry = zip.nextEntry ?: break
+                        if (!entry.isDirectory) {
+                            val out = File(models, entry.name)
+                            out.parentFile?.mkdirs()
+                            out.outputStream().use { zip.copyTo(it) }
+                            written++
+                            if (entry.name.endsWith("config.json")) writeVoiceTokens(out)
+                        }
+                        zip.closeEntry()
+                    }
+                }
+            }
+        }.onSuccess {
+            if (written > 0) {
+                runCatching {
+                    done.parentFile?.mkdirs()
+                    done.writeText(ASSET)
+                }
+            }
+        }
+        return written
+    }
+
+    private fun writeVoiceTokens(config: File) {
+        runCatching {
+            val map = JSONObject(config.readText()).getJSONObject("phoneme_id_map")
+            val out = StringBuilder()
+            for (phoneme in map.keys()) {
+                val ids = map.getJSONArray(phoneme)
+                if (ids.length() != 1) return@runCatching
+                out.append(phoneme).append(' ').append(ids.getInt(0)).append('\n')
+            }
+            File(config.parentFile, "tokens.txt").writeText(out.toString())
+        }
+    }
+
+    private companion object {
+        const val ASSET = "small-artefacts.zip"
+
+        /** Written only after a complete expansion, so a partial one is retried. */
+        const val MARKER = ".small-artefacts"
+    }
+}
+
+/**
  * espeak-ng's data, bundled in the installer and expanded once.
  *
  * Every Piper voice needs it to turn text into phonemes, and it is the only part of a voice
@@ -107,6 +192,7 @@ class InstallIndex(context: Context) {
  * shipped in the application since the licences screen was built; now the data does too,
  * which changes nothing legally and is worth stating rather than discovering.
  */
+
 class EspeakData(private val context: Context) {
     private val target: File get() = File(context.getExternalFilesDir(null), "models/tts/espeak-ng-data")
 
