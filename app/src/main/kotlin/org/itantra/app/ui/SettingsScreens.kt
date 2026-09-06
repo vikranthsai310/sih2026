@@ -371,16 +371,35 @@ fun StorageScreen(
                             color = if (pack.isRestrictive) Danger else Muted,
                         )
                     }
-                    Text(
-                        "DELETE",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Danger,
-                        modifier =
-                            Modifier
-                                .clickable { onDelete(pack) }
-                                .semantics { contentDescription = "Delete ${pack.name} pack" },
-                    )
+                    // Shown only where it does something. espeak's data is bundled in the
+                    // installer and shared by every language: deleting it frees nothing,
+                    // because the next synthesis expands it again.
+                    if (pack.deletable) {
+                        Text(
+                            "DELETE",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Danger,
+                            modifier =
+                                Modifier
+                                    .clickable { onDelete(pack) }
+                                    .semantics {
+                                        contentDescription =
+                                            "Delete ${pack.name}, ${describeSize(pack.bytes)}"
+                                    },
+                        )
+                    } else {
+                        Text(
+                            "IN APP",
+                            fontSize = 14.sp,
+                            color = Muted,
+                            modifier =
+                                Modifier.semantics {
+                                    contentDescription =
+                                        "${pack.name} ships inside the app and cannot be deleted"
+                                },
+                        )
+                    }
                 }
             }
         }
@@ -406,6 +425,17 @@ data class PackRow(
     val name: String,
     val bytes: Long,
     val licence: String,
+    /**
+     * What this row is, kept separately from [name] because the delete control acts on it.
+     *
+     * [name] is "hi · voice", built for reading. Parsing it back to find out what to
+     * delete would make a display string load-bearing, which is how a screen ends up
+     * deleting the wrong thing after somebody improves the wording.
+     */
+    val languageCode: String = "",
+    val kind: String = "",
+    /** espeak's data is bundled and shared, so it has no delete control. */
+    val deletable: Boolean = false,
 ) {
     /** Anything non-commercial or copyleft, which the row colours differently. */
     val isRestrictive: Boolean

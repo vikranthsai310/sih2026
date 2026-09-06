@@ -1,18 +1,6 @@
 {
   "manifestVersion": 1,
-  "shared": {
-    "family": "IndicConformer",
-    "licence": "Permissive",
-    "files": [
-      "encoder.int8.onnx",
-      "decoder.onnx",
-      "joiner.onnx"
-    ],
-    "bytes": 125829120,
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-    "numThreads": 2,
-    "note": "Describes the intended shared-encoder design, which is NOT what ships. The only IndicConformer artefacts published in sherpa-onnx form today are one self-contained int8 model per language (see each pack's \"asr\" block). The multilingual shared-encoder export exists but stores its weights as hundreds of external-data blobs, which neither this fetcher nor sherpa-onnx loads directly. Kept so the schema and core-models Manifest.kt are unchanged; MODELS.md carries the reasoning."
-  },
+  "shared": null,
   "packs": [
     {
       "lang": "hi",
@@ -22,12 +10,11 @@
       "blockBase": "U+0900",
       "vocabulary": {
         "files": [
-          "tokens.hi.txt",
           "alert-lexicon.hi.txt",
           "negation.hi.txt"
         ],
-        "bytes": 262144,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "bytes": 4397,
+        "sha256": "8a1c72574a39ae697eff1e2656b2fe8dfdc079169330ee4ea07bf8ce2f9ddf77"
       },
       "tts": {
         "family": "Piper",
@@ -36,8 +23,8 @@
           "hi_IN-pratham-medium.onnx",
           "hi_IN-pratham-medium.onnx.json"
         ],
-        "bytes": 63963136,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "bytes": 63516050,
+        "sha256": "169964b0871667f6793416d4b35e97357a68ba1ad01df8580c28048989ee7693",
         "sampleRate": 22050
       },
       "rules": {
@@ -79,12 +66,11 @@
       "blockBase": "U+0980",
       "vocabulary": {
         "files": [
-          "tokens.bn.txt",
           "alert-lexicon.bn.txt",
           "negation.bn.txt"
         ],
-        "bytes": 262144,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "bytes": 4186,
+        "sha256": "93b8e50d4a4373f362b2d190830b29e077a0b8f5f37fdbbea1666b28b0eee755"
       },
       "tts": {
         "family": "Piper",
@@ -93,8 +79,8 @@
           "bn_IN-medium.onnx",
           "bn_IN-medium.onnx.json"
         ],
-        "bytes": 63963136,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "bytes": 76782515,
+        "sha256": "f2e7518ed5534a755024a48c71b80bf617efaf12570bbdf3ce255a9526a8afd3",
         "sampleRate": 22050
       },
       "rules": {
@@ -136,12 +122,11 @@
       "blockBase": "U+0900",
       "vocabulary": {
         "files": [
-          "tokens.mr.txt",
           "alert-lexicon.mr.txt",
           "negation.mr.txt"
         ],
-        "bytes": 262144,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "bytes": 4210,
+        "sha256": "3850d97c0654881534dc42af70a2d72439cb2434a5f4e8740df45233ef48105e"
       },
       "tts": {
         "family": "Piper",
@@ -150,8 +135,8 @@
           "mr_IN-medium.onnx",
           "mr_IN-medium.onnx.json"
         ],
-        "bytes": 63963136,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "bytes": 76768179,
+        "sha256": "e1200d474a74ebd6d1737be2c7affe56f1f9efc18915d4595d7f5c2b15cf06f4",
         "sampleRate": 22050
       },
       "rules": {
@@ -193,12 +178,11 @@
       "blockBase": "U+0C00",
       "vocabulary": {
         "files": [
-          "tokens.te.txt",
           "alert-lexicon.te.txt",
           "negation.te.txt"
         ],
-        "bytes": 262144,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "bytes": 4479,
+        "sha256": "b7eeef35162273902473481bd8c33171c5f24a494940b6904fc33bdda067c5ca"
       },
       "tts": {
         "family": "Piper",
@@ -207,8 +191,8 @@
           "te_IN-medium.onnx",
           "te_IN-medium.onnx.json"
         ],
-        "bytes": 63963136,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "bytes": 62950044,
+        "sha256": "c3518ad4e3ca8ea6059c1e002f3772068f634960f58b237a96ff629db1c6200e",
         "sampleRate": 22050
       },
       "rules": {
@@ -250,12 +234,11 @@
       "blockBase": "U+0D00",
       "vocabulary": {
         "files": [
-          "tokens.ml.txt",
           "alert-lexicon.ml.txt",
           "negation.ml.txt"
         ],
-        "bytes": 262144,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "bytes": 4651,
+        "sha256": "42360ca784c16181e46be99cf9e5eba801ab0410f38710255f5add99ca3b600d"
       },
       "tts": {
         "family": "Piper",
@@ -264,8 +247,8 @@
           "ml_IN-meera-medium.onnx",
           "ml_IN-meera-medium.onnx.json"
         ],
-        "bytes": 63963136,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "bytes": 62950044,
+        "sha256": "e881130516a874306972a07dcf262e6900140430c5658131121744a80ef3f11b",
         "sampleRate": 22050
       },
       "rules": {
@@ -307,12 +290,11 @@
       "blockBase": "U+0B80",
       "vocabulary": {
         "files": [
-          "tokens.ta.txt",
           "alert-lexicon.ta.txt",
           "negation.ta.txt"
         ],
-        "bytes": 262144,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "bytes": 4682,
+        "sha256": "7ead21caff7228dd31d669a25ca69218be6fdabaf451da56791d07d5137aef8d"
       },
       "tts": null,
       "rules": {
@@ -354,12 +336,11 @@
       "blockBase": "U+0A80",
       "vocabulary": {
         "files": [
-          "tokens.gu.txt",
           "alert-lexicon.gu.txt",
           "negation.gu.txt"
         ],
-        "bytes": 262144,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "bytes": 4065,
+        "sha256": "328ee6d78de9e013a3b7430fd99301cc6b7b8e9c7af845eaf62ba2298b13c561"
       },
       "tts": {
         "family": "VITS (Mimic 3), trained on CMU Indic",
@@ -414,12 +395,11 @@
       "blockBase": "U+0C80",
       "vocabulary": {
         "files": [
-          "tokens.kn.txt",
           "alert-lexicon.kn.txt",
           "negation.kn.txt"
         ],
-        "bytes": 262144,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "bytes": 4305,
+        "sha256": "b2874578009137901c7b0c360373ca709cafc4df7f29ab0e692801b40e777000"
       },
       "tts": null,
       "rules": {
@@ -461,12 +441,11 @@
       "blockBase": "U+0B00",
       "vocabulary": {
         "files": [
-          "tokens.or.txt",
           "alert-lexicon.or.txt",
           "negation.or.txt"
         ],
-        "bytes": 262144,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "bytes": 4769,
+        "sha256": "da5bfc523425d5cc2fd11893a090db17fc783e49b19e7ea0278c639f5dbc9881"
       },
       "tts": null,
       "rules": {
@@ -514,12 +493,11 @@
       "script": "Latin",
       "vocabulary": {
         "files": [
-          "tokens.en.txt",
           "alert-lexicon.en.txt",
           "negation.en.txt"
         ],
-        "bytes": 262144,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        "bytes": 3418,
+        "sha256": "082c7709bc9a835e4e7eb7f988c0e5dc591bd85ede826254a1c32e44cac4aff9"
       },
       "tts": {
         "family": "Piper",
@@ -528,8 +506,8 @@
           "en_US-lessac-medium.onnx",
           "en_US-lessac-medium.onnx.json"
         ],
-        "bytes": 63963136,
-        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "bytes": 63201294,
+        "sha256": "d11e403a02bdf5a670c877b3dc56e0e1c8cece6fb30289586314dffdc0a78cb0",
         "sampleRate": 22050
       },
       "rules": {

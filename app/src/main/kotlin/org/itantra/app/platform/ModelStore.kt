@@ -208,6 +208,49 @@ class ModelStore(context: Context) {
         return out
     }
 
+    /**
+     * Deletes one installed artefact and reports whether anything went.
+     *
+     * The storage screen offered a Delete control on every row and passed an empty lambda
+     * behind it, so tapping it on a 197 MB recogniser did nothing at all -- and announced
+     * "Delete <name> pack" to a screen reader while doing it.
+     *
+     * Only the three kinds [installedPacks] can produce are accepted, and each removes
+     * exactly what that row measured:
+     *
+     *  - `recogniser` removes the language's `asr/<lang>/` directory, model and tokens
+     *    together, because a model without its tokens is not a smaller pack, it is a
+     *    broken one.
+     *  - `voice` removes `tts/<lang>/`, model and tokens together, for the same reason.
+     *  - `espeak data` is refused. It is bundled in the installer rather than downloaded,
+     *    it is shared by every language, and [ensureEspeak] would expand it again on the
+     *    next synthesis -- so deleting it frees nothing and costs the operator a stall.
+     *
+     * @return true if something was removed. False means the row was already gone or the
+     *   kind is not deletable, and the caller re-reads the disk either way.
+     */
+    fun delete(
+        languageCode: String,
+        kind: String,
+    ): Boolean {
+        val target =
+            when (kind) {
+                "recogniser" -> File(root, languageCode)
+                "voice" -> File(voices, languageCode)
+                else -> return false
+            }
+        // Never step outside the two directories this class owns. `languageCode` reaches
+        // here from a row built out of a directory name, and a name like ".." would
+        // otherwise delete the parent of everything.
+        val parent = if (kind == "recogniser") root else voices
+        if (target.canonicalFile.parentFile != parent.canonicalFile) return false
+        if (!target.isDirectory) return false
+        val removed = target.deleteRecursively()
+        // A voice that is gone must not still be reported loadable from the cache.
+        loadable.keys.removeAll { it.startsWith(target.path) }
+        return removed
+    }
+
     /** Every language with a usable pack, for the language screen. */
     fun installed(codes: Iterable<String>): Set<String> = codes.filterTo(HashSet()) { hasPack(it) }
 

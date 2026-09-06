@@ -17,7 +17,11 @@ import java.io.File
  * something a device needs once — risk T-17.
  */
 class ManifestTest {
+    /** All zeros: a placeholder, and the manifest must refuse it. */
     private val zero = "0".repeat(64)
+
+    /** A syntactically valid digest, so fixtures exercise the parse rather than the guard. */
+    private val hash = "9f".repeat(32)
 
     private fun manifestText(
         version: Int = 1,
@@ -30,7 +34,7 @@ class ManifestTest {
             "licence": "Permissive",
             "files": ["encoder.int8.onnx"],
             "bytes": 125829120,
-            "sha256": "$zero"
+            "sha256": "$hash"
           },
           "packs": [$packs]
         }
@@ -41,14 +45,14 @@ class ManifestTest {
         index: Int = 1,
         tts: String = """{
             "family": "Piper", "licence": "MIT", "files": ["v.onnx"],
-            "bytes": 63963136, "sha256": "$zero", "sampleRate": 22050 }""",
+            "bytes": 63963136, "sha256": "$hash", "sampleRate": 22050 }""",
         low: Double = -1.8,
         high: Double = -0.6,
     ) = """
         {
           "lang": "$lang", "index": $index, "displayName": "x", "script": "Devanagari",
           "blockBase": "U+0900",
-          "vocabulary": { "files": ["tokens.txt"], "bytes": 262144, "sha256": "$zero" },
+          "vocabulary": { "files": ["tokens.txt"], "bytes": 262144, "sha256": "$hash" },
           "tts": $tts,
           "rules": { "files": ["normalise.json"], "version": 3 },
           "confidenceLow": $low, "confidenceHigh": $high
@@ -59,11 +63,16 @@ class ManifestTest {
 
     // ── shape ────────────────────────────────────────────────────────────────
 
+    /**
+     * The schema still *supports* a shared encoder, and this proves the parse. What ships
+     * declares `null` — see `the shipped manifest declares no shared model` below — because
+     * the artefact was never published in a form sherpa-onnx can load.
+     */
     @Test
-    fun `the acoustic model is shared, not per language`() {
+    fun `a shared acoustic model parses when one is declared`() {
         val m = parse(manifestText())
-        assertEquals("IndicConformer", m.shared.family)
-        assertEquals(125_829_120L, m.shared.bytes)
+        assertEquals("IndicConformer", m.shared?.family)
+        assertEquals(125_829_120L, m.shared?.bytes)
     }
 
     @Test
@@ -90,8 +99,11 @@ class ManifestTest {
         val first = m.downloadBytes("hi", sharedAlreadyHeld = false)
         val second = m.downloadBytes("hi", sharedAlreadyHeld = true)
 
-        assertEquals(125_829_120L + 262_144L + 63_963_136L, first)
-        assertEquals(262_144L + 63_963_136L, second)
+        // The vocabulary is no longer in this figure: those files ship inside the APK, so
+        // they are not part of any download. This fixture declares no `asr`, so what is
+        // left is the shared model and the voice.
+        assertEquals(125_829_120L + 63_963_136L, first)
+        assertEquals(63_963_136L, second)
         assertTrue("the second language must be far cheaper", second < first / 2)
     }
 
@@ -125,7 +137,7 @@ class ManifestTest {
     @Test
     fun `a hash that is not a SHA-256 is refused`() {
         for (bad in listOf("\"\"", "\"abc\"", "\"" + "0".repeat(63) + "\"", "\"" + "Z".repeat(64) + "\"")) {
-            val text = manifestText().replace("\"$zero\"", bad)
+            val text = manifestText().replace("\"$hash\"", bad)
             try {
                 parse(text)
                 throw AssertionError("hash $bad should have been refused")
@@ -137,7 +149,7 @@ class ManifestTest {
 
     @Test
     fun `an uppercase hash is refused, because comparison is exact`() {
-        val text = manifestText().replace(zero, "A".repeat(64))
+        val text = manifestText().replace(hash, "A".repeat(64))
         try {
             parse(text)
             throw AssertionError("expected a refusal")
@@ -164,6 +176,23 @@ class ManifestTest {
         } catch (expected: IllegalArgumentException) {
             assertTrue(expected.message!!.contains("confidenceLow"))
         }
+    }
+
+    /**
+     * The guard's comment always claimed a placeholder "must fail here rather than at
+     * install time", and for months it did not: sixty-four zeros are sixty-four lowercase
+     * hex characters and passed the length-and-alphabet check. Seventeen of them were in
+     * the shipped manifest.
+     */
+    @Test
+    fun `an all-zero hash is refused as the placeholder it is`() {
+        val text = manifestText().replace(hash, zero)
+        val failure = runCatching { parse(text) }.exceptionOrNull()
+        assertNotNull("an all-zero hash must not parse", failure)
+        assertTrue(
+            "the message must name the cause: ${failure?.message}",
+            failure?.message?.contains("placeholder") == true,
+        )
     }
 
     @Test
@@ -199,7 +228,9 @@ class ManifestTest {
         val pack = parse(manifestText(packs = hindiPack(lang = "ta", index = 5, tts = "null"))).pack("ta")!!
         assertNull(pack.tts)
         assertFalse(pack.canSpeak)
-        assertEquals("only the vocabulary is downloaded", 262_144L, pack.totalBytes)
+        // No voice and, in this fixture, no recogniser either — so there is nothing to
+        // fetch. The vocabulary is not counted: it is bundled in the APK.
+        assertEquals("nothing to download", 0L, pack.totalBytes)
     }
 
     @Test

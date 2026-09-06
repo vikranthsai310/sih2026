@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -29,6 +30,7 @@ import org.itantra.app.platform.ModelStore
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.PackInstaller
 import org.itantra.app.platform.PushToTalkKey
+import org.itantra.app.platform.ReportExport
 import org.itantra.app.platform.SherpaSpeech
 import org.itantra.app.platform.SmallArtefacts
 import org.itantra.app.platform.Speaker
@@ -39,6 +41,7 @@ import org.itantra.app.ui.ItantraApp
 import org.itantra.app.ui.LicenceRow
 import org.itantra.app.ui.PackRow
 import org.itantra.app.ui.TransportOption
+import org.itantra.app.ui.describeSize
 import org.itantra.asr.BiasingLexicon
 import org.itantra.audio.EngineState
 import org.itantra.link.LinkState
@@ -86,6 +89,15 @@ class MainActivity : ComponentActivity() {
 
     /** What the language-pack copy is doing, for the storage screen. */
     private var packStatus by mutableStateOf<String?>(null)
+
+    /**
+     * When the engine started, for the soak duration the report conditions require.
+     *
+     * `elapsedRealtime` rather than `currentTimeMillis`: the wall clock can be moved by the
+     * network or by hand mid-run, and a soak that appears to last minus four minutes is not
+     * a soak that can be reported.
+     */
+    private var engineStartedAt = SystemClock.elapsedRealtime()
 
     /**
      * The file picker, and the whole answer to "no language installed" on a handset that
@@ -173,6 +185,8 @@ class MainActivity : ComponentActivity() {
                         onReplay = { running?.onReplay(it) },
                         onImportPacks = ::pickPackFolder,
                         onDownload = ::openInBrowser,
+                        onDeletePack = ::deletePack,
+                        onExportCsv = ::exportReport,
                         readLicence = ::readLicence,
                     ),
             )
@@ -222,6 +236,12 @@ class MainActivity : ComponentActivity() {
             PackRow(
                 name = "${it.languageCode} · ${it.kind}",
                 bytes = it.bytes,
+                languageCode = it.languageCode,
+                kind = it.kind,
+                // espeak's data is bundled in the installer, shared by every language, and
+                // re-expanded on the next synthesis, so a delete control over it would be
+                // a button that frees nothing.
+                deletable = it.kind == "recogniser" || it.kind == "voice",
                 // Apache-2.0 for the IndicConformer models, GPL-3.0 for espeak's data --
                 // the row a jury looks at is the last one -- and the voices are not all one
                 // licence: six are Piper under MIT, Gujarati is Mimic 3 under the CMU
@@ -372,7 +392,55 @@ class MainActivity : ComponentActivity() {
                 wifiContext = applicationContext,
                 speaker = Speaker(ModelStore(applicationContext), applicationContext),
             ).also { it.start() }
+        // The soak clock starts with the workload, not with the process.
+        engineStartedAt = SystemClock.elapsedRealtime()
         return true
+    }
+
+    /**
+     * Writes the three result files, or says which condition stopped it.
+     *
+     * The soak is measured from when the engine started rather than from process start:
+     * `docs/EVALUATION.md` section 1 is asking how long the system has been *running the
+     * workload*, and an application sitting on the settings screen for half an hour has
+     * soaked nothing.
+     *
+     * Most presses will refuse, and that is the control working. See [ReportExport].
+     */
+    private fun exportReport() {
+        val running = engine
+        if (running == null) {
+            packStatus = "The engine is not running, so there is nothing to report."
+            return
+        }
+        val soakMinutes =
+            ((SystemClock.elapsedRealtime() - engineStartedAt) / 60_000L).toInt()
+        packStatus =
+            ReportExport(applicationContext)
+                .export(traces = running.traces.value, soakMinutes = soakMinutes)
+    }
+
+    /**
+     * Removes one installed artefact, and says what happened.
+     *
+     * No confirmation dialog, deliberately: a modal is the one thing that cannot be
+     * dismissed by an operator wearing gloves in the dark, and the cost of a mistake here
+     * is a re-download rather than a lost message. The status line names what went and how
+     * much it freed, which is the acknowledgement the press needs.
+     *
+     * The list is read from disk again afterwards rather than edited in memory, because
+     * the disk is what the screen claims to be showing.
+     */
+    private fun deletePack(pack: PackRow) {
+        if (!pack.deletable) return
+        val store = ModelStore(applicationContext)
+        val freed = pack.bytes
+        packStatus =
+            if (store.delete(pack.languageCode, pack.kind)) {
+                "Deleted ${pack.name}. ${describeSize(freed)} freed."
+            } else {
+                "Could not delete ${pack.name}. It may already be gone."
+            }
     }
 
     /**

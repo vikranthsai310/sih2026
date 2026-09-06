@@ -20,7 +20,16 @@ import kotlinx.serialization.json.Json
 @Serializable
 data class Manifest(
     val manifestVersion: Int,
-    val shared: SharedModel,
+    /**
+     * The multilingual shared encoder, or **null**, which is what ships.
+     *
+     * It was never optional in the schema and the manifest carried a block describing it
+     * with an all-zero hash, because the artefact does not exist: the only IndicConformer
+     * export published in sherpa-onnx form is one self-contained int8 model per language,
+     * and those are in each pack's `asr` block. A block that describes an intention is not
+     * a manifest entry, so this is nullable and the shipped manifest says null.
+     */
+    val shared: SharedModel? = null,
     val packs: List<Pack>,
 ) {
     init {
@@ -39,7 +48,7 @@ data class Manifest(
         sharedAlreadyHeld: Boolean,
     ): Long {
         val pack = pack(lang) ?: return 0
-        return pack.totalBytes + if (sharedAlreadyHeld) 0 else shared.bytes
+        return pack.totalBytes + if (sharedAlreadyHeld) 0 else (shared?.bytes ?: 0)
     }
 
     companion object {
@@ -88,6 +97,16 @@ data class Pack(
     @SerialName("blockBase") val blockBase: String? = null,
     val vocabulary: Artefact,
     val tts: Voice?,
+    /**
+     * The recogniser for this language: one self-contained int8 model and its tokens.
+     *
+     * Absent from this class until 2026-09-06, while the manifest carried it all along and
+     * `ignoreUnknownKeys` quietly dropped it. The consequence was [totalBytes], which is
+     * meant to be what a language costs to fetch and was missing the ~197 MB that dominates
+     * it — the number happened to look plausible only because the fictional shared model
+     * was being added instead.
+     */
+    val asr: AsrModel? = null,
     val rules: Rules,
     /**
      * Calibrated per language in week 7 and held here rather than in code, because a
@@ -106,7 +125,16 @@ data class Pack(
     /** A language with no voice can be recognised and read, but never spoken aloud. */
     val canSpeak: Boolean get() = tts != null
 
-    val totalBytes: Long get() = vocabulary.bytes + (tts?.bytes ?: 0)
+    /**
+     * What this language costs to fetch: its recogniser and its voice.
+     *
+     * The vocabulary is deliberately **not** counted. Those files are copied into the APK
+     * at build time from `models/lexicon/` — `app/build.gradle.kts` does it — so they are
+     * already on the handset and are not part of any download. Counting them was harmless
+     * only while the figure was fiction; now that it is measured, four kilobytes of
+     * already-installed lexicon must not appear in a download estimate.
+     */
+    val totalBytes: Long get() = (asr?.bytes ?: 0) + (tts?.bytes ?: 0)
 }
 
 @Serializable
@@ -142,6 +170,28 @@ data class Voice(
 data class Rules(val files: List<String>, val version: Int)
 
 /**
+ * One language's recogniser, as published rather than as designed.
+ *
+ * [artefacts] is a list because the model and its token table are fetched separately and
+ * hashed separately: eight of the ten share one Indic token table, so the same artefact
+ * appears in eight packs and is downloaded once.
+ */
+@Serializable
+data class AsrModel(
+    val family: String,
+    val licence: String,
+    val source: String = "",
+    val baseUrl: String = "",
+    val artefacts: List<Artefact>,
+) {
+    init {
+        require(artefacts.isNotEmpty()) { "an ASR model with no artefacts cannot be fetched" }
+    }
+
+    val bytes: Long get() = artefacts.sumOf { it.bytes }
+}
+
+/**
  * A hash that is not 64 hex characters cannot be a SHA-256, and a manifest carrying a
  * placeholder must fail here rather than at install time — by then the bytes are on disk
  * and the failure looks like a corrupt download rather than a bad manifest.
@@ -153,4 +203,14 @@ internal fun requireSha256(
     require(value.length == 64 && value.all { it in '0'..'9' || it in 'a'..'f' }) {
         "$what: '$value' is not a lowercase 64-character SHA-256"
     }
+    // The comment above promised this and the check did not deliver it: sixty-four zeros
+    // are sixty-four lowercase hex characters, so every placeholder in the manifest passed
+    // the guard written to stop them. Seventeen did, for months.
+    require(value != PLACEHOLDER_SHA256) {
+        "$what: the hash is all zeros, which is a placeholder rather than a digest. " +
+            "Run tools/build_manifest_hashes.py"
+    }
 }
+
+/** Not a hash any file has. Named so the check that rejects it reads as intent. */
+private const val PLACEHOLDER_SHA256 = "0000000000000000000000000000000000000000000000000000000000000000"

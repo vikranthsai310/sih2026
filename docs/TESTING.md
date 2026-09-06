@@ -135,6 +135,7 @@ python tools/fetch_models.py --all --verify-only
 | `check_licences.py` | Risk P-04 — a dependency absent from `LICENSES.md` fails |
 | `check_doc_numbers.py` | Task W8.11 — a compression figure in `docs/` that the frame codec does not produce |
 | `fetch_models.py --verify-only` | Task W1.25 — a model artefact absent or hashing to something other than the manifest says |
+| `build_manifest_hashes.py --verify` | A `manifest.json` hash that no longer matches the file it names, or a placeholder — `Manifest.requireSha256` refuses an all-zero hash, so a stale manifest fails at parse rather than at install |
 | `check_install_index.py` | A half-built `install-index.json` — `build_install_index.py` is stage 1 of two, and running it alone drops every `bundled` flag and every `?download=true` |
 | Manifest inspection | Constraint C2 — no location permission, `neverForLocation` on `BLUETOOTH_SCAN`, and thirteen `android.permission.*` entries. `aapt2` prints a fourteenth line, `org.itantra.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, which AndroidX adds and which is signature-level. `INTERNET` is expected to be present; see below |
 | Offline inspection | Constraint C2 — `grep` finds no HTTP client and no `getByName` in `src/main`; `WifiBroadcastLinkTest` asserts broadcast-only addressing |

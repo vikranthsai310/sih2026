@@ -40,10 +40,13 @@ runs into:
   [MODELS.md](MODELS.md) and [DEMO.md](DEMO.md) rather than left to be discovered.
   Gujarati was in this set until 2026-09-06, when a Mimic 3 CMU Indic voice was found for
   it under a permissive licence — seven of ten now speak.
-- **The hashes in `models/manifest.json` are still all-zero placeholders.** The importer
-  verifies against `models/install-index.json`, which carries real SHA-256 values; the
-  `manifest.json` block is schema, not verification. It reads badly next to a claim about
-  verifying by hash, and it is on the list.
+- ~~The hashes in `models/manifest.json` are all-zero placeholders.~~ **Fixed 2026-09-06.**
+  All seventeen are real now: the six Piper voices take theirs from
+  `models/install-index.json`, the ten vocabularies are hashed from the files they name, and
+  the shared-encoder block is gone because the artefact it described was never published.
+  `tools/build_manifest_hashes.py --verify` re-checks it, and `Manifest.requireSha256` now
+  actually rejects an all-zero hash — it never did, which is how seventeen of them survived
+  a guard written to stop exactly that.
 
 That is the transport, the cryptography, the recognition, the synthesis and the
 cross-language delivery, on real radios and real handsets.

@@ -22,9 +22,16 @@ not what exists: the only multilingual export published
 (`ai4bharat/indic-conformer-600m-multilingual`) stores its encoder weights as several
 hundred external-data blobs, which neither the fetcher nor sherpa-onnx loads directly. What
 does exist is a self-contained ~189 MB int8 model per language sharing one multilingual
-5,633-token table. The `shared` block in the manifest is retained so the schema and
-`core-models` are untouched, and it carries a note saying it describes the intention rather
-than the artefact.
+5,633-token table.
+
+The `shared` block used to be retained with a note saying it described the intention rather
+than the artefact, and an all-zero hash. **Removed 2026-09-06.** A manifest entry that
+describes an intention is not a manifest entry: `Manifest.shared` is nullable and the
+shipped manifest declares `null`. The recogniser each pack really fetches is now modelled
+properly — `Pack.asr`, which the schema had been silently discarding through
+`ignoreUnknownKeys`, so `Pack.totalBytes` was missing the ~197 MB that dominates a language
+download and only looked plausible because the fictional shared model was being added in
+its place.
 
 **Ten of ten, from two publishers.** The sherpa-onnx conversion above covers nine
 languages and has no Odia export. `OpenVoiceOS/ai4bharat-indicconformer-or-onnx` (**MIT**)
@@ -186,9 +193,16 @@ Gujarati carried `"tts": null` until 2026-09-06 and no longer does. Its block na
 family other than Piper, which is why nothing may assume `tts.family == "Piper"` —
 `ManifestTest` asserts exactly that.
 
-Every hash is validated on parse: 64 lowercase hexadecimal characters, or the manifest is
-refused. A placeholder that fails at install time instead looks like a corrupt download
-rather than a bad manifest, and by then the bytes are already on disk.
+Every hash is validated on parse: 64 lowercase hexadecimal characters **and not all
+zeros**, or the manifest is refused. A placeholder that fails at install time instead looks
+like a corrupt download rather than a bad manifest, and by then the bytes are already on
+disk.
+
+The all-zeros clause was missing until 2026-09-06, and the omission was invisible because
+the guard's own comment claimed it: sixty-four zeros are sixty-four lowercase hex
+characters, so every placeholder passed the check written to stop them, and seventeen of
+them shipped. `tools/build_manifest_hashes.py` fills them from the bytes they name and
+`--verify` fails a build where the manifest and the files have drifted apart.
 
 ## 4. Lifecycle
 

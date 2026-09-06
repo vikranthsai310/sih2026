@@ -110,6 +110,13 @@ data class AppActions(
     val onImportPacks: () -> Unit,
     /** Hands one download address to the browser. */
     val onDownload: (Download) -> Unit,
+    /** Removes one installed artefact. The control existed with an empty lambda behind it. */
+    val onDeletePack: (PackRow) -> Unit,
+    /**
+     * Writes the three result files, or reports which condition stopped it. The control
+     * existed with an empty lambda behind it too.
+     */
+    val onExportCsv: () -> Unit,
 )
 
 @Composable
@@ -154,7 +161,7 @@ fun ItantraApp(
                     onSelect = actions.onLanguageChosen,
                 )
 
-            Destination.METRICS -> MetricsScreen(traces = state.traces, onExportCsv = { })
+            Destination.METRICS -> MetricsScreen(traces = state.traces, onExportCsv = actions.onExportCsv)
 
             Destination.MODE ->
                 ModeAndTransportScreen(transports = state.transports)
@@ -162,7 +169,7 @@ fun ItantraApp(
             Destination.STORAGE ->
                 StorageScreen(
                     packs = state.packs,
-                    onDelete = { },
+                    onDelete = actions.onDeletePack,
                     onImport = actions.onImportPacks,
                     status = state.packStatus,
                     downloads = state.downloads,

@@ -93,14 +93,35 @@ class LanguageSwitchTest {
         assertTrue(decision is LanguageSwitch.Decision.NotInstalled)
     }
 
+    /**
+     * There is no shared model to be missing any more, so holding it or not cannot change
+     * the figure. This test used to assert the opposite — that the absent 120 MB encoder
+     * doubled the first download — against a manifest block describing an artefact that was
+     * never published. `shared` is null in the shipped manifest as of 2026-09-06.
+     */
     @Test
-    fun `a missing shared model is counted in the download`() {
+    fun `the download size does not depend on a shared model that does not exist`() {
         val withShared = decide(to = "bn", sharedHeld = true, installed = { false })
         val withoutShared = decide(to = "bn", sharedHeld = false, installed = { false })
 
         val a = (withShared as LanguageSwitch.Decision.NotInstalled).downloadBytes
         val b = (withoutShared as LanguageSwitch.Decision.NotInstalled).downloadBytes
-        assertTrue("the 120 MB shared model must dominate the first download", b > a * 2)
+        assertEquals("no shared model is declared, so nothing is added for it", a, b)
+    }
+
+    /**
+     * The figure must be the recogniser plus the voice, and dominated by the recogniser.
+     * Before `asr` was added to the schema it was the vocabulary plus the voice, and the
+     * ~197 MB that actually dominates a language download was not in it at all.
+     */
+    @Test
+    fun `the download size is dominated by the recogniser`() {
+        val decision = decide(to = "bn", installed = { false }) as LanguageSwitch.Decision.NotInstalled
+        val pack = manifest.pack("bn")!!
+        val asr = pack.asr!!.bytes
+        assertTrue("the recogniser must be the bulk of it", asr > decision.downloadBytes / 2)
+        assertEquals(asr + pack.tts!!.bytes, decision.downloadBytes)
+        assertTrue("bundled lexicon must not be counted", decision.downloadBytes > pack.vocabulary.bytes * 100)
     }
 
     // ── what the interface offers ────────────────────────────────────────────
