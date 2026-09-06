@@ -1,5 +1,6 @@
 package org.itantra.app.platform
 
+import android.util.Log
 import org.itantra.proto.Language
 import org.itantra.tts.SherpaSynthesiser
 import java.util.concurrent.Executors
@@ -63,7 +64,15 @@ class Speaker(
         if (!canSpeak(languageCode)) return null
 
         // The data is bundled and expanded once; a voice cannot phonemise without it.
+        // Normally already done at startup; repeated here because a voice must never be
+        // built against a directory that is not there.
         store.ensureEspeak(context)
+
+        // Bracketed deliberately. Everything below this line runs in C, and C can end the
+        // process without an exception, a signal or a tombstone -- espeak calls exit() on
+        // bad data. `runCatching` cannot see that, so the only evidence such a death
+        // leaves is an "opening" line with no "opened" line after it.
+        Log.i(TAG, "opening voice $languageCode from ${store.voiceFor(languageCode).name}")
         val built =
             runCatching {
                 SherpaSynthesiser(
@@ -71,7 +80,9 @@ class Speaker(
                     tokensPath = store.voiceTokensFor(languageCode).absolutePath,
                     dataDir = store.espeakData.absolutePath,
                 )
-            }.getOrNull() ?: return null
+            }.onFailure { Log.w(TAG, "voice $languageCode did not open", it) }
+                .getOrNull() ?: return null
+        Log.i(TAG, "opened voice $languageCode")
 
         voice = built
         loadedFor = languageCode
@@ -138,4 +149,8 @@ class Speaker(
     /** For the language screen, which says what each language can and cannot do. */
     fun spokenLanguages(): Set<String> =
         Language.entries.filterTo(HashSet()) { canSpeak(it.code) }.mapTo(HashSet()) { it.code }
+
+    private companion object {
+        const val TAG = "itantra-tts"
+    }
 }

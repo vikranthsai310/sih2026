@@ -97,6 +97,20 @@ class ModelStore(context: Context) {
      */
     fun ensureEspeak(context: Context): File? = EspeakData(context).ensure()
 
+    /*
+     * This check used to begin `espeakData.isDirectory() &&`, which was circular and made
+     * synthesis impossible on every correctly provisioned handset. espeak's data is
+     * expanded by [ensureEspeak], which runs inside `Speaker.load` -- and `load` is gated
+     * by [hasVoice]. So the data was never expanded because the check was false, and the
+     * check was false because the data was never expanded. `TTS —` in band F was that
+     * deadlock, showing as a missing measurement rather than as an error.
+     *
+     * It is also the wrong question. espeak's data ships inside the installer and is a
+     * property of the application, not of a language pack; what makes a language speakable
+     * is whether its **voice** is present. The prerequisite is now expanded at startup,
+     * beside the other bundled artefacts, so it is on disk before anything asks.
+     */
+
     fun voiceFor(languageCode: String): File = File(File(voices, languageCode), VOICE)
 
     fun voiceTokensFor(languageCode: String): File = File(File(voices, languageCode), TOKENS)
@@ -110,8 +124,7 @@ class ModelStore(context: Context) {
      * take a non-commercial model.
      */
     fun hasVoice(languageCode: String): Boolean =
-        espeakData.isDirectory() &&
-            voiceFor(languageCode).let { it.isFile() && it.length() > MIN_VOICE_BYTES } &&
+        voiceFor(languageCode).let { it.isFile() && it.length() > MIN_VOICE_BYTES } &&
             voiceTokensFor(languageCode).isFile()
 
     /** One installed artefact, for the storage screen. */

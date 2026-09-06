@@ -23,6 +23,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import org.itantra.app.engine.MessageEngine
 import org.itantra.app.platform.DataStoreEpochStore
+import org.itantra.app.platform.EspeakData
 import org.itantra.app.platform.InstallIndex
 import org.itantra.app.platform.ModelStore
 import org.itantra.app.platform.NodeIdentity
@@ -140,6 +141,11 @@ class MainActivity : ComponentActivity() {
         // after the first run, and it means a language pack is one or two downloads
         // rather than four, two of which a browser refuses to save.
         SmallArtefacts(applicationContext).ensure()
+
+        // espeak's data, out of the installer and onto the disk, before anything asks
+        // whether a language can be spoken. It used to be expanded lazily inside the voice
+        // loader, behind a check that required it to already be there.
+        EspeakData(applicationContext).ensure()
 
         if (!startEngine()) permissions.launch(requiredPermissions())
 
