@@ -28,8 +28,8 @@ import org.junit.Test
  *
  * ## What runs where
  *
- * [LoopbackLink] is exercised in full here. `RfcommLink`, `BleLink` and `WifiLink` need
- * two radios and two handsets, so their conformance runs as an instrumented test on
+ * [LoopbackLink] is exercised in full here. `RfcommLink`, `BleLink` and `WifiBroadcastLink`
+ * need two radios and two handsets, so their conformance runs as an instrumented test on
  * device — the contract stated below is the specification those runs check.
  *
  * | # | Requirement |
@@ -191,8 +191,8 @@ class TransportContractTest {
     // ── the de-framing contract every stream transport shares ────────────────
 
     /**
-     * `RfcommLink` and `WifiLink` both read into a buffer and hand it to [StreamFramer],
-     * so the shared piece is worth proving directly: a frame split across reads is
+     * `RfcommLink` reads into a buffer and hands it to [StreamFramer], so that piece is
+     * worth proving directly: a frame split across reads is
      * reassembled, and two frames in one read are separated.
      */
     @Test
@@ -220,7 +220,6 @@ class TransportContractTest {
     fun `the declared MTUs match what each medium can carry`() {
         assertEquals("BLE before negotiation", 20, BleLink.DEFAULT_USABLE_MTU)
         assertEquals("BLE after negotiation", 244, BleLink.MAX_PAYLOAD)
-        assertEquals("Wi-Fi frame port", 38_173, WifiLink.FRAME_PORT)
-        assertEquals("Wi-Fi discovery port", 38_174, WifiLink.DISCOVERY_PORT)
+        assertEquals("Wi-Fi frame port", 38_173, WifiBroadcastLink.FRAME_PORT)
     }
 }

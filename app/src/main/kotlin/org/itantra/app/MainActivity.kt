@@ -181,9 +181,12 @@ class MainActivity : ComponentActivity() {
     /**
      * The radios, and the truth about which of them works.
      *
-     * `core-link` holds a `BleLink` and a `WifiLink` as well, and neither is wired to
-     * anything — listing them as choices would offer an operator a switch that silently does
-     * nothing. Only what runs appears here; `docs/TRANSPORT.md` keeps the roadmap.
+     * `core-link` holds a `BleLink` as well, and it is not wired to anything — listing it as
+     * a choice would offer an operator a switch that silently does nothing. Only what runs
+     * appears here; `docs/TRANSPORT.md` keeps the roadmap. (`WifiLink`, a TCP design that
+     * was never wired either, was deleted on 2026-09-06: it was the one class in the
+     * codebase that opened an outbound network connection, and constraint C2 is easier to state
+     * without it. `WifiBroadcastLink` is the Wi-Fi transport that ships.)
      */
     private fun transports() =
         listOf(
@@ -223,7 +226,7 @@ class MainActivity : ComponentActivity() {
      *
      * Only what is absent: a handset that already has Hindi should not be shown 250 MB of
      * addresses it does not need. The application cannot follow these itself — it has no
-     * INTERNET permission, per constraint C2 — so they are text for the operator's browser.
+     * HTTP client, per constraint C2 — so they are text for the operator's browser.
      */
     private fun missingFor(code: String): List<Download> {
         val store = ModelStore(applicationContext)
@@ -353,10 +356,10 @@ class MainActivity : ComponentActivity() {
     /**
      * Hands one address to whatever browser this handset has.
      *
-     * Not a network call: this application holds no `INTERNET` permission and opens no
-     * socket. It passes a URL to another program, which fetches under its own permissions
-     * and its own user's instruction — which is what constraint C2 means by a pack being
-     * "fetched once during setup". The verifying is still done here, by SHA-256.
+     * Not a network call: this application contains no HTTP client and opens no outbound
+     * connection. It passes a URL to another program, which fetches under its own
+     * permissions and its own user's instruction — which is what constraint C2 means by a
+     * pack being "fetched once during setup". The verifying is still done here, by SHA-256.
      */
     private fun openInBrowser(download: Download) {
         packStatus = "Opening your browser…"

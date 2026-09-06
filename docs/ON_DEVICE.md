@@ -5,27 +5,46 @@ what does **not** work yet and why.
 
 ## 1. What this build actually does
 
-Install on two or more Android phones, bond them in Bluetooth settings, open the app.
-Pressing the transmit control sends a message that travels the **entire real path**:
+Install on two or more Android phones, open the app. Pressing the transmit control sends a
+message that travels the **entire real path**:
 
 ```
-  template match ─► seal (AES-256-GCM, tag length chosen by the transport)
-                 ─► frame (12 B header + CRC) ─► RFCOMM
-                 ─► CRC ─► KEYID ─► AEAD verify ─► replay window
-                 ─► render in the RECEIVER'S language ─► band E
+  microphone ─► IndicConformer (ONNX Runtime, on the handset)
+             ─► template match ─► seal (AES-256-GCM, tag length chosen by the transport)
+             ─► frame (12 B header + CRC) ─► BLE broadcast and/or Wi-Fi broadcast
+             ─► CRC ─► KEYID ─► AEAD verify ─► replay window
+             ─► render in the RECEIVER'S language ─► Piper voice ─► band E
 ```
 
 Every unit receives every frame — there is no destination field — and a unit out of direct
 range is reached by another rebroadcasting, TTL 3.
 
-**What is not in this build:** speech, at either end. There are no acoustic model or voice
-files (`models/asr/` is empty, every hash in `models/manifest.json` is still a placeholder),
-so the transmit control sends a **template code** rather than something you said, and an
-arriving message is **displayed** rather than spoken. Band F's frame size is real; its
-latency figures stay as `—` until there is a recogniser to time.
+**Speech is in this build, at both ends.** `SherpaSpeech` (IndicConformer, int8, via
+ONNX Runtime) and `Speaker` (Piper) are both constructed in `MainActivity`. This section
+used to say the opposite — *"what is not in this build: speech, at either end"* — and that
+stopped being true when the recogniser and the voice were wired. Corrected 2026-09-06.
 
-That is the transport, the cryptography and the cross-language delivery, proven on real
-radios. It is most of the system and it is not the whole of it.
+**What still limits it,** stated precisely, because these are the things a demonstration
+runs into:
+
+- **A handset with no language pack installed does not speak and does not recognise.** The
+  packs are ~198 MB per language and are not in the installer — constraint N2 caps it at
+  30 MB. See §2 and the in-app pack importer. A judge's phone straight from the Play-less
+  APK will show the UI and hear nothing until a pack is imported.
+- **Four of the ten languages have no voice.** Tamil, Gujarati, Kannada and Odia carry
+  `"tts": null` in `models/manifest.json`: no permissively licensed Piper voice exists for
+  them, and Meta MMS was refused because it is CC-BY-NC. Those four **recognise and
+  display** but do not speak free-form text. A *template-coded* message still reaches them
+  in their own language, because the table is held in all ten. This is the largest genuine
+  requirement gap in the project and it is named in [MODELS.md](MODELS.md) and
+  [DEMO.md](DEMO.md) rather than left to be discovered.
+- **The hashes in `models/manifest.json` are still all-zero placeholders.** The importer
+  verifies against `models/install-index.json`, which carries real SHA-256 values; the
+  `manifest.json` block is schema, not verification. It reads badly next to a claim about
+  verifying by hash, and it is on the list.
+
+That is the transport, the cryptography, the recognition, the synthesis and the
+cross-language delivery, on real radios and real handsets.
 
 ## 2. Build and install
 

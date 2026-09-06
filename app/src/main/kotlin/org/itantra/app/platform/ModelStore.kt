@@ -13,7 +13,8 @@ import java.io.File
  * even one is out of the question. Constraint **C2** settles where they come from instead:
  * *"Language packs may be fetched once during setup; the running system never touches a
  * network."* `tools/fetch_models.py` is that setup step, and nothing in the running
- * application ever reaches for a network — there is no `INTERNET` permission to reach with.
+ * application ever reaches for a network: there is no HTTP client in `src/main` to reach
+ * with, and nothing resolves a hostname or opens an outbound network connection.
  *
  * ## The layout, which is the fetcher's layout
  *

@@ -262,9 +262,9 @@ fun StorageScreen(
             for (download in downloads) {
                 // Tappable, because a row that looks like an item and does nothing when
                 // pressed is worse than no row at all. The tap hands the address to the
-                // browser: this application holds no INTERNET permission and opens no
-                // socket, so the fetching is done by a program allowed to do it and the
-                // verifying is still done here, by SHA-256.
+                // browser: this application has no HTTP client and opens no outbound
+                // connection, so the fetching is done by a program whose job it is, and
+                // the verifying is still done here, by SHA-256.
                 Column(
                     Modifier
                         .fillMaxWidth()

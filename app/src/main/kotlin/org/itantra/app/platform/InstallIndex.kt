@@ -12,10 +12,14 @@ import java.util.zip.ZipInputStream
  *
  * ## The problem this solves
  *
- * This application has no `INTERNET` permission and will not get one — constraint **C2** —
- * so it cannot fetch its own language pack. The operator's **browser** can, which is a
- * different program with its own permissions, and that keeps every claim intact: nothing
- * here ever opens a socket.
+ * This application never fetches its own language pack — constraint **C2**. It contains no
+ * HTTP client, resolves no hostname, and opens no outbound network connection. The operator's
+ * **browser** does the fetching: a different program, under its own permissions and its own
+ * user's instruction, which is what C2 means by a pack being "fetched once during setup".
+ *
+ * The application does hold `android.permission.INTERNET` — Android requires it for the
+ * Wi-Fi transport's broadcast socket — so the claim rests on what the code does rather than
+ * on the permission list. `docs/SECURITY.md` audit item 3 records the three checks.
  *
  * What that creates is a problem of identity. A file sitting in `Download/` called
  * `model.int8.onnx` could be any of ten languages, and `tokens.txt` could be either

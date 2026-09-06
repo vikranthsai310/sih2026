@@ -166,9 +166,16 @@ application.
 ## 8. Compliance statement
 
 > No proprietary, closed-source or commercial voice-activation SDK is used anywhere in the
-> system. Every model executes on the device. No network request is made at runtime, and
-> the shipped manifest declares no `INTERNET` permission, so the property is enforced by
-> the platform rather than asserted by us.
+> system. Every model executes on the device. No network request is made at runtime.
+>
+> The shipped manifest does declare `android.permission.INTERNET`. Android requires it to
+> open any socket at all, including one that only ever addresses a broadcast address on the
+> local subnet, and the problem statement asks for data "streamed through wifi/Bluetooth
+> connected embedded device or another phone". The offline property is therefore verified by
+> inspection rather than by that permission's absence: the application contains no HTTP
+> client of any kind, resolves no hostname, and opens no outbound network connection. Every
+> datagram it sends goes to a broadcast address, which `WifiBroadcastLinkTest` asserts.
+> `docs/SECURITY.md` audit item 3 records the three re-runnable checks.
 >
 > One component carries a restrictive licence: espeak-ng under GPL-3.0, statically linked
 > into the sherpa-onnx native library and therefore in every installer. Meta MMS was

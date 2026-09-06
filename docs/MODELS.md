@@ -67,13 +67,18 @@ Google would have had a jury measuring Google's model rather than this one's.
 > on-demand story applies to synthesis voices only.
 
 **Runtime operation is unconditionally offline.** Downloads occur only during setup, only
-on explicit user action, and the running system makes no network call ever. The shipped
-manifest declares no `INTERNET` permission; the pack downloader lives in a separate,
-optional setup module that is the only component permitted to.
+on explicit user action, and the running system makes no network call ever. The application
+itself never fetches a pack: it hands an address to `ACTION_VIEW` and the operator's browser
+fetches under its own permissions, after which the file is imported from local storage and
+verified here by SHA-256.
 
-> If keeping `INTERNET` out of the shipped manifest proves impossible for the download
-> path, the fallback is sideloading packs from local storage or a USB drive, which keeps
-> the strong claim intact. The strong claim is worth more than the convenience.
+> The shipped manifest **does** declare `android.permission.INTERNET`, added 2026-09-06 for
+> the Wi-Fi broadcast transport — Android requires it to open any socket, including one that
+> only ever addresses a broadcast address. This paragraph used to rest the offline claim on
+> that permission's absence. It now rests on inspection: no HTTP client anywhere in
+> `src/main`, no hostname resolved, no outbound network connection opened. Sideloading
+> packs from local storage or a USB drive remains supported, and is the recommended path
+> for a venue with no connectivity at all.
 
 ## 2. Pack contents
 

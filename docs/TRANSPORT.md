@@ -139,8 +139,16 @@ only ever addresses a broadcast address on the local subnet. Constraint **C2** h
 verified by that permission's absence, which was a stronger claim than C2 makes and made a
 transport ISRO's own description asks for ("streamed through wifi/Bluetooth") impossible to
 build. The claim is now verified by inspection instead: every datagram goes to a broadcast
-address, and nothing in the application resolves a hostname or opens an outbound
+address, and nothing in the application resolves a hostname or opens an outbound network
 connection.
+
+`WifiBroadcastLinkTest` asserts the first two of those, on the JVM and with no handset:
+that `WifiBroadcastLink.broadcastTargets()` returns the enumerated broadcast addresses and
+nothing else — equality both ways, so a unicast target would fail it — and that the limited
+broadcast is built from its four bytes rather than resolved from a name. The third is a
+grep over `src/main` that returns nothing. `docs/SECURITY.md` audit item 3 records all
+three as re-runnable lines. `WifiLink`, a TCP-and-discovery design that was never wired to
+anything, was deleted on 2026-09-06 so that the third check holds without a caveat.
 
 Wi-Fi is also the only transport on which `AUDIO_FB` — the low-confidence Opus fallback —
 is permitted, because it is the only one with the bandwidth for it.

@@ -14,9 +14,10 @@ import java.io.File
  * ## Why this had to exist
  *
  * The acoustic models are ~189 MB each and the voices ~63 MB, so they cannot be in a 30 MB
- * installer — constraint **N2** — and they must not be downloaded at runtime, because there
- * is no `INTERNET` permission and constraint **C2** says there never will be. `C2` allows
- * exactly one thing: *"Language packs may be fetched once during setup."*
+ * installer — constraint **N2** — and they must not be downloaded at runtime, because
+ * constraint **C2** forbids it and nothing here could do it anyway: there is no HTTP client
+ * in the application. `C2` allows exactly one thing:
+ * *"Language packs may be fetched once during setup."*
  *
  * Until now "setup" meant `adb push`, which works on a handset wired to a developer's
  * machine and nowhere else. Sharing the APK to a second phone produced an application that

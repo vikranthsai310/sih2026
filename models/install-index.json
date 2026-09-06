@@ -1,6 +1,6 @@
 {
   "indexVersion": 1,
-  "note": "Downloaded by the operator's browser, imported and verified by the application. Nothing here is fetched by the application itself: it holds no INTERNET permission, per constraint C2.",
+  "note": "Downloaded by the operator's browser, imported and verified by the application. Nothing here is fetched by the application itself: it contains no HTTP client and opens no outbound connection, per constraint C2.",
   "items": [
     {
       "sha256": "915c71e04dd7e5378a4057fdebb252b3a587188e4e99db6d7ce0909ad5ad05fa",

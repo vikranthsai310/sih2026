@@ -1389,8 +1389,8 @@ each explained before the system dialog, each with a recovery path.
  │        ┌──────────────────────────────────┐  │
  │        │ ✓  Audio never leaves the phone  │  │  Mint S, RadiusBase
  │        │ ✓  Nothing is recorded or stored │  │  Body 16 sp Mint I
- │        │ ✓  This app has no internet      │  │  ticks 20 dp Mint G
- │        │    permission at all             │  │
+ │        │ ✓  Nothing is ever sent to a     │  │  ticks 20 dp Mint G
+ │        │    network                       │  │
  │        └──────────────────────────────────┘  │
  │                                              │
  ├──────────────────────────────────────────────┤
@@ -1436,7 +1436,7 @@ PROMPT — 03 permission rationale
   A reassurance card: background #E3F7EC, radius 10 dp, 16 dp padding, three
   rows each with a 20 dp tick in #1B7F3B and 16 sp text in #14532D —
   "Audio never leaves the phone", "Nothing is recorded or stored",
-  "This app has no internet permission at all".
+  "Nothing is ever sent to a network".
   Bottom: a 96 dp full-width button, radius 20 dp, fill #4F5BD5, white 15 sp
   bold "ALLOW"; under it a 64 dp plain text button "Not now" in #5F5F5F.
 
@@ -2939,8 +2939,10 @@ PROMPT — 20 storage and packs
 ### 21 · Language pack import **new**
 
 **Why it exists.** The models are ~189 MB each, the installer budget is 30 MB, and this
-application has no `INTERNET` permission and will not get one. So packs arrive via the
-operator's browser into `Download/`, and the app imports them through the Storage Access
+application never fetches one — it holds no HTTP client and opens no outbound network
+connection, and the `INTERNET` permission it does declare exists only so the Wi-Fi
+transport can open a broadcast socket. So packs arrive via the operator's browser into
+`Download/`, and the app imports them through the Storage Access
 Framework — which needs no permission at all. A file called `model.int8.onnx` could be any
 of ten languages; SHA-256 says which. Today that whole flow is one status string.
 
@@ -3660,7 +3662,7 @@ PROMPT — master
   recognises speech locally, packs the MEANING into 13-61 bytes, broadcasts
   it over Bluetooth or a LoRa radio, and the receiving handset re-synthesises
   it aloud IN THE RECEIVER'S OWN LANGUAGE. Ten Indian languages. No SIM, no
-  cloud, no internet permission at all. Used by disaster-relief operators
+  cloud, no network of any kind. Used by disaster-relief operators
   who wear gloves, stand in direct sunlight, often cannot look at the screen,
   and may not be able to read.
 

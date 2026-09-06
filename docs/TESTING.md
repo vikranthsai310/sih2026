@@ -135,10 +135,14 @@ python tools/fetch_models.py --all --verify-only
 | `check_licences.py` | Risk P-04 — a dependency absent from `LICENSES.md` fails |
 | `check_doc_numbers.py` | Task W8.11 — a compression figure in `docs/` that the frame codec does not produce |
 | `fetch_models.py --verify-only` | Task W1.25 — a model artefact absent or hashing to something other than the manifest says |
-| Manifest inspection | Constraint C2 — no `INTERNET`, no location permission |
+| Manifest inspection | Constraint C2 — no location permission, `neverForLocation` on `BLUETOOTH_SCAN`, and thirteen permissions total. `INTERNET` is expected to be present; see below |
+| Offline inspection | Constraint C2 — `grep` finds no HTTP client and no `getByName` in `src/main`; `WifiBroadcastLinkTest` asserts broadcast-only addressing |
 
-The licence check and the manifest inspection are the two worth running deliberately
-before any submission build, because both protect a claim rather than a behaviour.
+The licence check and the two inspections are worth running deliberately before any
+submission build, because each protects a claim rather than a behaviour. The offline
+inspection replaced a check for the absence of `INTERNET` on 2026-09-06: the Wi-Fi
+broadcast transport needs a UDP socket, Android requires the permission to open one, and a
+check that fails on a correct build is worse than no check at all.
 
 ## 8. Test data
 

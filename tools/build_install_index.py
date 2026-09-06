@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """Build ``models/install-index.json``: what a handset may be given, and how to know it.
 
-The application has no ``INTERNET`` permission and will not get one — constraint **C2**.
-So a phone that has never been plugged into a developer's machine cannot fetch its own
-language pack, and until now that meant it could not have one at all.
+The application never fetches a language pack — constraint **C2**. It contains no HTTP
+client, resolves no hostname, and opens no outbound network connection. So a phone that has never
+been plugged into a developer's machine cannot fetch its own pack, and until now that meant
+it could not have one at all.
 
 It can fetch one with its **browser**, which is a different program with its own
 permissions. The operator downloads the artefacts to `Download/`, and the application
-imports them. That keeps every claim intact: nothing in this application ever opens a
-socket, and the running system is offline exactly as before.
+imports them. The running system is offline exactly as before.
+
+(The application does declare ``android.permission.INTERNET``: Android requires it to open
+the Wi-Fi transport's broadcast socket. The offline claim therefore rests on what the code
+does, not on the permission list — see ``docs/SECURITY.md`` audit item 3.)
 
 The problem that creates is identity. A file in `Download/` called ``model.int8.onnx``
 could be any of ten languages, and ``tokens.txt`` could be either alphabet. Filenames do
@@ -133,8 +137,9 @@ def main() -> int:
         "indexVersion": 1,
         "note": (
             "Downloaded by the operator's browser, imported and verified by the "
-            "application. Nothing here is fetched by the application itself: it holds no "
-            "INTERNET permission, per constraint C2."
+            "application. Nothing here is fetched by the application itself: it "
+            "contains no HTTP client and opens no outbound network connection, per "
+            "constraint C2."
         ),
         "items": items,
     }

@@ -61,8 +61,10 @@ model, and a room.
 
 **The sherpa-onnx AAR is fetched and the whole native stack now builds.** The debug APK is
 43.2 MB and the **release APK 26.3 MiB** — arm64-only, minified, resources shrunk, and with
-no models in it. `aapt2` confirms it still carries no `INTERNET` and no location
-permission. It was 30.9 MB and **0.9 MB over the N2 installer target** until W8.7 found
+no models in it. `aapt2` confirms it carries no location permission. It now carries
+`INTERNET`, added 2026-09-06 because Android requires it to open the Wi-Fi broadcast
+transport's UDP socket; constraint C2 is verified by inspection instead — see W1.15. It was
+30.9 MB and **0.9 MB over the N2 installer target** until W8.7 found
 that the sherpa-onnx AAR ships two native libraries this application never loads;
 `libonnxruntime.so` is still 21.7 MB of it, so risk T-04 stays worth watching even though
 the target is now met with room to spare.
@@ -194,12 +196,20 @@ the target is now met with room to spare.
   · *Android Lint caught the original code calling `bondedDevices` with no check at all,
     which throws `SecurityException` on Android 12 and above — the likeliest reason a
     first run on real handsets would have refused to connect with no explanation*
-- [x] **W1.15** — **No `INTERNET`, no location permission** — verified in the built APK
-  with `aapt2 dump permissions`, not merely in the manifest source
-  · *Implemented as a CI job; the manifest is written and carries neither*
-  · *Constraint C2. This is the strongest form of the offline claim — platform-enforced,
-  not asserted*
-  · **Done when** CI fails if either permission appears
+- [x] **W1.15** — **No location permission; offline verified by inspection** — checked in
+  the built APK with `aapt2 dump permissions`, not merely in the manifest source
+  · *Implemented as a CI job; the manifest carries no location permission and
+    `BLUETOOTH_SCAN` carries `neverForLocation`*
+  · *Constraint C2. **Restated 2026-09-06.** This task used to read "No `INTERNET`, no
+    location permission" and called the permission's absence the strongest form of the
+    offline claim. It was a stronger claim than C2 makes, and W6.x's Wi-Fi broadcast
+    transport made it impossible to keep: Android requires `INTERNET` to open any socket,
+    including one that only ever addresses a broadcast address. The CI job now asserts no
+    location permission, and asserts the offline property directly — no HTTP client and no
+    `getByName` anywhere in `src/main`, with `WifiBroadcastLinkTest` covering
+    broadcast-only addressing*
+  · **Done when** CI fails if a location permission appears, if any HTTP client or
+    `getByName` appears in `src/main`, or if `WifiBroadcastLinkTest` fails
 - [x] **W1.16** — State machine: `INITIALISING → READY → LISTENING → …`, plus `DEGRADED`
   with a reason string
   · *[ARCHITECTURE.md §4](ARCHITECTURE.md#4-state-model)*
@@ -870,9 +880,12 @@ parallel with week 1.**
     look like a slow model*
   · *UDP beacon on 38174 so a joining unit never has to be told an address by a person
     reading it off a screen*
-  · ***No `INTERNET` permission is needed***, *because sockets bound to a local address do
-    not require one — only `java.net.URL` and friends do. Constraint C2 survives, and the
-    built APK is checked*
+  · ***Superseded 2026-09-06.*** *This entry claimed no `INTERNET` permission was needed
+    because sockets bound to a local address do not require one. That is wrong: Android
+    requires the permission to open **any** socket, and the Wi-Fi transport could not open
+    one until it was declared. `WifiLink` — the TCP/discovery design described here — was
+    never wired to anything and was deleted; `WifiBroadcastLink` replaced it, and C2 is now
+    verified by inspection rather than by the permission list*
   · *Two limitations found reviewing it, neither exploitable but both worth fixing before
     the transport gate: the listener **binds every interface**, so on a handset also joined
     to a home or campus network the port is reachable from it; and it accepts **one**
@@ -1302,7 +1315,9 @@ parallel with week 1.**
   · *Two were wrong and are fixed — see W8.11. Three more now cite something checkable in
     the room rather than a claim: the Opus comparison names the frame it is measured
     against, the flagship answer points at `ReportBundle` refusing to write a file for a
-    debug run, and the offline answer gives the `aapt2 dump permissions` command*
+    debug run, and the offline answer gives a grep, a test name and an aeroplane-mode
+    demonstration — restated 2026-09-06, because it used to give an `aapt2 dump
+    permissions` command that would now print `INTERNET` in front of the jury*
   · *"What is your worst language?" was an instruction to the presenter rather than an
     answer. It is now Odia, with the reason — smallest published corpus, no permissively
     licensed voice — and the two mitigations that are already built*

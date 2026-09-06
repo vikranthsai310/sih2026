@@ -108,9 +108,17 @@ All inference on-device. No server, no network call at runtime.
   loaded; idle CPU < 2 %.
 - **Verification:** aeroplane-mode run recorded in the demo; Perfetto trace over ten
   minutes; Android Studio memory profiler under sustained load.
-- **Negative test:** the application declares no `INTERNET` permission in its manifest.
-  This is the strongest possible form of the claim — it is enforced by the platform rather
-  than asserted by us, and it should be shown to the jury.
+- **Negative test:** the application contains no HTTP client, resolves no hostname, and
+  opens no outbound network connection. `grep -rnE "HttpURLConnection|okhttp|retrofit|java\.net\.URL|WebSocket|openConnection" app/src/main core-*/src/main`
+  and `grep -rn "getByName" app/src/main core-*/src/main` both return nothing, and
+  `WifiBroadcastLinkTest` asserts that every address the Wi-Fi transport sends to is a
+  broadcast address. The manifest **does** declare `android.permission.INTERNET`; Android
+  requires it to open any socket at all, including a broadcast one, and the problem
+  statement asks for data "streamed through wifi/Bluetooth connected embedded device or
+  another phone". Until 2026-09-06 this test read "declares no `INTERNET` permission",
+  which was a stronger claim than C2 makes and one the Wi-Fi transport made impossible to
+  keep. State the permission to the jury before they find it, then run the aeroplane-mode
+  demonstration — that is the check that shows the property rather than a proxy for it.
 
 ### R3 — STT activated after detecting pauses and stoppages
 
@@ -208,7 +216,7 @@ how the system performs.
 | ID | Constraint | Consequence for the design | How we prove it |
 | --- | --- | --- | --- |
 | C1 | **Open source only** — ISRO prohibits "proprietary, closed-source, or commercial **voice-activation** SDKs" | Rules out Google Speech Services, Azure Speech, Picovoice. **We apply this more broadly than required**, also excluding Google Nearby Connections for transport in favour of raw platform sockets — a self-imposed tightening, not ISRO's words, adopted because a single blanket rule is easier to audit than a boundary argument about what counts as voice-activation. | [LICENSES.md](../LICENSES.md) enumerates every dependency with its licence and role. |
-| C2 | **Fully offline at runtime** | No network call, ever. Language packs may be fetched once during setup; the running system never touches a network. | No `INTERNET` permission in the shipped manifest; demonstration conducted in aeroplane mode. |
+| C2 | **Fully offline at runtime** | No network call, ever. Language packs may be fetched once during setup, by the operator's browser rather than by the application; the running system never touches a network. | Verified by inspection, not by a permission list: no HTTP client anywhere in `src/main`, no hostname resolved, no outbound network connection opened, and every datagram addressed to a broadcast address (`WifiBroadcastLinkTest`). `android.permission.INTERNET` **is** declared — Android requires it for any socket, including a broadcast one. Demonstration conducted in aeroplane mode. See [SECURITY.md](SECURITY.md) audit item 3. |
 | C3 | **Approved frameworks** | TensorFlow Lite, PyTorch Mobile, ONNX Runtime or equivalent. Our runtime is ONNX Runtime via sherpa-onnx — permissively licensed, ARM-optimised, explicitly in scope. | Dependency list; LiteRT and ExecuTorch evaluated as alternates and recorded. |
 | C4 | **Low and mid-range phones** | Target is a 4 GB entry-tier Snapdragon or Helio handset. Every number in every document is measured on that class of hardware. | The target device is named in [SETUP.md](SETUP.md) and every scorecard records the device it was produced on. |
 
@@ -272,7 +280,7 @@ asking for measurements.
 | R10 | `app`, `core-audio` | [UX.md §2](UX.md#2-the-two-modes) | Two-device manual script |
 | R11 | `app`, `core-asr` | [UX.md §2](UX.md#2-the-two-modes) | Two-device manual script |
 | C1 | all | [LICENSES.md](../LICENSES.md) | Licence audit |
-| C2 | `app` | [ARCHITECTURE.md](ARCHITECTURE.md) | No `INTERNET` permission |
+| C2 | `app` | [TRANSPORT.md](TRANSPORT.md), [SECURITY.md](SECURITY.md) item 3 | No HTTP client; broadcast-only addressing (`WifiBroadcastLinkTest`) |
 | C3 | `core-asr`, `core-tts` | [MODELS.md](MODELS.md) | Dependency list |
 | C4 | all | [SETUP.md](SETUP.md) | Device recorded in every scorecard |
 | N1 | `core-asr`, `core-tts`, `core-link` | [EVALUATION.md §4](EVALUATION.md#4-latency--20--of-the-mark) | `latency.csv`, median and p95 |
@@ -377,7 +385,7 @@ Recorded rather than left implicit. Each blocks something specific.
 | Q2 | Which entry-tier handset is the target device? | **Every reportable number in the project** — risk P-02, task P0.2 | Team |
 | ~~Q3~~ | ~~How is sherpa-onnx actually distributed?~~ **Answered 2026-09-04.** Not on Maven Central under *any* coordinates — the Central search API returns no k2-fsa artifact at all. It ships as a GitHub release asset, `sherpa-onnx-1.13.7.aar`, fetched and checksum-verified by `tools/fetch_sherpa.sh` | — | Closed |
 | ~~Q4~~ | ~~Do the Piper Odia voices exist?~~ **Answered 2026-09-04: no**, and the gap is wider — Piper has no Tamil, Gujarati or Kannada voice either, covering six of our ten languages. Meta MMS **cannot** be dropped, and would apply to four languages. Risk T-05 re-escalated to High | Now a work item, not a question | Synthesis |
-| Q5 | Can the language-pack downloader live outside the shipped manifest, so no `INTERNET` permission ever ships? | Constraint C2 in its strongest form; the fallback is sideloading | Application |
+| ~~Q5~~ | ~~Can the language-pack downloader live outside the shipped manifest, so no `INTERNET` permission ever ships?~~ **Answered 2026-09-06: it already does — and the permission ships anyway, for an unrelated reason.** Packs are fetched by the operator's browser from an address the application hands to `ACTION_VIEW`; the application never fetches. But the Wi-Fi broadcast transport needs a UDP socket, and Android requires `INTERNET` to open any socket at all, so the permission is declared regardless of the downloader. C2 is verified by inspection instead — see [SECURITY.md](SECURITY.md) item 3 | Closed |
 | Q6 | Can 150 listening-panel speakers be recruited — 15 per language? | Mean opinion score, and therefore part of the accuracy criterion — risk P-05 | Evaluation |
 | Q7 | Does the sliding-window decoder actually recover the 400 ms it is budgeted to? | The revised 800–1200 ms latency target — risk T-16, task W3.13 | ASR |
 

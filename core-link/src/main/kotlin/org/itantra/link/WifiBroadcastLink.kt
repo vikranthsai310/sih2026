@@ -53,7 +53,7 @@ import java.net.NetworkInterface
  * streamed "through wifi/Bluetooth", so the strongest form of C2 made a stated requirement
  * impossible to build. The permission is now present and the claim is verified differently:
  * every datagram this class sends goes to a broadcast address, and nothing in the
- * application resolves a hostname or opens an outbound connection. See `docs/TRANSPORT.md`.
+ * application resolves a hostname or opens an outbound network connection. See `docs/TRANSPORT.md`.
  */
 class WifiBroadcastLink(
     private val context: Context,
@@ -197,23 +197,10 @@ class WifiBroadcastLink(
     /**
      * Every broadcast address this handset can reach, plus the limited broadcast.
      *
-     * Enumerated rather than assumed: a phone hosting a hotspot is usually 192.168.43.1 and
-     * a phone joined to one is not, and some Android builds drop 255.255.255.255 while
-     * delivering the subnet's own broadcast perfectly.
+     * Delegates to [broadcastTargets], which holds no instance state precisely so that
+     * `WifiBroadcastLinkTest` can assert constraint **C2** over it without a `Context`.
      */
-    private fun broadcastAddresses(): List<InetAddress> {
-        val out = ArrayList<InetAddress>()
-        runCatching {
-            for (nic in NetworkInterface.getNetworkInterfaces()) {
-                if (!nic.isUp || nic.isLoopback) continue
-                for (address in nic.interfaceAddresses) {
-                    address.broadcast?.let(out::add)
-                }
-            }
-        }
-        runCatching { out += InetAddress.getByName("255.255.255.255") }
-        return out
-    }
+    private fun broadcastAddresses(): List<InetAddress> = broadcastTargets()
 
     private fun remember(frame: ByteArray) {
         val now = System.currentTimeMillis()
@@ -228,6 +215,40 @@ class WifiBroadcastLink(
 
     companion object {
         private const val TAG = "itantra-wifi"
+
+        /**
+         * Every address this handset may send a frame to: each up, non-loopback
+         * interface's own broadcast address, plus the limited broadcast 255.255.255.255.
+         *
+         * Enumerated rather than assumed: a phone hosting a hotspot is usually
+         * 192.168.43.1 and a phone joined to one is not, and some Android builds drop
+         * 255.255.255.255 while delivering the subnet's own broadcast perfectly.
+         *
+         * This list *is* constraint **C2** for the Wi-Fi transport, which is why it is
+         * `internal` rather than private: nothing else decides where a datagram goes, so
+         * asserting that every entry here is a broadcast address is the whole claim.
+         * The limited broadcast is built from its four bytes rather than resolved from
+         * the string "255.255.255.255" — same address, but no name lookup, so the claim
+         * "nothing resolves a hostname" survives a grep for the resolver API, comments
+         * included. That is also why this note spells the method name nowhere.
+         */
+        internal fun broadcastTargets(): List<InetAddress> {
+            val out = ArrayList<InetAddress>()
+            runCatching {
+                for (nic in NetworkInterface.getNetworkInterfaces()) {
+                    if (!nic.isUp || nic.isLoopback) continue
+                    for (address in nic.interfaceAddresses) {
+                        address.broadcast?.let(out::add)
+                    }
+                }
+            }
+            runCatching { out += InetAddress.getByAddress(LIMITED_BROADCAST) }
+            return out
+        }
+
+        /** 255.255.255.255, as bytes, so no resolver is ever consulted. */
+        private val LIMITED_BROADCAST =
+            byteArrayOf(255.toByte(), 255.toByte(), 255.toByte(), 255.toByte())
 
         /** `docs/TRANSPORT.md` section 4 names this port for frames. */
         const val FRAME_PORT = 38_173

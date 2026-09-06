@@ -105,8 +105,11 @@ adb logcat -s iTantra:V                             # tagged logging only
 ```
 
 Grant `RECORD_AUDIO`, `BLUETOOTH_CONNECT` and `BLUETOOTH_SCAN` on first launch. The app
-requests no location and no internet permission — if a build ever asks for either,
-something has gone wrong and it is a release blocker, not a nuisance.
+requests **no location permission** — if a build ever asks for one, something has gone
+wrong and it is a release blocker, not a nuisance. It does request `INTERNET`, which
+Android requires to open the Wi-Fi broadcast transport's UDP socket; that is expected, and
+the offline claim is verified by inspection instead — see [SECURITY.md](SECURITY.md)
+item 3.
 
 ### Two-device bring-up
 
