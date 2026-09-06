@@ -338,6 +338,7 @@ class MainActivity : ComponentActivity() {
                 bondedDevices = { bonded(adapter) },
                 speech = SherpaSpeech(ModelStore(applicationContext)),
                 lexicons = ::lexiconFor,
+                wifiContext = applicationContext,
                 speaker = Speaker(ModelStore(applicationContext), applicationContext),
             ).also { it.start() }
         return true

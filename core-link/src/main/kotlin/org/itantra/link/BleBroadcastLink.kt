@@ -158,6 +158,7 @@ class BleBroadcastLink(
                     result?.scanRecord?.getServiceData(ParcelUuid(SERVICE_UUID)) ?: return
                 if (payload.isEmpty()) return
                 if (!isNew(payload)) return
+                Log.i(TAG, "heard ${payload.size} B, rssi ${result.rssi}")
 
                 _metrics.update {
                     it.copy(
@@ -188,7 +189,17 @@ class BleBroadcastLink(
         // Filtered on the service UUID so the callback is not woken by every beacon, till
         // and pair of earbuds in range. setLegacy(false) is what admits extended
         // advertisements; without it the scanner reports only the 31-byte kind.
-        val filters = listOf(ScanFilter.Builder().setServiceUuid(ParcelUuid(SERVICE_UUID)).build())
+        // Two filters, because a scan matches if any of them does, and the two AD fields
+        // involved are not the same field. A frame travels in **service data** (AD type
+        // 0x21); a ScanFilter.setServiceUuid matches the **service UUID** list (0x06/0x07).
+        // Filtering on the UUID alone while advertising only the data matched nothing ever,
+        // which is exactly what "the other phone received nothing" looks like.
+        val id = ParcelUuid(SERVICE_UUID)
+        val filters =
+            listOf(
+                ScanFilter.Builder().setServiceData(id, ByteArray(0), ByteArray(0)).build(),
+                ScanFilter.Builder().setServiceUuid(id).build(),
+            )
         val settings =
             ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
@@ -264,6 +275,11 @@ class BleBroadcastLink(
                 AdvertiseData.Builder()
                     .setIncludeDeviceName(false)
                     .setIncludeTxPowerLevel(false)
+                    // Both: the data carries the frame, and the UUID makes the
+                    // advertisement match a service-UUID filter as well as a service-data
+                    // one. Sixteen bytes against an extended budget of over sixteen
+                    // hundred, and it removes a whole class of "why is nothing arriving".
+                    .addServiceUuid(ParcelUuid(SERVICE_UUID))
                     .addServiceData(ParcelUuid(SERVICE_UUID), frame)
                     .build()
 
@@ -331,8 +347,13 @@ class BleBroadcastLink(
         /** A legacy advertisement is 31 bytes in total, three of them the flags. */
         const val LEGACY_BUDGET = 31
 
-        /** 16-byte UUID, its length and type bytes, and the advertising flags. */
-        const val SERVICE_DATA_OVERHEAD = 21
+        /**
+         * Flags, the 128-bit service UUID entry, and the service-data entry's own header.
+         *
+         * Both entries are present now: 2 + 16 for the UUID list and 2 + 16 before the
+         * payload, plus 3 for the flags.
+         */
+        const val SERVICE_DATA_OVERHEAD = 39
 
         /** Below this nothing useful fits and fragmentation would never terminate. */
         const val MIN_MTU = 8

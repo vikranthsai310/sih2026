@@ -311,11 +311,18 @@ class Session(
         // 3. our own frame heard back from a relaying peer.
         if (frame.src == localSrc) return Received.Dropped(Reason.NOT_FOR_US, "own transmission")
 
-        // 4. AEAD. The epoch is the one this sender advertised in its HEARTBEAT; without
-        //    it a frame from after a SEQ wrap would be opened against the wrong nonce.
-        val senderEpoch = replay.epochOf(frame.src) ?: frame.let { peerEpoch(it) }
-        val opened = openFrame(frame, senderEpoch)
-        if (opened == null) {
+        // 4. AEAD. The nonce is EPOCH-SRC-SEQ and the epoch is the **sender's**, which is
+        //    nowhere on the wire: the header has no room for it and PROTOCOL.md section 9
+        //    puts it in a HEARTBEAT payload that is itself sealed with it. That is
+        //    circular, and it showed up as every frame between two handsets being rejected
+        //    NOT_AUTHENTIC -- because this line used to assume the sender's epoch equalled
+        //    our own, which is true only if both units happen to have started the same
+        //    number of times.
+        //
+        //    Discovered instead, once per sender. See [discoverEpoch].
+        val senderEpoch = replay.epochOf(frame.src) ?: discoverEpoch(frame)
+        val opened = senderEpoch?.let { openFrame(frame, it) }
+        if (opened == null || senderEpoch == null) {
             val underAttack = limiter.recordFailure(frame.src, nowMillis)
             return Received.Dropped(
                 if (underAttack) Reason.UNDER_ATTACK else Reason.NOT_AUTHENTIC,
@@ -412,8 +419,33 @@ class Session(
         )
     }
 
-    /** Until a `HEARTBEAT` has been seen, assume the sender is in the epoch we are. */
-    private fun peerEpoch(frame: Frame): Long = epoch
+    /**
+     * Finds the epoch a frame was sealed with, by trying candidates until one verifies.
+     *
+     * Only the right epoch produces a tag that checks out under the shared key, so a
+     * success is proof rather than a guess — this is discovery, not a bypass. An attacker
+     * without the key gains nothing from it, because every candidate still has to pass the
+     * AEAD.
+     *
+     * Bounded and paid once. The first frame from a sender costs at most
+     * [EPOCH_SEARCH] + 1 verifications of a fifty-byte buffer, which is microseconds;
+     * afterwards [ReplayWindow.epochOf] answers and this is never called for that sender
+     * again. Our own epoch is tried first because two handsets set up together are usually
+     * in step.
+     *
+     * @return the epoch, or null if none in range opened the frame — an unpaired
+     *   transmitter, a corrupted frame, or a sender that has restarted more times than
+     *   this searches.
+     */
+    private fun discoverEpoch(frame: Frame): Long? {
+        if (openFrame(frame, epoch) != null) return epoch
+        for (candidate in 0..EPOCH_SEARCH) {
+            val value = candidate.toLong()
+            if (value == epoch) continue
+            if (openFrame(frame, value) != null) return value
+        }
+        return null
+    }
 
     private fun malformed(reason: RejectReason): Reason =
         when (reason) {
@@ -424,5 +456,15 @@ class Session(
     private companion object {
         /** `docs/PROTOCOL.md` section 1: three hops. */
         const val DEFAULT_TTL = 3
+
+        /**
+         * How many epochs back a first contact will look.
+         *
+         * The epoch advances once per service start, so this covers a handset restarted
+         * five hundred times — years of ordinary use — and costs one search, once, per
+         * sender. Beyond it the two units genuinely cannot talk, which is what rekeying at
+         * pairing (W6.11) is for.
+         */
+        const val EPOCH_SEARCH = 512
     }
 }

@@ -93,17 +93,54 @@ Power consumption is roughly a tenth of Bluetooth Classic, which makes BLE the c
 **standby** transport and is what supports the eight-hour endurance claim. It is also
 natively broadcast, which makes all-units operation straightforward.
 
-## 4. Wi-Fi — Direct or hosted network
+## 4. Wi-Fi — hotspot or any shared network
 
-Two mechanisms produce the same result: an isolated local network between the devices, with
-no router, no SIM and no internet. Once either exists, transport is plain TCP on port
-`38173`, with peer discovery by a single UDP broadcast on the subnet.
+Two mechanisms produce the same result: a local network between the devices, with no
+router, no SIM and no internet. The **hosted-network** path is the one that ships — the
+ordinary hotspot toggle, mobile data off, joined by the other handsets in Wi-Fi settings.
+`WifiP2pManager` discovery is inconsistent across Samsung, Xiaomi and Realme builds and has
+consumed a substantial fraction of many teams' schedules; the hosted network needs no P2P
+API at all, so it is treated as optional (risk T-09). Any existing access point — a relief
+camp's, an office's — works identically and needs nothing arranged.
 
-> **Engineering recommendation.** Prefer the **hosted-network** path — the ordinary hotspot
-> toggle with mobile data off. `WifiP2pManager` discovery is inconsistent across Samsung,
-> Xiaomi and Realme builds and has consumed a substantial fraction of many teams'
-> schedules. The hosted network requires no P2P API at all. `WifiP2pManager` is treated as
-> optional (risk T-09).
+### What is actually sent, and why it is not TCP
+
+This document previously specified TCP on port `38173` with a UDP broadcast used only for
+discovery. **Frames are sent as UDP broadcast datagrams on port `38173`
+instead**, and there is no discovery step, no connection and no peer list.
+
+The reason is the same one that produced `BleBroadcastLink`. TCP is point-to-point: N units
+means N×(N−1)/2 connections, each of which must be discovered, established, torn down on a
+handset walking out of range, and re-established when it returns — which is the pairing
+problem in another costume, and the problem statement asks for a walkie-talkie, where one
+press is heard by everyone. One `sendto` to the subnet broadcast address reaches every unit
+on the network at once, is stateless, and needs nothing to have happened beforehand.
+
+Frames are already authenticated and replay-protected end to end (`PROTOCOL.md` §6), so the
+transport is not being asked to provide reliability or ordering it would otherwise supply.
+A datagram lost is a frame lost, and the outbox retransmits.
+
+Implementation notes worth stating, because each was a bug first:
+
+- **Broadcast addresses are enumerated, not assumed.** A phone hosting a hotspot is usually
+  `192.168.43.1` and a phone joined to one is not; some builds drop `255.255.255.255` while
+  delivering the subnet's own broadcast perfectly. Every interface's broadcast address is
+  used, plus the limited broadcast.
+- **A multicast lock is held.** Without it Wi-Fi power save discards broadcast frames before
+  they reach the socket, and the failure looks like a channel that transmits and never
+  receives.
+- **A unit's own broadcast comes back to it.** Recently sent frames are remembered by hash
+  and dropped on arrival, so a handset does not read its own transmission as traffic.
+
+### The permission this costs
+
+`android.permission.INTERNET`. Android requires it to open any socket, including one that
+only ever addresses a broadcast address on the local subnet. Constraint **C2** had been
+verified by that permission's absence, which was a stronger claim than C2 makes and made a
+transport ISRO's own description asks for ("streamed through wifi/Bluetooth") impossible to
+build. The claim is now verified by inspection instead: every datagram goes to a broadcast
+address, and nothing in the application resolves a hostname or opens an outbound
+connection.
 
 Wi-Fi is also the only transport on which `AUDIO_FB` — the low-confidence Opus fallback —
 is permitted, because it is the only one with the bandwidth for it.
@@ -157,7 +194,7 @@ system is comfortably within them, and the frame budget in
 | Usable rate | ~200 kbps | 5–20 kbps | > 10 Mbps | 0.3–5 kbps |
 | Power | Medium | Very low | High | Low |
 | Model | Byte stream | Packets | Byte stream | Packets |
-| Native broadcast | No | Yes | Multicast | Yes |
+| Native broadcast | No | Yes | Yes (subnet) | Yes |
 | Audio fallback viable | Marginal | No | Yes | No |
 | Fragmentation needed | No | Yes | No | Yes |
 | **Role** | **Default** | **Standby** | **Range and fallback** | **Deployment** |
@@ -173,7 +210,7 @@ them.
 
 | Phase | Behaviour |
 | --- | --- |
-| Discovery | RFCOMM: bonded devices first, then a bounded 12 s scan. BLE: advertise and scan on the service UUID. Wi-Fi: UDP broadcast on port `38174`, 1 s interval, 10 attempts |
+| Discovery | RFCOMM: bonded devices first, then a bounded 12 s scan. BLE: advertise and scan on the service UUID, no bonding. Wi-Fi: none — frames are broadcast to the subnet on port `38173` and any unit on the network receives them |
 | Connection | Role is decided at provisioning — the first unit is the host. No negotiation on the wire |
 | Heartbeat | Every 2 s; three consecutive misses mark the peer offline |
 | Backoff | Exponential with jitter, 1 s → 30 s, reset on a successful frame |
