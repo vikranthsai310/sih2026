@@ -1,11 +1,12 @@
 package org.itantra.app.platform
 
 import org.itantra.asr.SherpaRecogniser
-import org.itantra.asr.SlidingWindowDecoder
+import org.itantra.asr.UtteranceDecoder
 import org.itantra.audio.AudioCapture
 import org.itantra.proto.Language
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 import kotlin.math.sqrt
 
@@ -25,14 +26,30 @@ import kotlin.math.sqrt
  * three-second utterance, against a target of 800–1 200 ms, on a criterion worth 20 % of
  * the mark.
  *
- * [SlidingWindowDecoder] is the answer and was written in week 3 with no caller. Windows are
- * decoded as they fill, on the worker, while the microphone is still recording; releasing
- * the control leaves only the last partial window to pay for. It costs roughly 1.6× the
- * compute of a single pass, spent entirely while somebody is talking.
+ * [UtteranceDecoder] is the answer. Each clause is decoded **in the pause that ends it**,
+ * on the worker, while the microphone is still recording; releasing the control leaves only
+ * the last clause to pay for — and often not even that, because a clause the operator
+ * finished a moment before letting go has usually been read already.
  *
- * Each completed window also gives the operator running text in band C′ — which is not a
- * side effect worth losing, since it is the only chance to notice a misrecognition before
- * it goes out.
+ * It replaced fixed 1.5 s windows, which kept the same latency property and cost accuracy:
+ * a window boundary lands mid-word, and a CTC model asked about half a word answers with a
+ * different one. The class comment on [UtteranceDecoder] has the three failure modes.
+ *
+ * ## The two ends of the utterance
+ *
+ * Both are where words go missing on a real handset, and neither is the model's fault.
+ *
+ * At the **press**, the screen used to say "listening" the moment `AudioRecord` was built,
+ * while `startRecording` was still tens of milliseconds from delivering a sample. The
+ * operator, trained by push-to-talk to speak the instant their thumb lands, spoke the first
+ * syllable into nothing. [Recogniser.Listener.onReady] now fires from the capture thread
+ * when the recorder reports it is recording.
+ *
+ * At the **release**, the microphone used to close on the same instruction. An operator lets
+ * go on the last word, not after it, and the audio path has its own buffering besides — so
+ * the final consonant was the first casualty. The microphone now stays open for
+ * [RELEASE_GRACE_MILLIS] after the release. That is latency spent on purpose, and it is the
+ * cheapest accuracy in this file.
  *
  * ## What is bounded, and why
  *
@@ -49,11 +66,24 @@ class SherpaSpeech(
     private val worker = Executors.newSingleThreadExecutor { r -> Thread(r, "sherpa").apply { isDaemon = true } }
 
     private var recogniser: SherpaRecogniser? = null
-    private var windows: SlidingWindowDecoder? = null
+    private var decoder: UtteranceDecoder? = null
     private var loadedFor: String? = null
 
     private var listener: Recogniser.Listener? = null
     private val settled = AtomicBoolean(true)
+
+    /**
+     * Which press the worker is serving.
+     *
+     * A release schedules its work on the worker behind the grace period. A press arriving
+     * inside that window must not have its microphone closed by the previous release's
+     * task, nor its listener settled by it; each task checks it still belongs to the
+     * current press before touching either.
+     */
+    private val generation = AtomicInteger(0)
+
+    /** True from a release until its task has closed the microphone (or ceded it). */
+    private val stopPending = AtomicBoolean(false)
 
     /** Appended on the capture thread, drained on the worker. */
     private val pending = ArrayList<Short>(SAMPLE_RATE * 2)
@@ -61,10 +91,7 @@ class SherpaSpeech(
     /** One drain in flight at a time; hops that arrive meanwhile join the next one. */
     private val draining = AtomicBoolean(false)
 
-    /** Window texts so far, for band C′ only. The final stitch is the decoder's. */
-    private val partials = ArrayList<String>()
-
-    /** Nanoseconds spent inside the decoder this utterance, across every window. */
+    /** Nanoseconds spent inside the decoder this utterance, across every segment. */
     private var decodeNanos = 0L
 
     /** Samples handed to the decoder this utterance. The audio the factor is measured over. */
@@ -110,7 +137,7 @@ class SherpaSpeech(
         // the problem statement says is entry-tier.
         recogniser?.let { runCatching { it.close() } }
         recogniser = null
-        windows = null
+        decoder = null
         loadedFor = null
 
         val language = Language.entries.firstOrNull { it.code == languageCode } ?: return null
@@ -126,16 +153,16 @@ class SherpaSpeech(
             }.getOrNull() ?: return null
 
         recogniser = built
-        // Built here rather than through windowedDecoder() so every call can be timed. The
+        // Built here rather than through utteranceDecoder() so every call can be timed. The
         // real-time factor is a measurement of the decoder, and measuring it anywhere else
         // would be measuring the queue in front of it.
-        windows =
-            SlidingWindowDecoder(
+        decoder =
+            UtteranceDecoder(
                 sampleRate = SherpaRecogniser.SAMPLE_RATE,
                 decode = { pcm ->
                     val began = System.nanoTime()
                     try {
-                        built.decode(pcm)
+                        built.transcribe(pcm)
                     } finally {
                         decodeNanos += System.nanoTime() - began
                     }
@@ -175,34 +202,59 @@ class SherpaSpeech(
         listener: Recogniser.Listener,
     ): Boolean {
         if (!isReady(languageCode)) return false
+        // A press inside the previous release's grace period. That utterance is over; it is
+        // told so now, rather than left for the engine's timeout to give up on.
+        settle { it.onNothingHeard("interrupted by the next press") }
+        val press = generation.incrementAndGet()
+
         this.listener = listener
         settled.set(false)
         synchronized(pending) { pending.clear() }
-        partials.clear()
         decodeNanos = 0L
         decodedSamples = 0L
 
+        // Queued before the microphone opens, so no drain of this press's audio can run
+        // ahead of the reset and be wiped by it. The model loads on the worker while the
+        // microphone is already recording, so the two costs overlap instead of adding up;
+        // decoder.reset() runs on the same thread as every decode, so it cannot race one.
+        worker.execute {
+            load(languageCode)
+            decoder?.reset()
+        }
+
+        // The microphone is opened here, now, unless the previous release is still inside
+        // its grace period on the worker. Then the open is queued behind it, so the two
+        // never touch the recorder at once -- and the previous release, finding a newer
+        // press, leaves the microphone running for it.
+        if (stopPending.get()) {
+            worker.execute { openMicrophone(press, listener) }
+        } else if (!openMicrophone(press, listener)) {
+            return false
+        }
+        return true
+    }
+
+    /** @return false when the recorder could not be built, in which case the press is settled. */
+    private fun openMicrophone(
+        press: Int,
+        listener: Recogniser.Listener,
+    ): Boolean {
+        if (generation.get() != press) return true
+        val wasOpen = capture.isRunning
         val started =
             capture.start(
                 onHop = ::onHop,
-                onError = { settle { it.onNothingHeard("the microphone is not available") } },
+                onError = { settle(press) { it.onNothingHeard("the microphone is not available") } },
+                // The floor is live from here and not before: AudioRecord reports that it
+                // is recording, on the thread that will read from it.
+                onStarted = { if (generation.get() == press) listener.onReady() },
             )
         if (!started) {
-            settle { it.onNothingHeard("the microphone is not available") }
+            settle(press) { it.onNothingHeard("the microphone is not available") }
             return false
         }
-
-        // The model is loaded on the worker while the microphone is already recording, so
-        // the two costs overlap instead of adding up. windows.reset() runs on the same
-        // thread as every decode, so it cannot race one.
-        worker.execute {
-            load(languageCode)
-            windows?.reset()
-        }
-
-        // AudioCapture.start returning true means AudioRecord is recording, so the floor is
-        // live from here. The screen stops saying "opening the microphone" now.
-        listener.onReady()
+        // Still open from a release a moment ago: already listening, nothing to wait for.
+        if (wasOpen) listener.onReady()
         return true
     }
 
@@ -231,32 +283,34 @@ class SherpaSpeech(
     /**
      * Decodes whatever has accumulated, once at a time.
      *
-     * Hops arrive every 20 ms and a window takes several hundred milliseconds to decode, so
+     * Hops arrive every 20 ms and a clause takes several hundred milliseconds to decode, so
      * posting one task per hop would queue thousands of them behind the first. The flag
-     * collapses that: while a drain runs, arriving audio simply lands in [pending], and
-     * `onSpeech` loops through every window it completes.
+     * collapses that: while a drain runs, arriving audio simply lands in [pending], and the
+     * next drain takes all of it.
      */
     private fun scheduleDrain() {
         if (!draining.compareAndSet(false, true)) return
         worker.execute {
             try {
-                drainInto(windows ?: return@execute)
+                drainInto(decoder ?: return@execute, allowProvisional = true)
             } finally {
                 draining.set(false)
             }
         }
     }
 
-    private fun drainInto(decoder: SlidingWindowDecoder) {
+    private fun drainInto(
+        decoder: UtteranceDecoder,
+        allowProvisional: Boolean,
+    ) {
         val block = takePending()
         if (block.isEmpty()) return
         decodedSamples += block.size
-        val texts = runCatching { decoder.onSpeech(block) }.getOrDefault(emptyList())
-        if (texts.isEmpty()) return
-        partials += texts
+        val changed = runCatching { decoder.onAudio(block, allowProvisional) }.getOrDefault(false)
+        if (!changed) return
         // Running text while the operator is still speaking: rule 6, and their only chance
         // to notice a misrecognition before it goes out.
-        val soFar = SlidingWindowDecoder.stitch(partials)
+        val soFar = decoder.runningText()
         if (soFar.isNotEmpty()) listener?.onPartial(soFar)
     }
 
@@ -270,44 +324,70 @@ class SherpaSpeech(
         }
 
     override fun stop() {
-        capture.stop()
+        val press = generation.get()
+        val releasedAt = System.nanoTime()
+        stopPending.set(true)
         worker.execute {
-            val decoder = windows
-            when {
-                decoder == null -> settle { it.onNothingHeard("the model is still loading") }
-                else -> {
-                    // Anything captured since the last drain, then the tail. This is the
-                    // only decode that costs latency, and it covers at most one window.
-                    drainInto(decoder)
-                    val text = runCatching { decoder.onEndpoint() }.getOrNull()
-                    partials.clear()
-                    if (text.isNullOrBlank()) {
-                        settle { it.onNothingHeard("nothing recognised") }
-                    } else {
-                        // IndicConformer gives no per-utterance score, so none is claimed.
-                        // A confidence invented here would be read as the model's.
-                        settle {
-                            it.onResult(
-                                Recogniser.Result(
-                                    text = text,
-                                    confidence = null,
-                                    decodeMillis = decodeNanos / 1_000_000,
-                                    audioMillis = decodedSamples * 1_000 / SAMPLE_RATE,
-                                ),
-                            )
-                        }
-                    }
-                }
+            try {
+                finish(press, releasedAt)
+            } finally {
+                stopPending.set(false)
             }
         }
     }
 
+    /** The release, on the worker: the grace period, the microphone, the last clause. */
+    private fun finish(
+        press: Int,
+        releasedAt: Long,
+    ) {
+        // Another press has taken the microphone since; nothing here is ours any more, and
+        // the microphone is left open for it.
+        if (generation.get() != press) return
+
+        // The grace period: the operator's last consonant, and the audio path's own
+        // buffering, are still on their way. Slept on the worker, so a drain that was
+        // already queued ahead of this task has overlapped with it rather than added to it.
+        val elapsedMillis = (System.nanoTime() - releasedAt) / 1_000_000
+        val remaining = RELEASE_GRACE_MILLIS - elapsedMillis
+        if (remaining > 0) runCatching { Thread.sleep(remaining) }
+        if (generation.get() != press) return
+        capture.stop()
+
+        val decoder = decoder
+        if (decoder == null) {
+            settle(press) { it.onNothingHeard("the model is still loading") }
+            return
+        }
+        // Anything captured since the last drain, then the tail. This is the only decode
+        // that costs latency, and it covers at most one clause.
+        drainInto(decoder, allowProvisional = false)
+        val text = runCatching { decoder.onEndpoint() }.getOrNull()
+        if (text.isNullOrBlank()) {
+            settle(press) { it.onNothingHeard("nothing recognised") }
+            return
+        }
+        // IndicConformer gives no per-utterance score, so none is claimed. A confidence
+        // invented here would be read as the model's.
+        settle(press) {
+            it.onResult(
+                Recogniser.Result(
+                    text = text,
+                    confidence = null,
+                    decodeMillis = decodeNanos / 1_000_000,
+                    audioMillis = decodedSamples * 1_000 / SAMPLE_RATE,
+                ),
+            )
+        }
+    }
+
     override fun close() {
+        generation.incrementAndGet()
         runCatching { capture.stop() }
         worker.execute {
             recogniser?.let { runCatching { it.close() } }
             recogniser = null
-            windows = null
+            decoder = null
             loadedFor = null
         }
         worker.shutdown()
@@ -318,12 +398,31 @@ class SherpaSpeech(
         if (settled.compareAndSet(false, true)) listener?.let(action)
     }
 
+    /** As [settle], for a task that may belong to a press that is already over. */
+    private fun settle(
+        press: Int,
+        action: (Recogniser.Listener) -> Unit,
+    ) {
+        if (generation.get() != press) return
+        settle(action)
+    }
+
     private companion object {
         const val SAMPLE_RATE = SherpaRecogniser.SAMPLE_RATE
 
         /** A held control in a pocket must truncate a sentence, not exhaust the heap. */
         const val MAX_SECONDS = 30
         const val MAX_SAMPLES = SAMPLE_RATE * MAX_SECONDS
+
+        /**
+         * How long the microphone stays open after the release.
+         *
+         * Long enough for the tail of a final consonant and for the capture path to deliver
+         * what it already holds; short enough that it is a fraction of the budget rather
+         * than a term in it. Every latency figure is measured from the release, so this is
+         * visible in band F, and it should be: it is a choice, not a cost.
+         */
+        const val RELEASE_GRACE_MILLIS = 200L
 
         /** A Unicode script block is 128 code points, which is how Language.blockBase is defined. */
         const val SCRIPT_BLOCK = 0x80

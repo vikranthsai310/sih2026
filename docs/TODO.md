@@ -540,6 +540,17 @@ parallel with week 1.**
     Where two windows share nothing it **concatenates rather than trims**: a listener
     recovers from a repeated word, never from one silently dropped*
   · *Still to bind: the real recogniser call, which waits on W1.23 (sherpa-onnx)*
+  · **Superseded 2026-09-06.** *Fixed windows kept the latency claim and cost accuracy:
+    a boundary landing mid-word made a CTC model answer with a different word, the join
+    kept both readings of the overlap, and each 1.5 s window was normalised on its own
+    (`normalize_type = per_feature`). Replaced by `UtteranceDecoder`: each clause is
+    decoded **in the pause that ends it**, a speaker who never pauses is cut at the
+    quietest recent frame with 0.6 s of context both sides and words attributed by their
+    CTC emission time, and a clause finished 200 ms before the release costs the endpoint
+    nothing. Tested against a scripted model that knows where every word is and reports
+    a word it was asked about only half of — every word once, whole, for any sequence of
+    clauses and pauses, and a tail bounded by one segment for 200 ms to 12 s of unbroken
+    speech. See [ASR.md §3.5](ASR.md#35-decoding-an-offline-model-without-paying-for-it-at-the-end)*
 
 - [ ] **W3.G** — **GATE:** speech in on A, speech out on B. Baseline end-to-end latency
   recorded in `latency.csv`. Video. **The project is now de-risked**

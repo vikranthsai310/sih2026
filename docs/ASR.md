@@ -165,27 +165,46 @@ utterance has ended, so the whole decode lands *after* the endpoint:
 
 That alone is 1 050 ms before a byte is sent, and pushes end-to-end past 1 300 ms.
 
-**The fix is to decode during speech anyway.** Voice activity detection already tells us
-when speech is in progress, so the buffered audio is decoded in overlapping windows as it
-accumulates, and only the final short window is decoded after the endpoint:
+**The fix is to decode during speech anyway.** The energy floor already says when the
+speaker is talking and when they have paused, so each clause is decoded **in the pause
+that ends it**, while the speaker is drawing breath for the next one, and only the last
+clause is decoded after the endpoint:
 
 ```
- speech  |--- w1 ---|--- w2 ---|--- w3 --|
-         decode w1   decode w2   decode w3   <- these run while the speaker is still talking
-                                       endpoint
-                                       |-- decode tail --|   ~250-450 ms, not 900 ms
+ speech  |--- clause 1 ---|  pause  |--- clause 2 ---|  pause  |- clause 3 -|
+                          decode 1                    decode 2   <- while the speaker talks
+                                                                  endpoint
+                                                                  |- decode 3 -|
 ```
 
 | Parameter | Value | Rationale |
 | --- | --- | --- |
-| Window | 1.5 s | Long enough for stable CTC output, short enough that the tail is cheap |
-| Overlap | 0.4 s | Covers words straddling a boundary |
-| Tail decode | Final partial window only | The term that remains in the latency budget |
-| Threads | 4 while decoding a window, 2 at idle | Cores are free during speech; thermal budget is not |
+| Pause that closes a clause | 280 ms of quiet after ≥ 500 ms of speech | Longer than a stop closure or an inter-word gap; shorter than a breath |
+| Forced cut | At 6 s without a pause, at the quietest frame of the last 1.5 s, keeping 0.6 s of context both sides | A speaker who never pauses still leaves a bounded tail |
+| Quiet kept around a clause | 300 ms either side | The model normalises per utterance; a clause with its own quiet is what it was trained on |
+| Tail decode | The last clause only, and nothing if it was already read | The term that remains in the latency budget |
+| Threads | 4 while decoding, 2 at idle | Cores are free during speech; thermal budget is not |
 
-This costs roughly 1.6× the total compute of a single pass, which the efficiency budget can
+This costs roughly 1.5–2× the compute of a single pass, which the efficiency budget can
 absorb because it happens only while someone is speaking — perhaps five per cent of elapsed
-time. It buys back around 400 ms of the delay that matters.
+time. It buys back most of the delay that matters, and it does so without cutting a word.
+
+**Why not fixed windows.** The first implementation sliced audio into 1.5 s windows with a
+0.4 s overlap and glued the texts back together by matching repeated words. It kept the
+latency claim and it cost accuracy three ways, and each of them showed on a handset as
+"the text is wrong":
+
+1. A window boundary lands wherever 1.5 s happens to fall — mid word — and a CTC model asked
+   about half a word answers with a different word, or two.
+2. Where the two windows read the shared 0.4 s differently, the join could not tell a
+   revision from a new word and kept both, so a word appeared twice in two spellings.
+3. IndicConformer normalises its features over the whole buffer it is given
+   (`normalize_type = per_feature` in the model's own metadata). Statistics over 1.5 s that
+   is half silence are not the statistics it was trained against; over a whole clause with
+   a little quiet either side, they are.
+
+Cutting in the pauses removes all three. Nothing straddles a cut made in 280 ms of quiet, so
+the clause texts simply follow one another.
 
 **Honest consequence:** end-to-end in push-to-talk mode is now budgeted at **800–1200 ms**,
 not the 500–800 ms the design document claimed. That figure was derived from a streaming
@@ -194,27 +213,35 @@ recogniser that does not exist for these languages. See
 
 #### Implementation
 
-`SlidingWindowDecoder` in `core-asr`, task W3.13. The model is injected as a function, so
-the windowing is tested without one — the claim under test is not that the recogniser is
-accurate, which is measured separately against a corpus, but that **only a bounded tail is
-left to decode when the speaker stops**.
+`UtteranceDecoder` in `core-asr`, task W3.13. The model is injected as a function, so the
+segmentation is tested without one — against a scripted model that knows where every word
+in a synthetic utterance really is, and reports a word it was asked about only half of. The
+claims under test are properties of the cutting, not of the recogniser:
 
-That is the property the whole latency revision rests on, and it is asserted directly: a
-test sweeps every utterance length from 100 ms to 8 s in 100 ms steps and checks after
-every capture that the undecoded tail never exceeds one window. The post-endpoint decode is
-therefore bounded by a constant rather than growing with the utterance. A 3 s utterance
-leaves 800 ms to decode instead of 3 000 ms — about 240 ms at a real-time factor of 0.30,
-inside the 250–450 ms budgeted above.
+- **Every word once, whole.** A clause closed at a pause is read with no window beginning
+  or ending inside a word, for any sequence of clauses and pauses.
+- **A forced cut loses nothing.** A speaker who never pauses is cut at the quietest recent
+  frame with 0.6 s of context both sides. sherpa-onnx reports the frame at which its CTC
+  search emitted each token, and a word is owned by whichever side its emission time falls
+  on — so the word on the cut is read once, by the side that heard all of it, rather than
+  guessed from two conflicting texts.
+- **A bounded tail.** A sweep of unbroken speech from 200 ms to 12 s checks that what is
+  left to decode at the endpoint never exceeds one segment.
+- **A finished clause costs the endpoint nothing.** When the speaker falls quiet for
+  200 ms the open clause is read then and there; the pause cut and the endpoint both take
+  that reading as final rather than decoding the clause again. An operator who lets go a
+  moment after their last word waits for nothing.
+- **Silence is never sent to the model.** A held control with nothing said into it, a
+  click, and seven seconds of thought before a sentence all leave the model idle, and the
+  sentence is decoded with 300 ms of its own quiet rather than the seven seconds.
 
-**Stitching.** Because the windows overlap, consecutive decodes repeat the words in the
-overlap. The join takes the longest suffix of the text so far that is also a prefix of the
-next window and drops the duplicate. Where two windows share nothing — the recogniser
-produced different words for the same audio — the pieces are concatenated rather than
-trimmed. That is the deliberate choice: a listener recovers from a repeated word, but never
-from one that was silently dropped.
-
-What remains is the call into the real recogniser, which waits on the sherpa-onnx
-distribution question (W1.23, open question Q3).
+**The two ends of the utterance** are handled in `SherpaSpeech`, because both are where
+words go missing on a real handset and neither is the model's fault. The screen says
+"listening" only once `AudioRecord` reports that it is recording — not when it was built,
+tens of milliseconds earlier, which had the operator speaking the first syllable into
+nothing. And the microphone stays open for 200 ms after the release, because an operator
+lets go *on* the last word and the audio path has its own buffering besides; that is
+latency spent on purpose, visible in band F, and the cheapest accuracy available.
 
 ## 4. Confidence
 

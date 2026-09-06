@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -235,190 +236,387 @@ data class LanguageOption(
 }
 
 /**
- * Task **W7.21**. Storage, with the per-pack licence on the row.
+ * Task **W7.21**. Storage: every language, every file, and what to do about each.
  *
- * The licence belongs beside the size because that is where the decision is made. An
- * operator freeing space chooses which pack to delete, and "this one cannot be deployed
- * commercially anyway" is exactly the information that decides it.
+ * ## Why every language is listed, not just the chosen one
+ *
+ * This screen used to show only what the *current* language was missing — two rows, at
+ * most. An operator provisioning a handset for a net that speaks Tamil and Hindi and
+ * Odia had to switch language, come back, download, switch, come back, download. The
+ * list of what a handset can be given is fixed and small — ten recognisers, seven voices
+ * — so it is shown whole, grouped by language, with each file's state on its row.
+ *
+ * ## What a row does
+ *
+ * A file this handset does not have is a download: the tap hands its address to the
+ * browser. A file it does have says so, and offers to delete it, with its licence beside
+ * the size because that is where the decision is made. Three languages have no
+ * permissively licensed voice at all; their row says that rather than showing nothing,
+ * because a missing row reads as an oversight and a stated absence reads as a decision.
+ *
+ * The application cannot fetch any of these itself — it has no HTTP client, per
+ * constraint C2 — so every download is done by the browser and verified here by SHA-256
+ * when the operator taps install.
  */
 @Composable
 fun StorageScreen(
     packs: List<PackRow>,
     onDelete: (PackRow) -> Unit,
-    /** Opens the folder picker. Null hides the control, for a build without an installer. */
+    /** Opens the file picker. Null hides the control, for a build without an installer. */
     onImport: (() -> Unit)? = null,
     /** What the last import did, or what it is doing now. */
     status: String? = null,
-    /** What this handset still needs, with the address to fetch each from. */
+    /** Every file any language can use, for all ten, with whether this handset has it. */
     downloads: List<Download> = emptyList(),
+    /** The ten languages in their fixed order, for the names on the headings. */
+    languages: List<LanguageOption> = emptyList(),
+    /** The language chosen on the operating screen, marked so the operator finds it first. */
+    currentLanguage: String = "",
     /** Hands one address to the browser. Null leaves the rows as plain text. */
     onDownload: ((Download) -> Unit)? = null,
+    /** Hands several addresses to the browser, one after another. */
+    onDownloadAll: ((List<Download>) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxSize().background(Paper).padding(16.dp)) {
-        Text("STORAGE", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "%.1f MB used by language packs".format(packs.sumOf { it.bytes } / 1_048_576.0),
-            fontSize = 14.sp,
-            color = Muted,
-            fontFamily = FontFamily.Monospace,
-        )
-        Spacer(Modifier.height(12.dp))
-
-        if (onImport != null) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .border(2.dp, Ink, RoundedCornerShape(6.dp))
-                    .clickable { onImport() }
-                    .padding(12.dp)
-                    .semantics {
-                        contentDescription = "Install a language pack from a folder on this device"
-                    },
-            ) {
-                Text("INSTALL A LANGUAGE PACK", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
-                // The two steps, in order, because the second one is useless without the
-                // first and an operator who taps this with an empty Download folder should
-                // be told why nothing happened before it happens.
-                Text(
-                    "1. Download the files below in your browser.\n" +
-                        "2. Tap here, open Downloads, and select them all.",
-                    fontSize = 12.sp,
-                    color = Muted,
-                )
-            }
-            if (status != null) {
-                Spacer(Modifier.height(8.dp))
-                Text(status, fontSize = 13.sp, color = Ink, fontFamily = FontFamily.Monospace)
-            }
-            Spacer(Modifier.height(12.dp))
+    val missing = downloads.filter { !it.installed }
+    val groups = languageGroups(downloads, languages)
+    // Rows this list of languages does not explain: espeak's data, shared by every voice.
+    val shared =
+        packs.filter { pack ->
+            downloads.none { it.languageCode == pack.languageCode && it.kind == pack.kind }
         }
 
-        if (packs.isEmpty()) {
+    LazyColumn(
+        modifier.fillMaxSize().background(Paper),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item {
+            Text("STORAGE", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
             Text(
-                "No language packs on this handset. Transmit sends a template and nothing " +
-                    "is spoken aloud until one is installed.",
+                "%.1f MB used by language packs".format(packs.sumOf { it.bytes } / 1_048_576.0),
                 fontSize = 14.sp,
                 color = Muted,
+                fontFamily = FontFamily.Monospace,
             )
-            Spacer(Modifier.height(12.dp))
         }
 
-        if (downloads.isNotEmpty()) {
-            Text("FILES TO DOWNLOAD", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Muted)
-            Text("Tap one to open it in your browser.", fontSize = 12.sp, color = Muted)
-            Spacer(Modifier.height(6.dp))
-            for (download in downloads) {
-                // Tappable, because a row that looks like an item and does nothing when
-                // pressed is worse than no row at all. The tap hands the address to the
-                // browser: this application has no HTTP client and opens no outbound
-                // connection, so the fetching is done by a program whose job it is, and
-                // the verifying is still done here, by SHA-256.
+        if (onImport != null) {
+            item {
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .border(1.dp, Muted, RoundedCornerShape(6.dp))
-                        .then(
-                            if (onDownload == null) {
-                                Modifier
-                            } else {
-                                Modifier.clickable { onDownload(download) }
-                            },
-                        )
-                        .padding(10.dp)
+                        .border(2.dp, Ink, RoundedCornerShape(6.dp))
+                        .clickable { onImport() }
+                        .padding(12.dp)
                         .semantics {
-                            contentDescription =
-                                "Download the " + download.kind + ", " +
-                                describeSize(download.bytes) + ". Opens your browser."
+                            contentDescription = "Install language pack files you have downloaded"
                         },
                 ) {
+                    Text("INSTALL DOWNLOADED FILES", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    // The two steps, in order, because the second one is useless without the
+                    // first and an operator who taps this with an empty Download folder should
+                    // be told why nothing happened before it happens.
                     Text(
-                        download.kind + " · " + describeSize(download.bytes) + "  ›",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Ink,
-                    )
-                    Text(
-                        download.url,
-                        fontSize = 9.sp,
-                        fontFamily = FontFamily.Monospace,
+                        "1. Tap DOWNLOAD on the files below. Your browser saves them.\n" +
+                            "2. Tap here, open Downloads, and select them all.",
+                        fontSize = 12.sp,
                         color = Muted,
-                        maxLines = 2,
                     )
                 }
-                Spacer(Modifier.height(6.dp))
+                if (status != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(status, fontSize = 13.sp, color = Ink, fontFamily = FontFamily.Monospace)
+                }
             }
-            Spacer(Modifier.height(12.dp))
         }
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(packs) { pack ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = ROW_DP.dp)
-                        .border(1.dp, Muted, RoundedCornerShape(6.dp))
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(pack.name, fontSize = 16.sp, color = Ink)
-                        Text(
-                            "%.1f MB · %s".format(pack.bytes / 1_048_576.0, pack.licence),
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = if (pack.isRestrictive) Danger else Muted,
-                        )
-                    }
-                    // Shown only where it does something. espeak's data is bundled in the
-                    // installer and shared by every language: deleting it frees nothing,
-                    // because the next synthesis expands it again.
-                    if (pack.deletable) {
-                        Text(
-                            "DELETE",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Danger,
-                            modifier =
-                                Modifier
-                                    .clickable { onDelete(pack) }
-                                    .semantics {
-                                        contentDescription =
-                                            "Delete ${pack.name}, ${describeSize(pack.bytes)}"
-                                    },
-                        )
-                    } else {
-                        Text(
-                            "IN APP",
-                            fontSize = 14.sp,
-                            color = Muted,
-                            modifier =
-                                Modifier.semantics {
-                                    contentDescription =
-                                        "${pack.name} ships inside the app and cannot be deleted"
-                                },
-                        )
-                    }
-                }
+        if (missing.size > 1 && onDownloadAll != null) {
+            item {
+                ActionRow(
+                    title = "DOWNLOAD EVERYTHING MISSING",
+                    detail =
+                        "${missing.size} files, ${describeSize(missing.sumOf { it.bytes })}. " +
+                            "Opens each in your browser in turn.",
+                    description =
+                        "Download all ${missing.size} missing files, " +
+                            describeSize(missing.sumOf { it.bytes }) + ". Opens your browser.",
+                    onClick = { onDownloadAll(missing) },
+                )
             }
         }
+
+        item {
+            Spacer(Modifier.height(4.dp))
+            Text("LANGUAGE PACKS", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Muted)
+            Text(
+                "Each language needs a recogniser to hear speech and a voice to speak it. " +
+                    "Tap a file to download it.",
+                fontSize = 12.sp,
+                color = Muted,
+            )
+        }
+
+        items(groups, key = { it.code }) { group ->
+            LanguagePackCard(
+                group = group,
+                current = group.code == currentLanguage,
+                packs = packs,
+                onDelete = onDelete,
+                onDownload = onDownload,
+                onDownloadAll = onDownloadAll,
+            )
+        }
+
+        if (shared.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(4.dp))
+                Text("SHARED BY EVERY LANGUAGE", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Muted)
+            }
+            items(shared, key = { it.name }) { pack -> InstalledRow(pack, onDelete) }
+        }
+    }
+}
+
+/** One language's files, in the order the operator needs them: hearing before speaking. */
+internal data class LanguageGroup(
+    val code: String,
+    val nativeName: String,
+    val englishName: String,
+    val files: List<Download>,
+) {
+    val missing: List<Download> get() = files.filter { !it.installed }
+    val hasVoice: Boolean get() = files.any { it.kind == "voice" }
+    val canHear: Boolean get() = files.any { it.kind == "recogniser" && it.installed }
+    val canSpeak: Boolean get() = files.any { it.kind == "voice" && it.installed }
+
+    /** One line saying what this language can do on this handset right now. */
+    fun readiness(): String =
+        when {
+            canHear && canSpeak -> "Ready: hears and speaks"
+            canHear && !hasVoice -> "Ready: hears. No voice exists, so arrivals show as text"
+            canHear -> "Hears. Download the voice to speak arrivals aloud"
+            canSpeak -> "Speaks. Download the recogniser to hear speech"
+            else -> "Nothing installed"
+        }
+}
+
+/**
+ * Groups the index by language, in the fixed language order.
+ *
+ * Every language is listed even where nothing is downloadable for it, so the count on
+ * the screen is always ten and an absent voice is a stated fact on that language's card.
+ */
+internal fun languageGroups(
+    downloads: List<Download>,
+    languages: List<LanguageOption>,
+): List<LanguageGroup> {
+    val byLanguage = downloads.groupBy { it.languageCode }
+    val order =
+        languages.map { Triple(it.code, it.nativeName, it.englishName) }
+            .ifEmpty { byLanguage.keys.map { Triple(it, it, it) } }
+    return order.map { (code, native, english) ->
+        LanguageGroup(
+            code = code,
+            nativeName = native,
+            englishName = english,
+            files = byLanguage[code].orEmpty().sortedBy { if (it.kind == "recogniser") 0 else 1 },
+        )
+    }
+}
+
+@Composable
+private fun LanguagePackCard(
+    group: LanguageGroup,
+    current: Boolean,
+    packs: List<PackRow>,
+    onDelete: (PackRow) -> Unit,
+    onDownload: ((Download) -> Unit)?,
+    onDownloadAll: ((List<Download>) -> Unit)?,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .border(if (current) 2.dp else 1.dp, if (current) Ink else Muted, RoundedCornerShape(6.dp))
+            .padding(12.dp)
+            .semantics { contentDescription = "${group.englishName}. ${group.readiness()}." },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(group.nativeName, fontSize = 20.sp, color = Ink, modifier = Modifier.weight(1f))
+            if (current) {
+                Text("CURRENT", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Ink)
+            }
+        }
+        Text(group.englishName + " · " + group.readiness(), fontSize = 12.sp, color = Muted)
+        Spacer(Modifier.height(6.dp))
+
+        for (file in group.files) {
+            val installed = packs.firstOrNull { it.languageCode == file.languageCode && it.kind == file.kind }
+            if (file.installed && installed != null) {
+                InstalledRow(installed, onDelete)
+            } else {
+                DownloadRow(file, onDownload)
+            }
+            Spacer(Modifier.height(6.dp))
+        }
+
+        if (!group.hasVoice) {
+            Text(
+                "voice · none exists under a permissive licence. Messages arriving in " +
+                    "${group.englishName} are shown as text.",
+                fontSize = 12.sp,
+                color = Danger,
+                modifier = Modifier.padding(horizontal = 2.dp),
+            )
+            Spacer(Modifier.height(6.dp))
+        }
+
+        val missing = group.missing
+        if (missing.size > 1 && onDownloadAll != null) {
+            ActionRow(
+                title = "DOWNLOAD BOTH",
+                detail = describeSize(missing.sumOf { it.bytes }) + ", one after the other.",
+                description = "Download both files for ${group.englishName}. Opens your browser.",
+                onClick = { onDownloadAll(missing) },
+            )
+        }
+    }
+}
+
+/** A file this handset does not have. The tap hands its address to the browser. */
+@Composable
+private fun DownloadRow(
+    file: Download,
+    onDownload: ((Download) -> Unit)?,
+) {
+    // Tappable, because a row that looks like an item and does nothing when pressed is
+    // worse than no row at all. This application has no HTTP client and opens no outbound
+    // connection: the fetching is done by a program whose job it is, and the verifying is
+    // still done here, by SHA-256.
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = ROW_DP.dp)
+            .border(1.dp, Ink, RoundedCornerShape(6.dp))
+            .then(if (onDownload == null) Modifier else Modifier.clickable { onDownload(file) })
+            .padding(10.dp)
+            .semantics {
+                contentDescription =
+                    "Download the " + file.kind + ", " + describeSize(file.bytes) + ". Opens your browser."
+            },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                file.kind + " · " + describeSize(file.bytes),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Ink,
+            )
+            Text(file.url, fontSize = 9.sp, fontFamily = FontFamily.Monospace, color = Muted, maxLines = 2)
+        }
+        Text("DOWNLOAD ›", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ink)
+    }
+}
+
+/** A file this handset has, with its licence, and the control to remove it where that frees space. */
+@Composable
+private fun InstalledRow(
+    pack: PackRow,
+    onDelete: (PackRow) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = ROW_DP.dp)
+            .border(1.dp, Muted, RoundedCornerShape(6.dp))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                pack.kind.ifEmpty { pack.name } + " · installed",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Ink,
+            )
+            Text(
+                "%.1f MB · %s".format(pack.bytes / 1_048_576.0, pack.licence),
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                color = if (pack.isRestrictive) Danger else Muted,
+            )
+        }
+        // Shown only where it does something. espeak's data is bundled in the installer and
+        // shared by every language: deleting it frees nothing, because the next synthesis
+        // expands it again.
+        if (pack.deletable) {
+            Text(
+                "DELETE",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Danger,
+                modifier =
+                    Modifier
+                        .clickable { onDelete(pack) }
+                        .semantics { contentDescription = "Delete ${pack.name}, ${describeSize(pack.bytes)}" },
+            )
+        } else {
+            Text(
+                "IN APP",
+                fontSize = 14.sp,
+                color = Muted,
+                modifier =
+                    Modifier.semantics {
+                        contentDescription = "${pack.name} ships inside the app and cannot be deleted"
+                    },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActionRow(
+    title: String,
+    detail: String,
+    description: String,
+    onClick: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = ROW_DP.dp)
+            .border(2.dp, Ink, RoundedCornerShape(6.dp))
+            .clickable { onClick() }
+            .padding(12.dp)
+            .semantics { contentDescription = description },
+    ) {
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Text(detail, fontSize = 12.sp, color = Muted)
     }
 }
 
 /** Bytes an operator can act on: "0 MB" for a 66 kB file reads as nothing to download. */
 internal fun describeSize(bytes: Long): String =
     when {
+        bytes >= 1_073_741_824 -> "%.1f GB".format(bytes / 1_073_741_824.0)
         bytes >= 1_048_576 -> "%.0f MB".format(bytes / 1_048_576.0)
         bytes >= 1_024 -> "%.0f kB".format(bytes / 1_024.0)
         else -> "$bytes B"
     }
 
-/** One artefact the operator has to fetch in a browser before importing it. */
+/**
+ * One file a language can use, fetched by the operator's browser and verified here.
+ *
+ * Carries its language and whether it is already on this handset, so one list can
+ * describe every file for every language and the screen can say which are still needed.
+ */
 data class Download(
     val kind: String,
     val bytes: Long,
     val url: String,
+    val languageCode: String = "",
+    val installed: Boolean = false,
 )
 
 data class PackRow(

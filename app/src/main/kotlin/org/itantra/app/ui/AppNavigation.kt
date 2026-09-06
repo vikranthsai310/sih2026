@@ -93,7 +93,7 @@ data class AppState(
     val distributionNotice: String? = null,
     /** What the last language-pack import did, or is doing. */
     val packStatus: String? = null,
-    /** What this handset still needs, and where to get it. */
+    /** Every file every language can use, with whether this handset has it, for the storage screen. */
     val downloads: List<Download> = emptyList(),
 )
 
@@ -110,6 +110,8 @@ data class AppActions(
     val onImportPacks: () -> Unit,
     /** Hands one download address to the browser. */
     val onDownload: (Download) -> Unit,
+    /** Hands several download addresses to the browser, one after another. */
+    val onDownloadAll: (List<Download>) -> Unit = { downloads -> downloads.forEach(onDownload) },
     /** Removes one installed artefact. The control existed with an empty lambda behind it. */
     val onDeletePack: (PackRow) -> Unit,
     /**
@@ -178,7 +180,10 @@ fun ItantraApp(
                     onImport = actions.onImportPacks,
                     status = state.packStatus,
                     downloads = state.downloads,
+                    languages = state.languages,
+                    currentLanguage = state.operating.languageCode,
                     onDownload = actions.onDownload,
+                    onDownloadAll = actions.onDownloadAll,
                 )
 
             Destination.LICENCES ->

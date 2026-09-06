@@ -19,8 +19,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.itantra.app.engine.MessageEngine
 import org.itantra.app.platform.DataStoreEpochStore
@@ -45,6 +47,7 @@ import org.itantra.app.ui.describeSize
 import org.itantra.asr.BiasingLexicon
 import org.itantra.audio.EngineState
 import org.itantra.link.LinkState
+import org.itantra.proto.Language
 import org.itantra.proto.TemplateProfile
 import java.io.File
 
@@ -89,6 +92,9 @@ class MainActivity : ComponentActivity() {
 
     /** What the language-pack copy is doing, for the storage screen. */
     private var packStatus by mutableStateOf<String?>(null)
+
+    /** Bumped whenever the disk may have changed behind the screen's back, so it looks again. */
+    private var diskVersion by mutableStateOf(0)
 
     /**
      * When the engine started, for the soak duration the report conditions require.
@@ -164,18 +170,24 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val running = engine
+            // What is on disk changes only when an import or a delete says so, and both
+            // rewrite the status line. Read once per change rather than on every
+            // recomposition: the level meter recomposes this fifty times a second while
+            // the operator speaks, and ten languages' worth of stat calls each time is
+            // not what the main thread is for.
+            val onDisk = remember(packStatus, diskVersion) { installedPacks() to allDownloads() }
             ItantraApp(
                 state =
                     AppState(
                         operating = running?.state?.collectAsState()?.value ?: startingState(),
                         traces = running?.traces?.collectAsState()?.value.orEmpty(),
-                        languages = running?.languageOptions().orEmpty(),
+                        languages = running?.languageOptions().orEmpty().ifEmpty { languageNames() },
                         transports = transports(),
-                        packs = installedPacks(),
+                        packs = onDisk.first,
                         licences = licences(),
                         distributionNotice = DISTRIBUTION_NOTICE,
                         packStatus = packStatus,
-                        downloads = missingFor(currentLanguageCode()),
+                        downloads = onDisk.second,
                     ),
                 actions =
                     AppActions(
@@ -185,6 +197,7 @@ class MainActivity : ComponentActivity() {
                         onReplay = { running?.onReplay(it) },
                         onImportPacks = ::pickPackFolder,
                         onDownload = ::openInBrowser,
+                        onDownloadAll = ::openAllInBrowser,
                         onDeletePack = ::deletePack,
                         onExportCsv = ::exportReport,
                         readLicence = ::readLicence,
@@ -258,20 +271,40 @@ class MainActivity : ComponentActivity() {
         }
 
     /**
-     * What the current language still needs, listed with the address to fetch it from.
+     * Every file every language can use, with whether this handset already has it.
      *
-     * Only what is absent: a handset that already has Hindi should not be shown 250 MB of
-     * addresses it does not need. The application cannot follow these itself — it has no
-     * HTTP client, per constraint C2 — so they are text for the operator's browser.
+     * All ten languages, not the current one: this used to list only what the chosen
+     * language lacked, so an operator provisioning a handset for a mixed net had to change
+     * language and come back for each one. The application cannot follow these addresses
+     * itself — it has no HTTP client, per constraint C2 — so they are for the operator's
+     * browser, and "installed" is judged the way the engine judges it: a recogniser is
+     * installed when [ModelStore.hasPack] says so, a voice when [ModelStore.hasVoice] does,
+     * so a truncated copy shows as still needed rather than as done.
      */
-    private fun missingFor(code: String): List<Download> {
+    private fun allDownloads(): List<Download> {
         val store = ModelStore(applicationContext)
-        if (store.hasPack(code) && store.hasVoice(code)) return emptyList()
+        val index = InstallIndex(applicationContext)
         val models = File(applicationContext.getExternalFilesDir(null), "models")
-        return InstallIndex(applicationContext).downloadableFor(code)
-            .filterNot { File(models, it.install).isFile }
-            .map { Download(kind = it.kind, bytes = it.bytes, url = it.url) }
+        return Language.entries.flatMap { language ->
+            index.downloadableFor(language.code).map { item ->
+                Download(
+                    kind = item.kind,
+                    bytes = item.bytes,
+                    url = item.url,
+                    languageCode = language.code,
+                    installed =
+                        when (item.kind) {
+                            "recogniser" -> store.hasPack(language.code)
+                            "voice" -> store.hasVoice(language.code)
+                            else -> File(models, item.install).isFile
+                        },
+                )
+            }
+        }
     }
+
+    /** The ten languages by name, for the storage screen before the engine is running. */
+    private fun languageNames() = MessageEngine.languageOptions(speech = null)
 
     private fun currentLanguageCode(): String = engine?.state?.value?.languageCode.orEmpty().ifEmpty { "hi" }
 
@@ -370,6 +403,9 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         val running = engine
         if (running == null) startEngine() else running.restartIfIdle()
+        // Coming back from the browser, or from a cable: whatever is on disk now is what
+        // the storage screen should say.
+        diskVersion++
     }
 
     /** @return false when a permission is still needed, so the caller can ask for it. */
@@ -457,6 +493,35 @@ class MainActivity : ComponentActivity() {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(download.url)))
             packStatus = "Downloading in your browser. Come back and tap install."
         }.onFailure { packStatus = "No browser on this handset to open that with." }
+    }
+
+    /**
+     * Hands several addresses to the browser, one after another.
+     *
+     * Spaced out rather than fired in a burst: each one is a separate intent the browser
+     * has to open a tab for, and a burst of seventeen arrives as one ignored. The whole run
+     * fits inside the window Android allows an application that has just left the
+     * foreground to keep starting activities, which is why the spacing is short.
+     */
+    private fun openAllInBrowser(downloads: List<Download>) {
+        if (downloads.isEmpty()) return
+        packStatus = "Opening ${downloads.size} downloads in your browser…"
+        lifecycleScope.launch {
+            var opened = 0
+            for (download in downloads) {
+                val ok = runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(download.url))) }.isSuccess
+                if (!ok) break
+                opened++
+                delay(BROWSER_HANDOFF_MILLIS)
+            }
+            packStatus =
+                when (opened) {
+                    0 -> "No browser on this handset to open that with."
+                    downloads.size ->
+                        "$opened downloads started in your browser. Come back and tap install when they finish."
+                    else -> "$opened of ${downloads.size} downloads started. Tap the rest one at a time."
+                }
+        }
     }
 
     /**
@@ -578,6 +643,9 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val PROFILE_ASSET = "templates.json"
+
+        /** Between two addresses handed to the browser. Long enough to be two tabs, not one. */
+        const val BROWSER_HANDOFF_MILLIS = 350L
 
         /** Android's own provider for the shared storage volumes. */
         const val EXTERNAL_STORAGE_PROVIDER = "com.android.externalstorage.documents"

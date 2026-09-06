@@ -18,10 +18,17 @@ import org.itantra.proto.Language
  * 500–800 ms to 800–1200 ms. `OfflineRecognizer` decodes a complete buffer in one call
  * and yields no partial hypotheses.
  *
- * The latency that would otherwise cost is recovered by [SlidingWindowDecoder], which
- * calls [decode] on overlapping windows *while the speaker is still talking*, leaving
- * only a short tail for after the endpoint. This class is deliberately the thin,
- * synchronous piece that windowing sits on top of; see [windowedDecoder].
+ * The latency that would otherwise cost is recovered by [UtteranceDecoder], which calls
+ * [transcribe] on each clause *as the speaker pauses*, leaving only the last clause for
+ * after the endpoint. This class is deliberately the thin, synchronous piece that
+ * segmentation sits on top of.
+ *
+ * ## Timestamps
+ *
+ * sherpa-onnx reports the frame at which its CTC search emitted each token, at the
+ * model's 40 ms resolution (10 ms features, subsampling factor 4 in the model's own
+ * metadata). [transcribe] keeps them: they are how [UtteranceDecoder] decides which of two
+ * overlapping decodes owns a word on a forced cut, rather than guessing from the text.
  *
  * ## Threads
  *
@@ -69,16 +76,21 @@ class SherpaRecogniser(
         )
 
     /**
-     * Decodes a complete buffer. Blocking, and called on the inference thread.
+     * Decodes a complete buffer into timed words. Blocking, and called on the inference
+     * thread.
      *
      * @param pcm 16 kHz mono samples, normalised to −1..1
      */
-    fun decode(pcm: FloatArray): String {
+    fun transcribe(pcm: FloatArray): Transcript {
         val stream = recogniser.createStream()
         return try {
             stream.acceptWaveform(pcm, SAMPLE_RATE)
             recogniser.decode(stream)
-            recogniser.getResult(stream).text.trim()
+            val result = recogniser.getResult(stream)
+            val timed = Transcript.fromTokens(result.tokens, result.timestamps)
+            // A build of the library that reports text but no tokens would otherwise
+            // read as silence. Untimed words are still words.
+            if (timed.isEmpty && result.text.isNotBlank()) Transcript.fromText(result.text) else timed
         } finally {
             // The stream holds a native pointer. Leaking one per utterance is a slow
             // native leak that would surface only during a long soak.
@@ -87,16 +99,21 @@ class SherpaRecogniser(
     }
 
     /** Convenience for 16-bit PCM, which is what `AudioRecord` produces. */
-    fun decode(pcm: ShortArray): String = decode(pcm.toFloatArray())
+    fun transcribe(pcm: ShortArray): Transcript = transcribe(pcm.toFloatArray())
+
+    /** The text alone, for a caller that does not need the timing. */
+    fun decode(pcm: FloatArray): String = transcribe(pcm).text
+
+    fun decode(pcm: ShortArray): String = transcribe(pcm).text
 
     /**
-     * Wraps this recogniser in the windowing from task W3.13.
+     * Wraps this recogniser in the segmentation from task W3.13.
      *
-     * This is how the engine should use it: feed [SlidingWindowDecoder.onSpeech] as
-     * capture arrives and call `onEndpoint()` when the endpointer fires, so only the
-     * final partial window is decoded after the speaker stops.
+     * This is how the engine should use it: feed [UtteranceDecoder.onAudio] as capture
+     * arrives and call `onEndpoint()` when the speaker lets go, so only the last clause
+     * is decoded after they stop.
      */
-    fun windowedDecoder(): SlidingWindowDecoder = SlidingWindowDecoder(sampleRate = SAMPLE_RATE, decode = ::decode)
+    fun utteranceDecoder(): UtteranceDecoder = UtteranceDecoder(sampleRate = SAMPLE_RATE, decode = ::transcribe)
 
     override fun close() = recogniser.release()
 

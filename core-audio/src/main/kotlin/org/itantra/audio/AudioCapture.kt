@@ -52,11 +52,17 @@ class AudioCapture(
      * @param onHop called with a buffer that is **reused between calls** — copy it if you
      *   intend to keep it. Copying every hop unconditionally would allocate 50 arrays a
      *   second for audio that is usually silence.
+     * @param onStarted called on the capture thread once `AudioRecord` is actually
+     *   recording. This method returning true means the recorder was built, not that it is
+     *   listening yet: `startRecording` takes tens of milliseconds on some handsets, and a
+     *   screen that says "listening" before this fires is inviting the operator to speak
+     *   the first syllable into nothing.
      */
     @SuppressLint("MissingPermission")
     fun start(
         onHop: (ShortArray, Int) -> Unit,
         onError: (EngineState.Degraded.Reason) -> Unit = {},
+        onStarted: () -> Unit = {},
     ): Boolean {
         if (running) return true
 
@@ -103,6 +109,12 @@ class AudioCapture(
                 Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
                 val buffer = ShortArray(hopSamples)
                 recorder.startRecording()
+                if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                    onStarted()
+                } else {
+                    onError(EngineState.Degraded.Reason.MICROPHONE_UNAVAILABLE)
+                    running = false
+                }
                 while (running) {
                     val read = recorder.read(buffer, 0, buffer.size)
                     when {
