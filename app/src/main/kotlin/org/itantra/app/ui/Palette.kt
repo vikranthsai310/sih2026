@@ -39,14 +39,17 @@ import androidx.compose.ui.graphics.Color
  * alone, so the grid still separates in greyscale. Test it by building with [Field] and
  * checking that nothing became ambiguous; if something did, it was relying on hue.
  *
- * ## Four steps per family, and what each is for
+ * ## Five steps per family, and what each is for
  *
- * `tint` is a fill you can put text on. `mid` is a border or a track. `core` is the signal
- * itself — the icon, the dot, the filled control. `deep` is text on `tint`, and it is the
- * only one of the four that is guaranteed to pass AA against its own family's tint.
+ * `tint` is a fill you can put text on. `mid` is a border. `track` is the unfilled part of
+ * a meter, and it is a step of its own because the canvas draws a histogram's ground
+ * (`#DCE9F2`) a clear shade off the border it sits beside (`#BEE3FB`) — a bar at zero must
+ * not read as a bar with a value. `core` is the signal itself: the icon, the dot, the
+ * filled control. `deep` is text on `tint`, and it is the only step guaranteed to pass AA
+ * against its own family's tint.
  *
- * Do not invent a fifth step. Five slightly different greens is exactly the drift
- * [Tokens] was written to stop.
+ * Do not invent a sixth. Five slightly different greens is exactly the drift [Tokens] was
+ * written to stop.
  */
 @Immutable
 data class ItantraPalette(
@@ -83,16 +86,36 @@ data class ItantraPalette(
     val orchid: Family,
     /** Success: delivered, all clear, installed, verified. */
     val mint: Family,
-    /** Recoverable trouble: degraded, queued, reconnecting, thermal. */
+    /**
+     * Recoverable trouble: link down, reconnecting, thermal, microphone lost.
+     *
+     * Distinct from [butter], and the distinction is the whole point of board 11 — a unit
+     * that is *fixing itself* and a unit that is *holding something for later* are
+     * different facts, and an operator who reads one as the other either waits for nothing
+     * or walks toward a peer they did not need to reach.
+     */
     val apricot: Family,
+    /** Held rather than broken: queued sends, a dashed bubble, a pending pack. */
+    val butter: Family,
+    /**
+     * A template-coded message, and the cross-language claim it carries.
+     *
+     * Its own family because it is its own kind of traffic: one byte on the wire, rendered
+     * from a table rather than recognised, and spoken in the *receiver's* language. A
+     * bubble saying *sent in தமிழ் · heard in हिन्दी* is the most interesting thing this
+     * application does and it should not be drawn in the same colour as ordinary speech.
+     */
+    val fuchsia: Family,
 ) {
-    /** One meaning, four steps. See the class KDoc for what each step is for. */
+    /** One meaning, five steps. See the class KDoc for what each step is for. */
     @Immutable
     data class Family(
         val tint: Color,
         val mid: Color,
         val core: Color,
         val deep: Color,
+        /** A meter's unfilled ground. Defaults to [mid] where the design draws no separate one. */
+        val track: Color = mid,
     )
 
     // ── the three states colour may never be taken from ──────────────────────
@@ -130,11 +153,13 @@ data class ItantraPalette(
                 onAccent = Color(0xFFFFFFFF),
                 periwinkle = Family(Color(0xFFE8EAFF), Color(0xFFC7CEFF), Color(0xFF4F5BD5), Color(0xFF2F3A8F)),
                 aqua = Family(Color(0xFFDFF7F7), Color(0xFFB5EDEC), Color(0xFF0E7C7B), Color(0xFF0F4C4C)),
-                sky = Family(Color(0xFFE4F3FE), Color(0xFFBEE3FB), Color(0xFF0369A1), Color(0xFF0C4A6E)),
+                sky = Family(Color(0xFFE4F3FE), Color(0xFFBEE3FB), Color(0xFF0369A1), Color(0xFF0C4A6E), track = Color(0xFFDCE9F2)),
                 blush = Family(Color(0xFFFFE7EA), Color(0xFFFFC7CE), Color(0xFFBE123C), Color(0xFF9F1239)),
                 orchid = Family(Color(0xFFF0EBFE), Color(0xFFD7C9FC), Color(0xFF7C3AED), Color(0xFF4C1D95)),
                 mint = Family(Color(0xFFE3F7EC), Color(0xFFB8ECD0), Color(0xFF1B7F3B), Color(0xFF14532D)),
-                apricot = Family(Color(0xFFFEF6DC), Color(0xFFFBE7A6), Color(0xFFB45309), Color(0xFF713F12)),
+                apricot = Family(Color(0xFFFFEEDF), Color(0xFFFFD5B0), Color(0xFFC2410C), Color(0xFF7C2D12)),
+                butter = Family(Color(0xFFFEF6DC), Color(0xFFFBE7A6), Color(0xFFB45309), Color(0xFF713F12)),
+                fuchsia = Family(Color(0xFFFBEAFB), Color(0xFFF0CDF1), Color(0xFFA21CAF), Color(0xFF701A75)),
             )
 
         /**
@@ -165,9 +190,14 @@ data class ItantraPalette(
                 aqua = Family(Tokens.Paper, Tokens.Rule, Tokens.Ink, Tokens.Ink),
                 sky = Family(Tokens.Paper, Tokens.Rule, Tokens.Ink, Tokens.Ink),
                 orchid = Family(Tokens.Paper, Tokens.Rule, Tokens.Ink, Tokens.Ink),
-                // The three that keep their hue, because it is the state itself.
+                fuchsia = Family(Tokens.Paper, Tokens.Rule, Tokens.Ink, Tokens.Ink),
+                // The four that keep their hue, because it is the state itself. Apricot and
+                // butter are both amber here and are told apart by their icon and their
+                // words -- which is the rule the whole palette is built on, applied to
+                // itself: nothing in Field Mode is separated by colour alone either.
                 mint = Family(Tokens.Paper, Tokens.Rule, Tokens.Ok, Tokens.Ok),
                 apricot = Family(Tokens.Paper, Tokens.Rule, Tokens.Warn, Tokens.Ink),
+                butter = Family(Tokens.Paper, Tokens.Rule, Tokens.Warn, Tokens.Ink),
                 blush = Family(Tokens.Paper, Tokens.Rule, Tokens.Alert, Tokens.Alert),
             )
     }
