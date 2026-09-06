@@ -88,6 +88,9 @@ class ModelStore(context: Context) {
      */
     val espeakData: File get() = File(voices, ESPEAK)
 
+    /** Answers to [isLoadableVoice], which the language screen asks ten times over. */
+    private val loadable = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
     /**
      * Expands the bundled espeak data if it is not on disk yet.
      *
@@ -124,8 +127,52 @@ class ModelStore(context: Context) {
      * take a non-commercial model.
      */
     fun hasVoice(languageCode: String): Boolean =
-        voiceFor(languageCode).let { it.isFile() && it.length() > MIN_VOICE_BYTES } &&
-            voiceTokensFor(languageCode).isFile()
+        voiceFor(languageCode).let {
+            it.isFile() && it.length() > MIN_VOICE_BYTES && isLoadableVoice(it)
+        } && voiceTokensFor(languageCode).isFile()
+
+    /**
+     * Whether sherpa-onnx can actually load this file, asked before it is handed over.
+     *
+     * A Piper voice downloaded from `rhasspy/piper-voices` is a valid ONNX model and a
+     * valid Piper voice, and sherpa-onnx cannot use it: sherpa needs its **own** re-export,
+     * which adds `sample_rate` and friends to the ONNX metadata. Given one without,
+     * `OfflineTtsVitsModel::Init` logs
+     *
+     * ```
+     * 'sample_rate' does not exist in the metadata
+     * ```
+     *
+     * and calls `exit(-1)`. That is not an exception and not a signal: `runCatching` cannot
+     * catch it, no tombstone is written, and the process is simply gone. On a handset it
+     * looks like the phone switching itself off, and because the launcher restarts a
+     * foreground task, it looks like it doing so over and over.
+     *
+     * So the file is inspected first. The metadata sits in the last few hundred bytes of
+     * the model — checked, not assumed: 63 145 034 of 63 145 178 for Hindi — so a tail read
+     * settles it without touching sixty megabytes. A voice that fails this is reported as
+     * absent, which the language screen already knows how to say, instead of ending the
+     * process.
+     */
+    private fun isLoadableVoice(model: File): Boolean {
+        val key = model.path + ':' + model.length()
+        loadable[key]?.let { return it }
+        val verdict =
+            runCatching {
+                model.inputStream().use { stream ->
+                    val skip = (model.length() - TAIL_BYTES).coerceAtLeast(0L)
+                    stream.skip(skip)
+                    val tail = stream.readBytes()
+                    SAMPLE_RATE.toByteArray(Charsets.US_ASCII).let { needle ->
+                        (0..tail.size - needle.size).any { i ->
+                            needle.indices.all { j -> tail[i + j] == needle[j] }
+                        }
+                    }
+                }
+            }.getOrDefault(false)
+        loadable[key] = verdict
+        return verdict
+    }
 
     /** One installed artefact, for the storage screen. */
     data class Installed(
@@ -178,6 +225,12 @@ class ModelStore(context: Context) {
 
         const val ESPEAK = "espeak-ng-data"
         const val VOICE = "model.onnx"
+
+        /** The metadata key sherpa-onnx requires and raw Piper voices do not carry. */
+        const val SAMPLE_RATE = "sample_rate"
+
+        /** Comfortably more than the few hundred bytes the metadata actually occupies. */
+        const val TAIL_BYTES = 64L * 1024
 
         /** A Piper medium voice is ~63 MB; ten is a floor that only catches a failed copy. */
         const val MIN_VOICE_BYTES = 10L * 1024 * 1024
