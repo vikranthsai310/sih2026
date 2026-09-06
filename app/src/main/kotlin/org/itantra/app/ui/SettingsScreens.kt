@@ -40,52 +40,102 @@ import androidx.compose.ui.unit.sp
  */
 @Composable
 fun ModeAndTransportScreen(
-    pushToTalk: Boolean,
-    onModeChange: (Boolean) -> Unit,
-    transport: String,
     transports: List<TransportOption>,
-    onTransportChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize().background(Paper).padding(16.dp)) {
         Text("MODE", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
         Spacer(Modifier.height(8.dp))
 
-        ChoiceRow(
-            selected = pushToTalk,
-            title = "Push to talk",
-            detail = "One at a time. Hold the key to speak. Longest battery life.",
-            onClick = { onModeChange(true) },
-        )
-        ChoiceRow(
-            selected = !pushToTalk,
-            title = "Open conversation",
-            detail = "Both sides at once, like a phone call. Uses more power.",
-            onClick = { onModeChange(false) },
+        // Stated, not offered. This was two selectable rows with an empty click handler
+        // behind both: the engine is push-to-talk everywhere -- `mode = "PTT"` is a
+        // constant in MessageEngine -- and `DuplexPolicy` in core-audio has never been
+        // wired to it. A row that reads "Open conversation", takes a tap and changes
+        // nothing is worse than a screen that says which mode this build runs.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = ROW_DP.dp)
+                .border(1.dp, Ink, RoundedCornerShape(6.dp))
+                .padding(12.dp)
+                .semantics {
+                    contentDescription =
+                        "Push to talk. One at a time. Hold the key to speak. " +
+                        "This build has no other mode."
+                },
+        ) {
+            Text("Push to talk", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+            Text(
+                "One at a time. Hold the key to speak. Longest battery life.",
+                fontSize = 13.sp,
+                color = Muted,
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Open conversation — both sides at once — is not in this build.",
+            fontSize = 13.sp,
+            color = Muted,
         )
 
         Spacer(Modifier.height(24.dp))
-        Text("TRANSPORT", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Text("CHANNELS", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Spacer(Modifier.height(4.dp))
+        // Not a chooser. Every channel runs at once and a frame goes down all of them; the
+        // replay window discards the copy that arrives second. This section used to offer a
+        // selection between one option, with an empty click handler behind it.
+        Text(
+            "All of these run at the same time. A message goes out on every one that is " +
+                "up, and arrives once.",
+            fontSize = 13.sp,
+            color = Muted,
+        )
         Spacer(Modifier.height(8.dp))
 
         for (option in transports) {
-            ChoiceRow(
-                selected = option.id == transport,
-                title = option.name,
-                // Range and endurance are the two things that decide this, so they are
-                // what the row shows.
-                detail = "${option.range} · ${option.endurance}",
-                onClick = { onTransportChange(option.id) },
-            )
+            ChannelRow(option)
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
 
+/**
+ * One channel, with what it is doing rather than a control that pretends to switch it.
+ *
+ * The status word carries the meaning, so it is first and it is bold: an operator glancing
+ * at this screen is asking "is anything getting out", not reading a list of radio names.
+ */
+@Composable
+private fun ChannelRow(option: TransportOption) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = ROW_DP.dp)
+            .border(1.dp, if (option.carrying) Ink else Muted, RoundedCornerShape(6.dp))
+            .padding(12.dp)
+            .semantics { contentDescription = "${option.name}. ${option.status}. ${option.detail}" },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(if (option.carrying) "●" else "○", fontSize = 18.sp, color = Ink)
+            Text("  ${option.name}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+        }
+        Text(option.status, fontSize = 14.sp, color = if (option.carrying) Ink else Muted)
+        Text(option.detail, fontSize = 13.sp, color = Muted)
+    }
+}
+
+/**
+ * A channel as the settings screen shows it.
+ *
+ * [carrying] is deliberately not "enabled": nothing here can be enabled or disabled by the
+ * operator, and a control that looks switchable and is not is the defect this replaced.
+ */
 data class TransportOption(
     val id: String,
     val name: String,
-    val range: String,
-    val endurance: String,
+    val status: String,
+    val detail: String,
+    val carrying: Boolean,
 )
 
 /**
@@ -100,7 +150,7 @@ data class TransportOption(
  * ## The licence warning is in the product
  *
  * Where a language's voice carries a non-commercial licence, that is surfaced **here**,
- * on the row, at the moment of choosing — not only in a document nobody reads. Four of
+ * on the row, at the moment of choosing — not only in a document nobody reads. Three of
  * the ten languages have no permissively licensed voice at all, and a pack that cannot be
  * deployed commercially is a fact the operator is entitled to before they depend on it.
  */
@@ -508,40 +558,6 @@ data class LicenceRow(
         get() =
             licence.contains("NC", ignoreCase = true) ||
                 licence.contains("GPL", ignoreCase = true)
-}
-
-@Composable
-private fun ChoiceRow(
-    selected: Boolean,
-    title: String,
-    detail: String,
-    onClick: () -> Unit,
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = ROW_DP.dp)
-            .border(
-                if (selected) 2.dp else 1.dp,
-                if (selected) Ink else Muted,
-                RoundedCornerShape(6.dp),
-            )
-            .clickable(onClick = onClick)
-            .padding(12.dp)
-            .semantics { contentDescription = "$title. $detail" },
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (selected) "◉" else "○", fontSize = 18.sp, color = Ink)
-            Spacer(Modifier.height(0.dp))
-            Text(
-                "  $title",
-                fontSize = 16.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                color = Ink,
-            )
-        }
-        Text(detail, fontSize = 13.sp, color = Muted)
-    }
 }
 
 /** Rows are 64 dp, not 96: these are settings, not controls used under pressure. */

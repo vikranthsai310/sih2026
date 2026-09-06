@@ -41,6 +41,7 @@ import org.itantra.app.ui.PackRow
 import org.itantra.app.ui.TransportOption
 import org.itantra.asr.BiasingLexicon
 import org.itantra.audio.EngineState
+import org.itantra.link.LinkState
 import org.itantra.proto.TemplateProfile
 import java.io.File
 
@@ -188,15 +189,26 @@ class MainActivity : ComponentActivity() {
      * codebase that opened an outbound network connection, and constraint C2 is easier to state
      * without it. `WifiBroadcastLink` is the Wi-Fi transport that ships.)
      */
-    private fun transports() =
-        listOf(
+    private fun transports(): List<TransportOption> {
+        val running = engine ?: return emptyList()
+        return running.channels().map { channel ->
             TransportOption(
-                id = "bluetooth",
-                name = "Bluetooth Classic (RFCOMM)",
-                range = "about 10 m indoors",
-                endurance = "measured on the handset, not yet estimated",
-            ),
-        )
+                id = channel.id,
+                name = channel.name,
+                status =
+                    when (channel.state) {
+                        LinkState.CONNECTED -> "Carrying traffic"
+                        LinkState.DISCOVERING -> "Looking for units"
+                        LinkState.DEGRADED -> "Up, reaching nobody"
+                        LinkState.ERROR -> "Failed. Not retrying"
+                        LinkState.IDLE -> "Not started"
+                        null -> "Not running on this handset"
+                    },
+                detail = channel.detail,
+                carrying = channel.state == LinkState.CONNECTED,
+            )
+        }
+    }
 
     /**
      * Language packs on this handset, read from disk.
@@ -210,12 +222,16 @@ class MainActivity : ComponentActivity() {
             PackRow(
                 name = "${it.languageCode} · ${it.kind}",
                 bytes = it.bytes,
-                // Apache-2.0 for the IndicConformer models, MIT for the Piper voices, and
-                // GPL-3.0 for espeak's data — the row a jury looks at is the last one.
+                // Apache-2.0 for the IndicConformer models, GPL-3.0 for espeak's data --
+                // the row a jury looks at is the last one -- and the voices are not all one
+                // licence: six are Piper under MIT, Gujarati is Mimic 3 under the CMU
+                // Festvox terms. Saying "MIT" for all seven was wrong on the one row where
+                // being wrong about a licence matters.
                 licence =
-                    when (it.kind) {
-                        "voice" -> "MIT"
-                        "espeak data" -> "GPL-3.0"
+                    when {
+                        it.kind == "voice" && it.languageCode == "gu" -> "CMU/Festvox"
+                        it.kind == "voice" -> "MIT"
+                        it.kind == "espeak data" -> "GPL-3.0"
                         else -> "Apache-2.0"
                     },
             )
@@ -269,7 +285,13 @@ class MainActivity : ComponentActivity() {
                 "The recogniser's acoustic models, all ten languages",
                 licenceFile = "Apache-2.0.txt",
             ),
-            LicenceRow("rhasspy / piper", "MIT", "The voices, six of the ten languages"),
+            LicenceRow("rhasspy / piper", "MIT", "The voices for six of the ten languages"),
+            LicenceRow(
+                "Mimic 3 / CMU Indic",
+                "CMU/Festvox",
+                "The Gujarati voice, which Piper does not have. Permissive: use, copy and " +
+                    "modify granted without fee",
+            ),
             LicenceRow(
                 "AndroidX, Jetpack Compose",
                 "Apache-2.0",
@@ -291,8 +313,8 @@ class MainActivity : ComponentActivity() {
             LicenceRow(
                 "Meta MMS",
                 "CC-BY-NC",
-                "Considered for Tamil, Gujarati, Kannada and Odia, where no permissive voice " +
-                    "exists. Not used: those four ship recognise-only instead, so nothing " +
+                "Considered for Tamil, Kannada and Odia, where no permissive voice " +
+                    "exists. Not used: those three ship recognise-only instead, so nothing " +
                     "non-commercial is in this build",
                 shipped = false,
             ),

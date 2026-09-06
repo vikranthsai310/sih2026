@@ -361,7 +361,20 @@
         "bytes": 262144,
         "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       },
-      "tts": null,
+      "tts": {
+        "family": "VITS (Mimic 3), trained on CMU Indic",
+        "licence": "CMU/Festvox permissive (BSD-style)",
+        "source": "https://huggingface.co/csukuangfj/vits-mimic3-gu_IN-cmu-indic_low",
+        "baseUrl": "https://huggingface.co/csukuangfj/vits-mimic3-gu_IN-cmu-indic_low/resolve/main",
+        "files": [
+          "gu_IN-cmu-indic_low.onnx",
+          "tokens.txt"
+        ],
+        "bytes": 76334560,
+        "sha256": "172d7a76b3af77e6bc58667e7afc4f323640ddd2e5ac409f93af58a7e20070dc",
+        "sampleRate": 22050,
+        "note": "Not a Piper voice. Piper has no Gujarati at all -- the rhasspy/piper-voices tree carries no gu directory -- but sherpa-onnx publishes this Mimic 3 VITS voice trained on CMU Indic, whose licence grants use 'for any purpose ... without fee'. It ships its own tokens.txt rather than a Piper config.json with a phoneme_id_map, so the on-handset config-to-tokens conversion is skipped for this one and the table is installed as it comes."
+      },
       "rules": {
         "files": [
           "normalise.gu.json"

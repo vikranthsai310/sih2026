@@ -1,6 +1,6 @@
 {
   "indexVersion": 1,
-  "note": "Downloaded by the operator's browser, imported and verified by the application. Nothing here is fetched by the application itself: it contains no HTTP client and opens no outbound connection, per constraint C2.",
+  "note": "Downloaded by the operator's browser, imported and verified by the application. Nothing here is fetched by the application itself: it contains no HTTP client and opens no outbound network connection, per constraint C2.",
   "items": [
     {
       "sha256": "915c71e04dd7e5378a4057fdebb252b3a587188e4e99db6d7ce0909ad5ad05fa",
@@ -287,6 +287,24 @@
       "install": "tts/en/config.json",
       "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx.json",
       "language": "en",
+      "kind": "voice tokens",
+      "bundled": true
+    },
+    {
+      "sha256": "172d7a76b3af77e6bc58667e7afc4f323640ddd2e5ac409f93af58a7e20070dc",
+      "bytes": 76334560,
+      "install": "tts/gu/model.onnx",
+      "url": "https://huggingface.co/csukuangfj/vits-mimic3-gu_IN-cmu-indic_low/resolve/main/gu_IN-cmu-indic_low.onnx?download=true",
+      "language": "gu",
+      "kind": "voice",
+      "bundled": false
+    },
+    {
+      "sha256": "5854caefdb6a96161d7a452eebb7015cb3f30cfd2e3e471780729175b5c55fd2",
+      "bytes": 281,
+      "install": "tts/gu/tokens.txt",
+      "url": "https://huggingface.co/csukuangfj/vits-mimic3-gu_IN-cmu-indic_low/resolve/main/tokens.txt",
+      "language": "gu",
       "kind": "voice tokens",
       "bundled": true
     }

@@ -157,13 +157,7 @@ fun ItantraApp(
             Destination.METRICS -> MetricsScreen(traces = state.traces, onExportCsv = { })
 
             Destination.MODE ->
-                ModeAndTransportScreen(
-                    pushToTalk = true,
-                    onModeChange = { },
-                    transport = state.operating.transportName,
-                    transports = state.transports,
-                    onTransportChange = { },
-                )
+                ModeAndTransportScreen(transports = state.transports)
 
             Destination.STORAGE ->
                 StorageScreen(

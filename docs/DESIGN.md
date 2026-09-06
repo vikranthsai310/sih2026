@@ -754,7 +754,7 @@ Used on the LANGUAGE screen. Taller, and carries availability.
 | Non-commercial voice | as above | as above | `CC-BY-NC` chip, Blush S |
 
 The last two are not decoration. `canSpeak` and `recognition` fail **independently** — a
-language can be understood but not spoken back, and four of the ten currently are. The row
+language can be understood but not spoken back, and three of the ten currently are. The row
 must say which.
 
 ---
@@ -2713,7 +2713,7 @@ usable by someone who cannot read the others.
 Families: Lilac (the list), Butter (text-only), Blush (non-commercial).
 
 **`canSpeak` and `recognition` fail independently.** A language can be understood but not
-spoken back, and four of the ten currently are. `Text only` is not a warning about quality —
+spoken back, and three of the ten currently are. `Text only` is not a warning about quality —
 it is a statement that messages in that language arrive as text and nothing is said aloud.
 The row must carry it.
 

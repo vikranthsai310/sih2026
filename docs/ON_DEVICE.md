@@ -31,13 +31,15 @@ runs into:
   packs are ~198 MB per language and are not in the installer — constraint N2 caps it at
   30 MB. See §2 and the in-app pack importer. A judge's phone straight from the Play-less
   APK will show the UI and hear nothing until a pack is imported.
-- **Four of the ten languages have no voice.** Tamil, Gujarati, Kannada and Odia carry
-  `"tts": null` in `models/manifest.json`: no permissively licensed Piper voice exists for
-  them, and Meta MMS was refused because it is CC-BY-NC. Those four **recognise and
-  display** but do not speak free-form text. A *template-coded* message still reaches them
-  in their own language, because the table is held in all ten. This is the largest genuine
-  requirement gap in the project and it is named in [MODELS.md](MODELS.md) and
-  [DEMO.md](DEMO.md) rather than left to be discovered.
+- **Three of the ten languages have no voice.** Tamil, Kannada and Odia carry
+  `"tts": null` in `models/manifest.json`: no permissively licensed voice exists for them in
+  any family sherpa-onnx packages, and Meta MMS was refused because it is CC-BY-NC. Those
+  three **recognise and display** but do not speak free-form text. A *template-coded*
+  message still reaches them in their own language, because the table is held in all ten.
+  This is the largest genuine requirement gap in the project and it is named in
+  [MODELS.md](MODELS.md) and [DEMO.md](DEMO.md) rather than left to be discovered.
+  Gujarati was in this set until 2026-09-06, when a Mimic 3 CMU Indic voice was found for
+  it under a permissive licence — seven of ten now speak.
 - **The hashes in `models/manifest.json` are still all-zero placeholders.** The importer
   verifies against `models/install-index.json`, which carries real SHA-256 values; the
   `manifest.json` block is schema, not verification. It reads badly next to a claim about

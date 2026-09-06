@@ -15,7 +15,13 @@
          opens an outbound network connection. WifiBroadcastLinkTest asserts the first two; the
          third is a grep over src/main that returns nothing, recorded as audit item 3 in
          docs/SECURITY.md. A demonstration in aeroplane mode with the hotspot on shows the
-         property itself rather than a proxy for it. Thirteen permissions in total. -->
+         property itself rather than a proxy for it.
+
+         Thirteen android.permission.* entries are declared below. `aapt2 dump permissions`
+         prints fourteen lines: AndroidX adds a signature-level
+         org.itantra.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION of its own, which is not a
+         platform permission and which no other application can hold. Say fourteen if
+         somebody counts the dump, and thirteen if they count this file. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Wi-Fi power save drops broadcast frames before they reach a socket. Without this
          the channel transmits perfectly and never receives. Not a runtime permission. -->

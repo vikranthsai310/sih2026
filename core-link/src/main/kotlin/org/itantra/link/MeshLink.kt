@@ -91,6 +91,17 @@ class MeshLink(
     val peerNames: List<String> get() = peers.keys.toList()
 
     /**
+     * Every peer's own state, by the id it was added under.
+     *
+     * [state] collapses the mesh to one value on purpose — an operator does not want to
+     * read a table mid-incident. The settings screen does want the table, because "which
+     * road is actually carrying this" is the question it exists to answer, and because a
+     * channel listed with no state is the kind of control that looks alive and is not.
+     */
+    val peerStates: Map<String, LinkState>
+        get() = peers.mapValues { (_, peer) -> peer.link.state.value }
+
+    /**
      * Adds a peer and starts reading from it.
      *
      * @param id a stable name for this peer, so re-adding the same one replaces rather

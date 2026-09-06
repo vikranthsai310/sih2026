@@ -67,7 +67,7 @@ class LanguageSwitch(private val manifest: Manifest) {
      * Whether the interface should offer [lang] at all.
      *
      * A language with no voice can still be selected: it recognises and it displays,
-     * it just cannot speak. Four of the ten are in that position, so hiding them would
+     * it just cannot speak. Three of the ten are in that position, so hiding them would
      * remove most of the country.
      */
     fun isOffered(lang: String): Boolean = manifest.pack(lang) != null

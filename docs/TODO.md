@@ -60,7 +60,8 @@ controls that were written down rather than enforced. What remains needs two han
 model, and a room.
 
 **The sherpa-onnx AAR is fetched and the whole native stack now builds.** The debug APK is
-43.2 MB and the **release APK 26.3 MiB** — arm64-only, minified, resources shrunk, and with
+43.2 MB and the **release APK 27.1 MiB** (26.3 MiB before the Gujarati voice work and the
+Wi-Fi transport; re-measured 2026-09-06) — arm64-only, minified, resources shrunk, and with
 no models in it. `aapt2` confirms it carries no location permission. It now carries
 `INTERNET`, added 2026-09-06 because Android requires it to open the Wi-Fi broadcast
 transport's UDP socket; constraint C2 is verified by inspection instead — see W1.15. It was
@@ -637,7 +638,7 @@ parallel with week 1.**
     covers six of our ten: en, hi, bn, mr, te, ml*
   · *Risk **T-05 re-escalated to High and re-opened**. Meta MMS and its CC-BY-NC disclosure
     cannot be dropped — and would now apply to four languages, not one. `LICENSES.md`
-    records a third option honestly: ship those four recognise-only, which is a smaller
+    records a third option honestly: ship those recognise-only, which is a smaller
     loss than it sounds and much smaller than an undisclosed non-commercial dependency*
 - [~] **W4.13** — `alert-lexicon.txt` per language: ~300 domain terms
   · *`BiasingLexicon` plus `models/lexicon/alert-lexicon.hi.txt` — ~130 Hindi terms across
@@ -1237,7 +1238,8 @@ parallel with week 1.**
   · **Blocked:** *a handset and eight hours. Same measurement as W7.16*
 - [x] **W8.7** — APK: `arm64-v8a` split, App Bundle · **Done when** installer < 30 MB with
   two languages resident
-  · ***26.3 MiB**, from 30.9. The sherpa-onnx AAR ships four native libraries and this
+  · ***27.1 MiB**, from 30.9; it was 26.3 MiB at the week-8 measurement. The sherpa-onnx
+    AAR ships four native libraries and this
     application loads two: the dynamic string table of `libsherpa-onnx-jni.so` names
     `libonnxruntime.so` and the system libraries and nothing else. The C API library is a
     standalone entry point for native consumers and the C++ one wraps it; excluding both
@@ -1323,7 +1325,7 @@ parallel with week 1.**
     licensed voice — and the two mitigations that are already built*
 
 - [ ] **W8.G** — **GATE:** three clean rehearsals; three CSVs; APK under 30 MB
-  · *One of three met: the APK is 26.3 MiB. The CSVs have their writer, their conditions
+  · *One of three met: the APK is 27.1 MiB. The CSVs have their writer, their conditions
     and their preamble but no rows, and the rehearsals need two handsets and a model. Every
     task in this week that does not need hardware or a person is closed*
 

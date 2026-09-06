@@ -40,8 +40,36 @@ which. Both are AI4Bharat's IndicConformer underneath, both permissively license
 
 **Voices, checked rather than assumed.** Piper publishes voices for Hindi, Marathi,
 Malayalam, Telugu, Bengali and English, and none for **Tamil, Gujarati, Kannada or Odia** —
-verified against `rhasspy/piper-voices` `voices.json`, and exactly what `LICENSES.md`
-section 6 already recorded.
+verified against the `rhasspy/piper-voices` repository tree, which has no `ta`, `gu`, `kn`
+or `or` directory at all.
+
+**Piper is not the only permissive family, and Gujarati proves it.** Re-checked 2026-09-06
+across every family sherpa-onnx packages — 642 published artefacts spanning VITS, Piper,
+Mimic 3, Coqui, Matcha and Kokoro. Exactly one covers a language Piper misses: a **Mimic 3
+VITS voice for Gujarati**, trained on **CMU Indic**, whose licence grants permission "to
+use, copy, modify, and license this software and its documentation for any purpose ...
+without fee". That is permissive and commercially usable, so Gujarati speaks and the count
+is **seven of ten**, not six.
+
+It is not shaped like a Piper voice. A Piper voice is a `.onnx` plus a `.onnx.json` holding
+a `phoneme_id_map`, which the handset converts into sherpa's `tokens.txt` on import; this
+one's `.onnx.json` is a *training* config with no such map, and the conversion would fail.
+sherpa-onnx publishes a ready-made `tokens.txt` beside it, so that is installed verbatim —
+`tools/build_install_index.py` emits it under `tts/gu/tokens.txt` rather than
+`config.json`, which is precisely what the importer keys the conversion on. Two properties
+were checked before it was adopted: the ONNX metadata carries `sample_rate` (22 050), which
+`ModelStore.isLoadableVoice` requires and without which sherpa calls `exit(-1)`; and
+`gu_dict` is in the pruned `espeak-ng-data.zip`, which it needs because the model declares
+`has_espeak`.
+
+**Tamil, Kannada and Odia remain silent, and this was searched properly.** Nothing in any
+family sherpa-onnx packages covers them. The two Apache-2.0 models that *do* — AI4Bharat's
+`indic-parler-tts` (880M parameters) and `kenpath/svara-tts-v1` (3B, Llama-3.2-based) —
+have no ONNX export and would not fit an entry-tier 4 GB handset if they did. espeak-ng can
+speak all three and is already statically linked into `libsherpa-onnx-jni.so`, but it is
+linked as a *phonemiser*: no `espeak_Synth` or any other espeak entry point is exported
+from the shipped library, so it cannot be called without rebuilding sherpa-onnx from
+source. Risk T-05 stays open for three languages instead of four.
 
 **What is not used.** Android's `SpeechRecognizer`. It works, it is offline, and
 `REQUIREMENTS.md` constraint **C1** rules it out by name: on this handset it is served by
@@ -150,10 +178,13 @@ consequence of the correction in section 1, and getting it the other way round w
 manifest rather than in code, because a threshold that is right for Hindi is not right for
 Odia (task W4.16).
 
-**`"tts": null` is a valid and expected value.** Four languages — Tamil, Gujarati, Kannada
-and Odia — have no published Piper voice, verified against the repository tree on
-2026-09-04. Such a pack is still offered: it recognises and it displays, it simply cannot
-speak. Risk T-05.
+**`"tts": null` is a valid and expected value.** Three languages — Tamil, Kannada and Odia
+— have no permissively licensed voice in any family, re-verified 2026-09-06. Such a pack is
+still offered: it recognises and it displays, it simply cannot speak. Risk T-05.
+
+Gujarati carried `"tts": null` until 2026-09-06 and no longer does. Its block names a
+family other than Piper, which is why nothing may assume `tts.family == "Piper"` —
+`ManifestTest` asserts exactly that.
 
 Every hash is validated on parse: 64 lowercase hexadecimal characters, or the manifest is
 refused. A placeholder that fails at install time instead looks like a corrupt download

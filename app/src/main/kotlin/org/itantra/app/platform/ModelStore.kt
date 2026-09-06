@@ -122,10 +122,10 @@ class ModelStore(context: Context) {
     /**
      * Whether a message arriving in this language can be spoken aloud.
      *
-     * Four of the ten have no permissively licensed voice — Tamil, Gujarati, Kannada and
-     * Odia — so this is false for them by design rather than by omission, and
-     * `LICENSES.md` section 6 records the decision to ship those recognise-only rather than
-     * take a non-commercial model.
+     * Three of the ten have no permissively licensed voice — Tamil, Kannada and Odia — so
+     * this is false for them by design rather than by omission, and `LICENSES.md` section 6
+     * records the decision to ship those recognise-only rather than take a non-commercial
+     * model. Gujarati left that set on 2026-09-06; its voice is Mimic 3, not Piper.
      */
     fun hasVoice(languageCode: String): Boolean =
         voiceFor(languageCode).let {

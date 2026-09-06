@@ -38,7 +38,8 @@ iTantra is released under **Apache-2.0**, subject to the copyleft note in §6.
 
 | Component | Licence | Role |
 | --- | --- | --- |
-| rhasspy / piper and piper-voices | MIT | Primary synthesis voices; already ONNX |
+| rhasspy / piper and piper-voices | MIT | Primary synthesis voices, six of the ten languages; already ONNX |
+| MycroftAI / mimic3-voices (`gu_IN-cmu-indic_low`) | CMU/Festvox permissive | The **Gujarati** voice, which Piper does not have. Trained on CMU Indic; use, copy, modify and license granted "for any purpose ... without fee". Fetched at setup, packaged by sherpa-onnx |
 | **espeak-ng** | **GPL-3.0** ⚠ | Phonemisation. **Copyleft** — see §6 |
 | idiap / coqui-ai-TTS | MPL-2.0 | Training path for languages without an adequate voice |
 | AI4Bharat Indic-TTS | Permissive | Higher-naturalness Indic voices |
@@ -127,21 +128,23 @@ conclusion about the whole submission; a team that discloses one draws a differe
 
 - **Used for:** gap-filling only, where no permissively licensed model exists for a
   language. **Verified 2026-09-04:** Piper has no voice for **Tamil, Gujarati, Kannada or
-  Odia**, so this applies to four languages rather than the one previously assumed.
+  Odia**. **Narrowed 2026-09-06:** Piper is not the only permissive family — a Mimic 3 CMU
+  Indic voice covers Gujarati — so this would apply to **three** languages, not four.
 - **Consequence:** **non-commercial**. Any language pack containing an MMS model is marked
   non-commercial in `models/manifest.json`, the application displays that marking, and the
   pack is **excluded from any deployability claim**.
 - **Preferred resolution:** train Coqui VITS voices (MPL-2.0) on the AI4Bharat IndicTTS
-  data for those four languages and drop MMS entirely. At roughly two GPU-days each that
-  is a real commitment, which is why the third option below is stated rather than hidden.
-- **The honest third option:** ship those four languages **recognise-only**. A pack with
+  data for the remaining three languages and drop MMS entirely. At roughly two GPU-days
+  each that is a real commitment, which is why the third option below is stated rather
+  than hidden.
+- **The honest third option:** ship those three languages **recognise-only**. A pack with
   no voice is declared `"tts": null` in the manifest and the language is still offered —
   it recognises, it transmits, and a receiving handset in a language that *does* have a
   voice speaks it aloud through the template path. That is a smaller loss than it sounds
   and a much smaller one than shipping a non-commercial dependency without saying so.
 
-**Decided: the third option, and MMS is not a dependency.** `models/manifest.json` already
-declares `"tts": null` for `ta`, `gu`, `kn` and `or`; no pack references an MMS model and no
+**Decided: the third option, and MMS is not a dependency.** `models/manifest.json`
+declares `"tts": null` for `ta`, `kn` and `or`; no pack references an MMS model and no
 MMS file is fetched, so **nothing non-commercial is in any build of this project**. The
 application's licence screen lists MMS under *considered, not used*, with that reason, and
 does not colour it as a restriction — because it is not one. It stays listed rather than

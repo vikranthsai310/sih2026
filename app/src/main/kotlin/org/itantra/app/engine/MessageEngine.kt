@@ -816,6 +816,70 @@ class MessageEngine(
         return if (mesh.state.value == LinkState.CONNECTED) null else EngineState.Degraded.Reason.LINK_DOWN
     }
 
+    /**
+     * What each road is doing right now, for the settings screen.
+     *
+     * All three run at once and always have: [MeshLink] sends every frame down every peer
+     * and the replay window discards the duplicate, so there is nothing here to choose
+     * between. The screen used to present these as a *choice* with one entry and an empty
+     * click handler — it named RFCOMM, omitted the two channels that need no pairing, and
+     * did nothing when pressed. On demonstration day the two it omitted are the ones that
+     * work, which is the reason `docs/TRANSPORT.md` section 8 gives for building them.
+     *
+     * RFCOMM is reported as a count rather than a state because it is one peer per bonded
+     * handset: it is not "connected" or not, it is connected to some number of the units
+     * in the room.
+     */
+    fun channels(): List<ChannelStatus> {
+        val states = mesh.peerStates
+        val bonded = states.keys.filter { it != BROADCAST_PEER && it != WIFI_PEER }
+        val bondedUp = bonded.count { states[it] == LinkState.CONNECTED }
+        return listOf(
+            ChannelStatus(
+                id = BROADCAST_PEER,
+                name = "Bluetooth LE broadcast",
+                detail = "No pairing. Every unit with the app open is on it",
+                state = states[BROADCAST_PEER],
+            ),
+            ChannelStatus(
+                id = WIFI_PEER,
+                name = "Wi-Fi broadcast",
+                detail = "One handset's hotspot is enough. No data plan, no router",
+                state = states[WIFI_PEER],
+            ),
+            ChannelStatus(
+                id = RFCOMM_CHANNEL,
+                name = "Bluetooth Classic (RFCOMM)",
+                detail =
+                    if (bonded.isEmpty()) {
+                        "Bonded handsets only. None bonded yet"
+                    } else {
+                        "Bonded handsets only. $bondedUp of ${bonded.size} connected"
+                    },
+                state =
+                    when {
+                        bonded.isEmpty() -> null
+                        bondedUp > 0 -> LinkState.CONNECTED
+                        else -> LinkState.DEGRADED
+                    },
+            ),
+        )
+    }
+
+    /**
+     * One road's live state.
+     *
+     * [state] is null when the channel is not running at all — no Wi-Fi context, or no
+     * handset bonded — which is a different thing from running and not reaching anyone,
+     * and the screen says so differently.
+     */
+    data class ChannelStatus(
+        val id: String,
+        val name: String,
+        val detail: String,
+        val state: LinkState?,
+    )
+
     companion object {
         const val MAX_ON_SCREEN = 20
 
@@ -849,6 +913,12 @@ class MessageEngine(
 
         /** The Wi-Fi channel's entry in the mesh. There is exactly one. */
         const val WIFI_PEER = "wifi-broadcast"
+
+        /**
+         * RFCOMM's id on the settings screen only. It is not a mesh peer id: RFCOMM adds
+         * one peer per bonded handset, keyed by Bluetooth address.
+         */
+        const val RFCOMM_CHANNEL = "rfcomm"
 
         /** How long a unit stays counted after its last transmission. */
         const val PEER_MEMORY_MILLIS = 60_000L

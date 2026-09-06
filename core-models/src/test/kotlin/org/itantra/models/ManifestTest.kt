@@ -189,9 +189,10 @@ class ManifestTest {
     // ── a language with no voice ─────────────────────────────────────────────
 
     /**
-     * Four of the ten languages have no Piper voice — Tamil, Gujarati, Kannada and
-     * Odia. The manifest must be able to say so rather than pretending otherwise, and
-     * such a pack is still useful: it recognises and it displays, it just cannot speak.
+     * Three of the ten languages have no voice in any permissively licensed family —
+     * Tamil, Kannada and Odia. The manifest must be able to say so rather than pretending
+     * otherwise, and such a pack is still useful: it recognises and it displays, it just
+     * cannot speak.
      */
     @Test
     fun `a pack with no voice parses and reports that it cannot speak`() {
@@ -250,14 +251,30 @@ class ShippedManifestTest {
     }
 
     /**
-     * Verified 2026-09-04 against the rhasspy/piper-voices repository tree: it holds no
-     * Tamil, Gujarati, Kannada or Odia directory. The manifest must record that rather
-     * than name voices that cannot be downloaded — risk T-05.
+     * Verified 2026-09-04 against the `rhasspy/piper-voices` tree: it holds no Tamil,
+     * Gujarati, Kannada or Odia directory. **Narrowed 2026-09-06:** Piper is not the only
+     * permissively licensed family. sherpa-onnx also publishes a Mimic 3 VITS voice for
+     * Gujarati, trained on CMU Indic, whose licence grants use "for any purpose ...
+     * without fee" — so Gujarati speaks and the silent set is three, not four.
+     *
+     * Tamil, Kannada and Odia were searched for across every family sherpa-onnx packages
+     * (VITS, Piper, Mimic 3, Coqui, Matcha, Kokoro — 642 published artefacts) and none
+     * exists. The manifest must record that rather than name voices that cannot be
+     * downloaded — risk T-05.
      */
     @Test
-    fun `the four languages with no Piper voice declare none`() {
+    fun `the three languages with no permissive voice declare none`() {
         val silent = load().packs.filter { !it.canSpeak }.map { it.lang }.toSet()
-        assertEquals(setOf("ta", "gu", "kn", "or"), silent)
+        assertEquals(setOf("ta", "kn", "or"), silent)
+    }
+
+    /** Gujarati is not a Piper voice, so nothing may assume every voice is one. */
+    @Test
+    fun `Gujarati declares a voice from outside the Piper family`() {
+        val voice = load().pack("gu")?.tts
+        assertNotNull("Gujarati must declare a voice", voice)
+        assertTrue("Gujarati voice must not claim to be Piper", !voice!!.family.contains("Piper"))
+        assertTrue("Gujarati voice must name its licence", voice.licence.isNotBlank())
     }
 
     @Test

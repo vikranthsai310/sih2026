@@ -23,7 +23,16 @@ truncated download instead of installing silence.
 The hashes come from Hugging Face's own Git-LFS object ids where the file is stored in
 LFS, and from the bytes themselves where it is small enough to be stored inline.
 
-    python tools/build_install_index.py
+**This is stage 1 of two, and the index is not shippable after it.** Stage 2 bundles every
+artefact at or under 512 kB into the installer -- Hugging Face serves those inline and a
+browser displays them rather than saving them, so an operator cannot download one -- and
+appends ``?download=true`` to the large binaries, which is what makes a browser save those.
+Running this tool alone silently drops both, and ``check_install_index.py`` exists to catch
+exactly that:
+
+    python tools/build_install_index.py       # 1. hashes and addresses  <- you are here
+    python tools/build_small_artefacts.py     # 2. bundling and ?download=true
+    python tools/check_install_index.py       # 3. refuses a half-built index
 """
 from __future__ import annotations
 
@@ -31,6 +40,7 @@ import hashlib
 import io
 import json
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -43,8 +53,10 @@ OUT = ROOT / "models" / "install-index.json"
 PIPER = "https://huggingface.co/rhasspy/piper-voices/resolve/main"
 PIPER_API = "https://huggingface.co/api/models/rhasspy/piper-voices/tree/main"
 
-# The six languages with a permissively licensed voice. Tamil, Gujarati, Kannada and Odia
-# have none -- LICENSES.md section 6 -- and ship recognise-only.
+# The Piper voices. Piper has no Gujarati at all -- `rhasspy/piper-voices` carries no `gu`
+# directory -- so Gujarati comes from a different family entirely, below. Tamil, Kannada and
+# Odia have no permissively licensed voice in any family and ship recognise-only:
+# LICENSES.md section 6 records what was looked at and refused.
 VOICES = {
     "hi": "hi/hi_IN/pratham/medium/hi_IN-pratham-medium",
     "bn": "bn/bn_BD/google/medium/bn_BD-google-medium",
@@ -55,9 +67,59 @@ VOICES = {
 }
 
 
+# Voices that are not Piper, and therefore not shaped like one.
+#
+# A Piper voice is a `.onnx` plus a `.onnx.json` carrying a `phoneme_id_map`, which the
+# handset turns into sherpa's `tokens.txt` on import. This one is a Mimic 3 VITS voice: its
+# `.onnx.json` is a *training* config with no `phoneme_id_map` in it, and the conversion
+# would fail. sherpa-onnx publishes a ready-made `tokens.txt` beside the model, so that is
+# installed as it comes and no conversion is attempted -- `install` ends in `tokens.txt`
+# rather than `config.json`, which is exactly what the importer keys on.
+OTHER_VOICES = {
+    "gu": {
+        "base": (
+            "https://huggingface.co/csukuangfj/"
+            "vits-mimic3-gu_IN-cmu-indic_low/resolve/main"
+        ),
+        "model": "gu_IN-cmu-indic_low.onnx",
+        "tokens": "tokens.txt",
+    },
+}
+
+
 def fetch(url: str) -> bytes:
     with urllib.request.urlopen(url, timeout=120) as response:
         return response.read()
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Stops at the CDN redirect, because the headers we want are on the first response."""
+
+    def redirect_request(self, *_args, **_kwargs):  # noqa: D102
+        return None
+
+
+def lfs_pointer(url: str) -> dict | None:
+    """@return {sha256, bytes} for one Git-LFS file, from the headers Hugging Face sets.
+
+    ``X-Linked-ETag`` is the object's sha256 and ``X-Linked-Size`` its true length; the
+    response body at this URL is a redirect to a CDN, so nothing is downloaded to learn
+    them. This works for any repository, which ``lfs_index`` -- pinned to the Piper tree
+    API -- does not.
+    """
+    request = urllib.request.Request(url, headers={"User-Agent": "itantra"}, method="HEAD")
+    opener = urllib.request.build_opener(_NoRedirect)
+    try:
+        headers = dict(opener.open(request, timeout=120).headers)
+    except urllib.error.HTTPError as error:
+        headers = dict(error.headers)
+    except Exception:  # noqa: BLE001 - a missing voice is reported by the caller, not fatal
+        return None
+    etag = (headers.get("X-Linked-ETag") or "").strip('"')
+    size = headers.get("X-Linked-Size")
+    if not etag or not size:
+        return None
+    return {"sha256": etag, "bytes": int(size)}
 
 
 def lfs_index(path: str) -> dict[str, dict]:
@@ -133,6 +195,36 @@ def main() -> int:
             }
         )
 
+    # ── voices that are not Piper ────────────────────────────────────────────
+    for language, voice in OTHER_VOICES.items():
+        model_url = f"{voice['base']}/{voice['model']}"
+        blob = lfs_pointer(model_url)
+        if blob is None:
+            print(f"   {language}: could not read an LFS id for {voice['model']}")
+        else:
+            items.append(
+                {
+                    "sha256": blob["sha256"],
+                    "bytes": blob["bytes"],
+                    "install": f"tts/{language}/model.onnx",
+                    "url": model_url,
+                    "language": language,
+                    "kind": "voice",
+                }
+            )
+        # Small, stored inline, and installed verbatim -- see OTHER_VOICES.
+        table = fetch(f"{voice['base']}/{voice['tokens']}")
+        items.append(
+            {
+                "sha256": hashlib.sha256(table).hexdigest(),
+                "bytes": len(table),
+                "install": f"tts/{language}/tokens.txt",
+                "url": f"{voice['base']}/{voice['tokens']}",
+                "language": language,
+                "kind": "voice tokens",
+            }
+        )
+
     index = {
         "indexVersion": 1,
         "note": (
@@ -153,6 +245,10 @@ def main() -> int:
     print(f"wrote {OUT.relative_to(ROOT)}: {len(items)} artefacts")
     for kind, count in sorted(kinds.items()):
         print(f"   {count:2d} {kind}")
+    print(
+        "\nthis index is HALF-BUILT: no artefact is bundled and no URL carries "
+        "?download=true.\nrun next:  python tools/build_small_artefacts.py"
+    )
     missing = [i["install"] for i in items if not i["sha256"]]
     if missing:
         print("::error::no hash for:", ", ".join(missing))

@@ -215,7 +215,7 @@ def main() -> int:
         if pack["tts"]:
             problems += install(pack["tts"], args.base_url, into / "voices", args.verify_only)
         else:
-            # Not a failure. Four of the ten languages have no permissively licensed voice
+            # Not a failure. Three of the ten languages have no permissively licensed voice
             # and the pack recognises and displays without speaking -- LICENSES.md.
             print("   no voice: this pack recognises and displays but does not speak")
 

@@ -26,12 +26,17 @@ import java.util.concurrent.atomic.AtomicBoolean
  * voice loaded here is **this** unit's language. A Hindi operator hears Hindi whatever the
  * sender spoke, which is the cross-language claim finishing in sound rather than in text.
  *
- * ## Six of ten
+ * ## Seven of ten
  *
- * There is no permissively licensed voice for Tamil, Gujarati, Kannada or Odia.
- * `LICENSES.md` section 6 chose to ship those recognise-only rather than take Meta MMS
- * under a non-commercial licence. Those languages transmit and display; they do not speak,
- * and [canSpeak] says so rather than failing at the moment of an alert.
+ * There is no permissively licensed voice for Tamil, Kannada or Odia, in any family
+ * sherpa-onnx packages. `LICENSES.md` section 6 chose to ship those recognise-only rather
+ * than take Meta MMS under a non-commercial licence. Those three transmit and display;
+ * they do not speak, and [canSpeak] says so rather than failing at the moment of an alert.
+ *
+ * Gujarati was in that set until 2026-09-06 and is not any more: Piper has no Gujarati,
+ * but sherpa-onnx publishes a Mimic 3 VITS voice trained on CMU Indic under a licence that
+ * grants use "for any purpose ... without fee". It is not a Piper voice and does not carry
+ * a Piper `config.json`, so its `tokens.txt` is installed as it comes.
  */
 class Speaker(
     private val store: ModelStore,

@@ -114,12 +114,15 @@ class LanguageSwitchTest {
     }
 
     /**
-     * Four languages have no Piper voice. They are still offered: they recognise and
-     * display, they just cannot speak. Hiding them would remove most of the country.
+     * Three languages have no permissively licensed voice in any family. They are still
+     * offered: they recognise and display, they just cannot speak. Hiding them would
+     * remove most of the country.
+     *
+     * Gujarati left this set on 2026-09-06, when the Mimic 3 CMU Indic voice was added.
      */
     @Test
     fun `languages with no voice are still offered, and named`() {
-        assertEquals(setOf("ta", "gu", "kn", "or"), switch.silentLanguages().toSet())
+        assertEquals(setOf("ta", "kn", "or"), switch.silentLanguages().toSet())
         for (lang in switch.silentLanguages()) {
             assertTrue(switch.isOffered(lang))
         }

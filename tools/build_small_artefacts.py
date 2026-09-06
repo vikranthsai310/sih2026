@@ -32,6 +32,17 @@ ROOT = Path(__file__).resolve().parent.parent
 INDEX = ROOT / "models" / "install-index.json"
 OUT = ROOT / "app" / "src" / "main" / "assets" / "small-artefacts.zip"
 
+# The application reads its index from `assets/`, not from `models/`. Keeping the two in
+# step by hand is a trap: `models/install-index.json` is what the tools regenerate, and a
+# build that forgets to copy it ships an index describing artefacts the APK does not have.
+# So stage 2 writes both, and `check_install_index.py` refuses a build where they differ.
+ASSET_INDEX = ROOT / "app" / "src" / "main" / "assets" / "install-index.json"
+
+# A zip stores each entry's modification time, so rebuilding an unchanged archive produces
+# different bytes and a spurious diff. Every entry is stamped with the same fixed date, and
+# the archive becomes reproducible: same inputs, same bytes.
+FIXED_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
+
 # Anything at or below this is bundled rather than downloaded. The largest is the shared
 # Indic token table at 66 kB; the smallest is Odia's at under three.
 BUNDLE_UNDER_BYTES = 512 * 1024
@@ -60,7 +71,10 @@ def main() -> int:
                 continue
             seen.add(item["install"])
             blob = fetch(item["url"])
-            archive.writestr(item["install"], blob)
+            entry = zipfile.ZipInfo(item["install"], date_time=FIXED_TIMESTAMP)
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            entry.external_attr = 0o644 << 16
+            archive.writestr(entry, blob)
             print(f"   bundled {item['install']} ({len(blob)} B)")
 
     # ?download=true is what makes a browser save the big ones rather than try to render
@@ -72,12 +86,14 @@ def main() -> int:
     for item in bundled:
         item["bundled"] = True
 
-    io.open(INDEX, "w", encoding="utf-8", newline="\n").write(
-        json.dumps(index, indent=2, ensure_ascii=False) + "\n"
-    )
+    rendered = json.dumps(index, indent=2, ensure_ascii=False) + "\n"
+    io.open(INDEX, "w", encoding="utf-8", newline="\n").write(rendered)
+    ASSET_INDEX.parent.mkdir(parents=True, exist_ok=True)
+    io.open(ASSET_INDEX, "w", encoding="utf-8", newline="\n").write(rendered)
 
     print(f"\nwrote {OUT.name}: {len(bundled)} artefacts, {OUT.stat().st_size / 1024:.0f} kB")
     print(f"left {len(downloadable)} to download, each marked ?download=true")
+    print(f"wrote {INDEX.relative_to(ROOT)} and {ASSET_INDEX.relative_to(ROOT)}")
     return 0
 
 
