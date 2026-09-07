@@ -154,4 +154,20 @@ class OutboxTest {
         assertTrue("a drained frame must not come back after a restart", store.saved.isEmpty())
         assertTrue(Outbox(store = store).isEmpty)
     }
+
+    /** Urgency is part of the entry, so an alert held through an outage stays an alert. */
+    @Test
+    fun `an entry remembers whether it was urgent`() {
+        val outbox = Outbox()
+        outbox.offer(byteArrayOf(1), nowMillis = 0, urgent = true)
+        outbox.offer(byteArrayOf(2), nowMillis = 1)
+        assertEquals(listOf(true, false), outbox.drain(nowMillis = 2).map { it.urgent })
+    }
+
+    @Test
+    fun `urgency survives the store`() {
+        val store = MemoryStore()
+        Outbox(store = store).offer(byteArrayOf(1), nowMillis = 0, urgent = true)
+        assertTrue(Outbox(store = store).peek().single().urgent)
+    }
 }

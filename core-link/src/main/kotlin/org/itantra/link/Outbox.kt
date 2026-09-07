@@ -42,13 +42,29 @@ class Outbox(
         fun persist(entries: List<Entry>)
     }
 
-    data class Entry(val wire: ByteArray, val queuedAtMillis: Long) {
+    /**
+     * @param urgent whether the frame was an alert when it was queued. An alert held
+     *   through an outage must still go down every road when the outage ends, and the
+     *   wire bytes alone cannot say so — see [Link.send].
+     */
+    data class Entry(
+        val wire: ByteArray,
+        val queuedAtMillis: Long,
+        val urgent: Boolean = false,
+    ) {
         // A ByteArray in a data class compares by identity, which would make two entries
         // holding the same frame unequal and any test of the contents meaningless.
         override fun equals(other: Any?): Boolean =
-            other is Entry && queuedAtMillis == other.queuedAtMillis && wire.contentEquals(other.wire)
+            other is Entry &&
+                queuedAtMillis == other.queuedAtMillis &&
+                urgent == other.urgent &&
+                wire.contentEquals(other.wire)
 
-        override fun hashCode(): Int = 31 * wire.contentHashCode() + queuedAtMillis.hashCode()
+        override fun hashCode(): Int {
+            var result = wire.contentHashCode()
+            result = 31 * result + queuedAtMillis.hashCode()
+            return 31 * result + urgent.hashCode()
+        }
     }
 
     private val queue = ArrayDeque<Entry>()
@@ -79,6 +95,7 @@ class Outbox(
     fun offer(
         wire: ByteArray,
         nowMillis: Long,
+        urgent: Boolean = false,
     ): Boolean {
         purgeExpired(nowMillis)
         var droppedAny = false
@@ -87,7 +104,7 @@ class Outbox(
             droppedOldest++
             droppedAny = true
         }
-        queue.addLast(Entry(wire.copyOf(), nowMillis))
+        queue.addLast(Entry(wire.copyOf(), nowMillis, urgent))
         store?.persist(queue.toList())
         return !droppedAny
     }

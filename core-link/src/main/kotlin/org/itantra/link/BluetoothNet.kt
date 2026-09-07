@@ -207,7 +207,8 @@ class BluetoothNet(
 
             val link = RfcommLink(socket, scope, name = "bluetooth")
             roster[id] = Peer(link, inbound)
-            mesh.addPeer(id, link)
+            // One peer per bonded handset, all of them one road for the operator's switch.
+            mesh.addPeer(id, link, road = Road.RFCOMM)
             link.connect()
         }
 

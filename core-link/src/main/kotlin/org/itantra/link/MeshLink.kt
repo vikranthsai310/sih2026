@@ -45,6 +45,24 @@ import kotlinx.coroutines.launch
  * no peers at all. There is deliberately no state for "some peers down": on a radio net that
  * is the normal condition, not a fault.
  *
+ * ## Roads, and switching one off
+ *
+ * Every peer belongs to a **road** — the BLE broadcast, the Wi-Fi broadcast, or RFCOMM,
+ * which is one peer per bonded handset and so one road with many peers. An operator can
+ * switch a road off for routine traffic through [roads]. A road that is off is still
+ * **connected and still received on**: switching it off changes only what this unit
+ * sends down it, never what it hears. Going deaf on a radio is not a preference anyone
+ * means to express, and the alert path below depends on the road staying up.
+ *
+ * An **urgent** send ignores the switch and goes down every road that is up. The frame
+ * format has no way for this class to know what is urgent — it sees bytes — so the sender
+ * says so through [send]'s second parameter, which [Session] sets for an alert and the
+ * engine sets for a relayed one.
+ *
+ * If the roads that are on and the peers that exist have nothing in common, the switch is
+ * ignored and the frame goes everywhere. A configuration that would send nothing is a
+ * configuration error, and the right failure for a radio is to transmit anyway.
+ *
  * ## Threads
  *
  * Peers are added and removed from the Bluetooth I/O threads while frames are sent from
@@ -60,6 +78,7 @@ class MeshLink(
     /** A peer, and the collectors reading it. All are cancelled together. */
     private class Peer(
         val link: Link,
+        val road: String,
         val pump: Job,
         val watch: Job,
         val listen: Job?,
@@ -125,15 +144,34 @@ class MeshLink(
         get() = synchronized(peers) { peers.mapValues { (_, peer) -> peer.link.state.value } }
 
     /**
+     * The roads routine traffic may use, or null for all of them.
+     *
+     * Null rather than "every road that exists", because roads come and go — a bonded
+     * handset appears after the operator set this — and "all" has to keep meaning all.
+     * Written from the interface thread, read from the engine's; a volatile reference to
+     * an immutable set is the whole synchronisation needed.
+     */
+    @Volatile
+    var roads: Set<String>? = null
+
+    /** The road each peer was added under, by id. Feeds the settings screen. */
+    val peerRoads: Map<String, String>
+        get() = synchronized(peers) { peers.mapValues { (_, peer) -> peer.road } }
+
+    /**
      * Adds a peer and starts reading from it.
      *
      * @param id a stable name for this peer, so re-adding the same one replaces rather
      *   than duplicates it. A duplicated peer would deliver every frame twice and count
      *   as two units on screen.
+     * @param road the road this peer is one lane of, for [roads]. Defaults to the id,
+     *   which is right for a broadcast peer and wrong for RFCOMM, where every bonded
+     *   handset is a peer and the road is all of them.
      */
     fun addPeer(
         id: String,
         link: Link,
+        road: String = id,
     ) {
         removePeer(id)
         // UNDISPATCHED, so both collectors are subscribed by the time this method
@@ -161,7 +199,7 @@ class MeshLink(
                     source.signals.collect { _signals.emit(it) }
                 }
             }
-        synchronized(peers) { peers[id] = Peer(link, pump, watch, listen) }
+        synchronized(peers) { peers[id] = Peer(link, road, pump, watch, listen) }
         recomputeState()
     }
 
@@ -203,17 +241,23 @@ class MeshLink(
         return attempted
     }
 
+    /** Routine traffic: every peer that is up, on a road that is on. */
+    override suspend fun send(frame: ByteArray) = send(frame, urgent = false)
+
     /**
-     * Sends to every peer that is up.
+     * Sends to every peer that is up — on every road for an alert, on the roads that are
+     * on for anything else. See the class note on roads.
      *
      * A peer that throws does not stop the others. On a radio net one unit walking out of
      * range must not silence the channel for everyone else, and that is exactly what an
      * exception propagating out of this loop would do.
      */
-    override suspend fun send(frame: ByteArray) {
+    override suspend fun send(
+        frame: ByteArray,
+        urgent: Boolean,
+    ) {
         var delivered = 0
-        for (peer in snapshot()) {
-            if (peer.link.state.value != LinkState.CONNECTED) continue
+        for (peer in eligible(urgent)) {
             runCatching { peer.link.send(frame) }.onSuccess { delivered++ }
         }
         _metrics.value =
@@ -221,6 +265,22 @@ class MeshLink(
                 framesSent = _metrics.value.framesSent + delivered,
                 bytesSent = _metrics.value.bytesSent + frame.size.toLong() * delivered,
             )
+    }
+
+    /**
+     * The peers a send goes to.
+     *
+     * Decided against the peers that are **up**, not against every peer configured: a road
+     * that is on but down contributes nothing, and a selection of only such roads would
+     * otherwise be honoured into silence. When the selection leaves no peer standing the
+     * switch is set aside and the frame goes down every road that is up.
+     */
+    private fun eligible(urgent: Boolean): List<Peer> {
+        val up = snapshot().filter { it.link.state.value == LinkState.CONNECTED }
+        val selected = roads
+        if (urgent || selected == null) return up
+        val chosen = up.filter { it.road in selected }
+        return chosen.ifEmpty { up }
     }
 
     private fun recomputeState() {

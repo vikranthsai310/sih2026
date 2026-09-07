@@ -117,6 +117,20 @@ class Session(
     /** Sized to the link as it is now. See [fragmenter]. */
     private var fragmenter: Fragmenter? = null
 
+    /**
+     * How many relay hops a frame this unit originates may take. `docs/PROTOCOL.md`
+     * section 1: decremented by every relay, dropped at zero.
+     *
+     * Set by the operator, within [MIN_TTL]..[MAX_TTL]. Zero means a message reaches only
+     * units in direct range and is never rebroadcast, which is a legitimate thing to want
+     * on a crowded channel. It bounds what **this** unit sends; a frame passing through is
+     * decremented from whatever its sender chose, and this value has no say in that.
+     */
+    var ttl: Int = DEFAULT_TTL
+        set(value) {
+            field = value.coerceIn(MIN_TTL, MAX_TTL)
+        }
+
     /** What the last send produced, for the byte counter the demonstration points at. */
     var lastWireBytes: Int = 0
         private set
@@ -179,6 +193,9 @@ class Session(
         // from a frame from another unit that happens to share this node id.
         relay.remember(localSrc, epoch, frame.seq)
 
+        // An alert goes down every road the mesh has up, whatever the operator switched
+        // off for ordinary traffic. See Link.send.
+        val urgent = type == MessageType.ALERT
         var bytes = 0
         for (piece in pieces) {
             val wire = piece.encode()
@@ -186,9 +203,9 @@ class Session(
             // Held rather than dropped when the link is down. The operator is told by the
             // queue depth; a message that vanishes silently is the failure this avoids.
             if (link.state.value == LinkState.CONNECTED) {
-                link.send(wire)
+                link.send(wire, urgent)
             } else {
-                outbox.offer(wire, nowMillis)
+                outbox.offer(wire, nowMillis, urgent)
             }
         }
 
@@ -259,7 +276,7 @@ class Session(
         if (link.state.value != LinkState.CONNECTED) return 0
         var sent = 0
         for (entry in outbox.drain(nowMillis)) {
-            link.send(entry.wire)
+            link.send(entry.wire, entry.urgent)
             sent++
         }
         return sent
@@ -305,7 +322,7 @@ class Session(
             flags = flags,
             src = localSrc,
             keyId = keyId,
-            ttl = DEFAULT_TTL,
+            ttl = ttl,
             payload = payload,
         )
     }
@@ -726,9 +743,20 @@ class Session(
             else -> Reason.MALFORMED
         }
 
-    private companion object {
+    companion object {
         /** `docs/PROTOCOL.md` section 1: three hops. */
         const val DEFAULT_TTL = 3
+
+        /** Direct range only; never rebroadcast. */
+        const val MIN_TTL = 0
+
+        /**
+         * Seven hops is more than any deployment this is built for has units, and the
+         * byte on the wire would allow 255 — which on a channel with a loop in it is a
+         * storm bounded only by the seen-set. The ceiling is the operator's protection
+         * against a slip of the finger, not a protocol limit.
+         */
+        const val MAX_TTL = 7
 
         /** Byte 9 of the header, per `docs/PROTOCOL.md` section 1. */
         const val TTL_OFFSET = 9

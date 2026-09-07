@@ -226,6 +226,114 @@ class MeshLinkTest {
             assertEquals(185, mesh.mtu)
         }
 
+    // ── roads: the operator's switch, and what an alert does to it ───────────
+
+    /**
+     * Routine traffic respects the switch. This is the whole feature: a demonstration
+     * that wants one radio carrying everything, or a unit sparing a radio's battery.
+     */
+    @Test
+    fun `routine traffic skips a road that is switched off`() =
+        runTest {
+            val mesh = MeshLink(CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+            val ble = FakePeer("ble")
+            val wifi = FakePeer("wifi")
+            mesh.addPeer(Road.BLE, ble)
+            mesh.addPeer(Road.WIFI, wifi)
+            mesh.connect()
+
+            mesh.roads = setOf(Road.WIFI)
+            mesh.send(frame(1))
+
+            assertEquals("BLE is off", 0, ble.sent.size)
+            assertEquals("Wi-Fi carries it", 1, wifi.sent.size)
+        }
+
+    /**
+     * The reason the switch is safe to offer at all. A preference set on a quiet
+     * afternoon must never be why an evacuation order stayed on one handset.
+     */
+    @Test
+    fun `an urgent frame goes down every road that is up, switch or no switch`() =
+        runTest {
+            val mesh = MeshLink(CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+            val ble = FakePeer("ble")
+            val wifi = FakePeer("wifi")
+            mesh.addPeer(Road.BLE, ble)
+            mesh.addPeer(Road.WIFI, wifi)
+            mesh.connect()
+
+            mesh.roads = setOf(Road.WIFI)
+            mesh.send(frame(2), urgent = true)
+
+            assertEquals(1, ble.sent.size)
+            assertEquals(1, wifi.sent.size)
+        }
+
+    /** RFCOMM is many peers and one road: one switch covers every bonded handset. */
+    @Test
+    fun `switching RFCOMM off silences every bonded peer at once`() =
+        runTest {
+            val mesh = MeshLink(CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+            val ble = FakePeer("ble")
+            val bonded = (1..3).map { FakePeer("unit$it") }
+            mesh.addPeer(Road.BLE, ble)
+            bonded.forEachIndexed { i, peer -> mesh.addPeer("AA:BB:CC:00:00:0$i", peer, road = Road.RFCOMM) }
+            mesh.connect()
+
+            mesh.roads = setOf(Road.BLE)
+            mesh.send(frame(3))
+
+            assertEquals(1, ble.sent.size)
+            assertTrue("no bonded handset hears routine traffic", bonded.all { it.sent.isEmpty() })
+            assertEquals(Road.RFCOMM, mesh.peerRoads["AA:BB:CC:00:00:01"])
+        }
+
+    /**
+     * A selection that would send nothing is a configuration error, and the right
+     * failure for a radio is to transmit anyway. Two shapes of it: a set naming only a
+     * road that is down, and a set naming nothing that exists.
+     */
+    @Test
+    fun `a switch that would leave nothing standing is set aside`() =
+        runTest {
+            val mesh = MeshLink(CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+            val ble = FakePeer("ble")
+            val wifi = FakePeer("wifi")
+            mesh.addPeer(Road.BLE, ble)
+            mesh.addPeer(Road.WIFI, wifi)
+            mesh.connect()
+            wifi.drop()
+
+            mesh.roads = setOf(Road.WIFI)
+            mesh.send(frame(4))
+            assertEquals("the only road on is down, so the one that is up carries it", 1, ble.sent.size)
+
+            mesh.roads = emptySet()
+            mesh.send(frame(5))
+            assertEquals("an empty selection means everything", 2, ble.sent.size)
+        }
+
+    /** Switching a road off changes what is sent, never what is heard. */
+    @Test
+    fun `a road that is switched off is still received on`() =
+        runTest {
+            val mesh = MeshLink(CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+            val ble = FakePeer("ble")
+            mesh.addPeer(Road.BLE, ble)
+            mesh.connect()
+            mesh.roads = setOf(Road.WIFI)
+
+            val heard = ArrayList<ByteArray>()
+            val collector = launch(start = CoroutineStart.UNDISPATCHED) { mesh.incoming.collect { heard.add(it) } }
+            ble.deliver(frame(6))
+            advanceUntilIdle()
+            collector.cancel()
+
+            assertEquals(1, heard.size)
+            assertEquals(LinkState.CONNECTED, mesh.state.value)
+        }
+
     @Test
     fun `metrics count what actually went out`() =
         runTest {

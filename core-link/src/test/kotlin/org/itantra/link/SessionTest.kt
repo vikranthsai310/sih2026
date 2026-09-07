@@ -99,6 +99,9 @@ class SessionTest {
     private class CapturingLink(override val mtu: Int = 244) : Link {
         val sent = ArrayList<ByteArray>()
 
+        /** Whether each frame in [sent] was marked urgent, in the same order. */
+        val urgency = ArrayList<Boolean>()
+
         override val name: String = "ble"
         private val _state = kotlinx.coroutines.flow.MutableStateFlow(LinkState.IDLE)
         private val _metrics = kotlinx.coroutines.flow.MutableStateFlow(LinkMetrics())
@@ -108,8 +111,14 @@ class SessionTest {
         override val incoming: kotlinx.coroutines.flow.Flow<ByteArray> =
             kotlinx.coroutines.flow.emptyFlow()
 
-        override suspend fun send(frame: ByteArray) {
+        override suspend fun send(frame: ByteArray) = send(frame, urgent = false)
+
+        override suspend fun send(
+            frame: ByteArray,
+            urgent: Boolean,
+        ) {
             sent.add(frame)
+            urgency.add(urgent)
         }
 
         override suspend fun connect() {
@@ -431,5 +440,82 @@ class SessionTest {
             sender.send("मदद चाहिए", type = MessageType.ALERT)
             val received = receiver.receive(link.sent.single()) as Session.Received.Message
             assertEquals(MessageType.ALERT, received.frame.type)
+        }
+
+    // ── roads: what the session tells the link ───────────────────────────────
+
+    /** The one word the mesh needs and cannot work out from the bytes. */
+    @Test
+    fun `an alert is handed to the link marked urgent and a sentence is not`() =
+        runTest {
+            val (sender, _, link) = pair()
+            sender.send("यहाँ तीन घायल हैं")
+            sender.send("मदद चाहिए", type = MessageType.ALERT)
+            assertEquals(listOf(false, true), link.urgency)
+        }
+
+    /** An alert held through an outage is still an alert when the outage ends. */
+    @Test
+    fun `an alert queued while the link is down flushes as urgent`() =
+        runTest {
+            val link = CapturingLink()
+            val sender = session(link, src = 1)
+            sender.send("पहला संदेश", nowMillis = 1_000)
+            sender.send("मदद चाहिए", type = MessageType.ALERT, nowMillis = 2_000)
+
+            link.connect()
+            sender.flushOutbox(nowMillis = 3_000)
+
+            assertEquals(listOf(false, true), link.urgency)
+        }
+
+    // ── TTL: the operator's hop count ────────────────────────────────────────
+
+    @Test
+    fun `the hop count set by the operator is what goes on the wire`() =
+        runTest {
+            val (sender, receiver, link) = pair()
+            sender.ttl = 5
+            sender.send("मदद चाहिए")
+            val received = receiver.receive(link.sent.single()) as Session.Received.Message
+            assertEquals(5, received.frame.ttl)
+        }
+
+    @Test
+    fun `the hop count is clamped to what the ceiling allows`() =
+        runTest {
+            val (sender, _, _) = pair()
+            sender.ttl = 200
+            assertEquals(Session.MAX_TTL, sender.ttl)
+            sender.ttl = -1
+            assertEquals(Session.MIN_TTL, sender.ttl)
+        }
+
+    /**
+     * Zero means direct range only. The receiver reads the message — a hop count is
+     * about forwarding, not about hearing — and does not put it back on the air.
+     */
+    @Test
+    fun `a message sent with no hops is read but never relayed`() =
+        runTest {
+            val (sender, receiver, link) = pair()
+            sender.ttl = 0
+            sender.send("मदद चाहिए")
+
+            val received = receiver.receive(link.sent.single())
+            assertTrue(received is Session.Received.Message)
+            assertTrue("nothing to rebroadcast", receiver.takeRelays().isEmpty())
+        }
+
+    @Test
+    fun `a message sent with hops is relayed one hop shorter`() =
+        runTest {
+            val (sender, receiver, link) = pair()
+            sender.ttl = 2
+            sender.send("मदद चाहिए")
+
+            receiver.receive(link.sent.single())
+            val relayed = receiver.takeRelays().single()
+            assertEquals(1, relayed.frame.ttl)
         }
 }

@@ -28,6 +28,23 @@ interface Link {
 
     suspend fun send(frame: ByteArray)
 
+    /**
+     * [send], with one word of context: whether this frame is an alert.
+     *
+     * The mesh lets an operator switch a road off for routine traffic — a demonstration
+     * that wants to show one radio carrying everything, or a unit saving a radio's battery.
+     * An alert ignores that switch and goes down every road that is physically up, because
+     * a preference set on a quiet afternoon must never be the reason an evacuation order
+     * stayed on one handset. The link cannot tell an alert from anything else — it sees
+     * bytes, by contract — so the sender says so here.
+     *
+     * The default ignores the hint. A single-peer link has nothing to choose between.
+     */
+    suspend fun send(
+        frame: ByteArray,
+        urgent: Boolean,
+    ) = send(frame)
+
     val incoming: Flow<ByteArray>
 
     val state: StateFlow<LinkState>

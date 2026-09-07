@@ -38,6 +38,7 @@ import org.itantra.link.BleBroadcastLink
 import org.itantra.link.BluetoothNet
 import org.itantra.link.LinkState
 import org.itantra.link.MeshLink
+import org.itantra.link.Road
 import org.itantra.link.Session
 import org.itantra.link.Signal
 import org.itantra.link.WifiBroadcastLink
@@ -1385,16 +1386,17 @@ class MessageEngine(
         private const val TAG = "itantra-net"
 
         /** The broadcast channel's entry in the mesh. There is exactly one. */
-        const val BROADCAST_PEER = "ble-broadcast"
+        const val BROADCAST_PEER = Road.BLE
 
         /** The Wi-Fi channel's entry in the mesh. There is exactly one. */
-        const val WIFI_PEER = "wifi-broadcast"
+        const val WIFI_PEER = Road.WIFI
 
         /**
-         * RFCOMM's id on the settings screen only. It is not a mesh peer id: RFCOMM adds
-         * one peer per bonded handset, keyed by Bluetooth address.
+         * RFCOMM's id on the settings screen, and the road its peers are added under. It
+         * is not a mesh peer id: RFCOMM adds one peer per bonded handset, keyed by
+         * Bluetooth address.
          */
-        const val RFCOMM_CHANNEL = "rfcomm"
+        const val RFCOMM_CHANNEL = Road.RFCOMM
 
         /** How long a unit stays counted after its last transmission. */
         const val PEER_MEMORY_MILLIS = 60_000L
