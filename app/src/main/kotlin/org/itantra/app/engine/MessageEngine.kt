@@ -41,6 +41,7 @@ import org.itantra.link.MeshLink
 import org.itantra.link.Session
 import org.itantra.link.Signal
 import org.itantra.link.WifiBroadcastLink
+import org.itantra.proto.Aead
 import org.itantra.proto.EpochCounter
 import org.itantra.proto.Language
 import org.itantra.proto.Locate
@@ -265,7 +266,17 @@ class MessageEngine(
         // shape docs/PROTOCOL.md section 8 always described — every frame to every unit,
         // no destination field — and the shape docs/TRANSPORT.md section 8 says pairing
         // keeps breaking on demonstration day.
-        mesh.addPeer(BROADCAST_PEER, BleBroadcastLink(bluetooth, scope))
+        mesh.addPeer(
+            BROADCAST_PEER,
+            BleBroadcastLink(
+                bluetooth,
+                scope,
+                // Stamped on every advertisement: a hearing is a reading of this unit's
+                // distance, whichever unit first said the frames it carries.
+                localSrc = identity.src,
+                keyId = Aead.keyId(NodeIdentity.developmentKey()),
+            ),
+        )
 
         // The same channel over Wi-Fi. One handset's hotspot is enough: no data plan, no
         // internet, no pairing, and every unit joined to it receives the same datagram.

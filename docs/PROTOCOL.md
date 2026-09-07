@@ -638,6 +638,11 @@ fun InputStream.readFully(buf: ByteArray) {
 Omitting this loop produces a system that works on a desk and fails under load. It is the
 single most common defect in implementations of this class of project (risk T-08).
 
+BLE advertising is the other way round: it preserves boundaries but carries several frames
+in one advertisement. The link splits them by the same `LEN` field, behind a three-byte
+header of its own; the frames themselves are unchanged. See
+[TRANSPORT.md §3](TRANSPORT.md#3-bluetooth-low-energy--gatt).
+
 ### Resynchronisation
 
 On a CRC failure or an implausible `LEN`, the reader MUST scan forward byte by byte for the

@@ -93,50 +93,72 @@ Power consumption is roughly a tenth of Bluetooth Classic, which makes BLE the c
 **standby** transport and is what supports the eight-hour endurance claim. It is also
 natively broadcast, which makes all-units operation straightforward.
 
-### The broadcast road as shipped: one advertising set
+### The broadcast road as shipped: the air is a buffer
 
-What ships is not GATT but **extended advertising** (`BleBroadcastLink`): every frame goes
-out as service data under the UUID above and every unit scans for it. The link holds
-**one advertising set** for its whole life, replaces the set's data for each frame, and
-puts it on the air with the controller's own duration timer: **2.5 s for a message,
-600 ms for a hello**. An advertisement is a chance repeated every 100 ms, not a packet,
-and a scanner's duty cycle decides how many chances it takes — measured on two SM-S947B
-handsets, a 400 ms burst was heard about one time in three. A message gets twenty-five
-chances; a hello has another behind it in five seconds. The receiver's 4 s repeat window
-delivers a frame once however many times it is heard inside that.
+What ships is not GATT but **extended advertising** (`BleBroadcastLink`): frames go out as
+service data under the UUID above and every unit scans for it. The link holds **one
+advertising set** for its whole life, and the set is on the air **all the time**, ten
+advertisements a second (`INTERVAL_HIGH`). What it advertises is not one frame but
+everything this unit has said recently, laid out by `OnAir` and packed by `AirBlob`:
+
+```
+ byte  0      1      2      3 …
+     +------+------+-------+--------------------------------------------+
+     | 0xB1 | SRC  | KEYID | hello, presence, message, message, …       |
+     +------+------+-------+--------------------------------------------+
+```
+
+- The **hello** and the **presence** are pinned at the head; only the latest of each is
+  kept. `SRC` and `KEYID` are the advertiser's own, so a hearing is a reading of the
+  distance to *this* unit even when the frames it carries were first said by another.
+- Every other frame queues in order, alerts first, and once on the air stays there for **at
+  least 5 s** and **up to 30 s** while nothing newer needs the room. At ten a second that is
+  fifty to three hundred chances for a scanner that, measured on two SM-S947B handsets,
+  takes roughly one in three.
+- The buffer is kept to **one radio packet**, about 200 B of frames, because a chain of
+  packets is heard far less often than one. A single frame larger than that goes alone,
+  chained, up to what the controller reports it can carry (`mtu`); `Session` fragments
+  beyond that.
+- The receiver splits the blob by each frame's `LEN`, delivers every frame **once** (a
+  per-frame repeat window longer than any stay on the air), and the replay window above
+  discards anything that still arrives twice, by two roads or by relay. A blob whose first
+  byte is a frame's own `0xA1` sentinel is read as a bare frame, so a unit on the previous
+  version is still heard.
+- A blob that fits one controller command (251 B) replaces the set's data while it is on
+  the air, with no gap; a larger one pays for disable, set, enable, each step waited on for
+  its status. A refusal at any step tears the set down and starts a fresh one; the frames
+  stay in the buffer, and nothing is counted as sent until the controller has accepted it.
+- Every five seconds the link checks that the radio is still on and, every ten minutes,
+  restarts the scan (`keepScanning`). A radio that is off makes the road *degraded*, which is
+  what gets it re-armed on the engine's next recovery tick when the radio returns.
+
+> **Amended 2026-09-07 — "one message arrived and the next did not".** The version before
+> this one put each frame on the air by itself for 2.5 s (a hello for 600 ms) and then took
+> it off for good. An advertisement is a chance, not a packet: a receiver whose scanner was
+> between duty cycles, restarting, or busy with the hello that went out just before missed
+> all twenty-five chances now and then, and nothing acknowledged or retried, so the message
+> was simply gone. The buffer above replaces that. It is also why the set is now on the
+> air continuously rather than in bursts: the locate screen gets a reading ten times a
+> second from every unit in range, and a unit that has just started learns every
+> neighbour's epoch from the pinned hello the moment it hears anything.
 
 > **Amended 2026-09-07 — ten a second.** The set's interval was `INTERVAL_LOW`, one
-> advertisement a second, so "twenty-five chances" above was a hope: a 2.5 s window held
-> two or three. It is now `INTERVAL_HIGH`, 100 ms, which is what the paragraph assumed.
-> The other reason is the locate screen: every advertisement a scanner hears is a reading
-> of the sender's distance, and at one a second a walk towards a unit reached the screen
-> twenty seconds late, after the median and the smoothing had seen enough readings. At ten
-> a second it reaches it inside one. The extended header now also carries the sender's
-> transmit power (`setIncludeTxPower`), read back as `ScanResult.txPower`, so distance is
-> reckoned against the power that actually left the antenna rather than one figure for
-> every make of phone. `Signal.txPower`, `Locator.referenceFor`.
+> advertisement a second, so a 2.5 s window held two or three chances rather than the
+> twenty-five the design assumed. It is now `INTERVAL_HIGH`, 100 ms. The extended header
+> also carries the sender's transmit power (`setIncludeTxPower`), read back as
+> `ScanResult.txPower`, so distance is reckoned against the power that actually left the
+> antenna rather than one figure for every make of phone. `Signal.txPower`,
+> `Locator.referenceFor`.
 
 > **Amended 2026-09-07 — "it sends for a while, then stops, then sometimes sends".** Two
-> causes, one each side.
->
-> *Receiving.* Android puts a thirty-minute limit on every scan, filtered or not on recent
-> releases, after which the scan is silently downgraded to *opportunistic*: the application
-> is no longer scanning and is handed results only when some other application on the
-> handset scans for the same thing. No callback says so. That is "stops half an hour in and
-> then works at random". The scan is now stopped and restarted every ten minutes
-> (`keepScanning`), which is well inside the limit and well outside the platform's other
-> limit of five starts in thirty seconds.
->
-> *Sending.* The transmit loop wrote the next frame into the advertising set and re-enabled
-> it without waiting for the controller's answer to either command, and took "no
-> exception" for success. Data written while a set is still enabled must fit one packet,
-> 251 bytes; a longer frame was refused and the *previous* frame went out again, which
-> every receiver dropped as a repeat, so long messages vanished without a log line. A set
-> the controller had quietly lost answered the enable with an error that was logged and
-> otherwise ignored while the loop slept out the frame's air time. Each step -- disable,
-> set data, enable -- now waits for its status (`putOnAir`); a refusal at any step tears
-> the set down and tries the frame once more on a fresh one, and only a frame the
-> controller has accepted is counted as sent.
+> causes, one each side. *Receiving:* Android puts a thirty-minute limit on every scan,
+> after which it is silently downgraded to *opportunistic* — the application is no longer
+> scanning and is handed results only when some other application scans for the same
+> thing. The scan is restarted every ten minutes. *Sending:* the transmit loop wrote the
+> next frame and re-enabled the set without waiting for the controller's answer to either
+> command. Data written while a set is enabled must fit one command, 251 bytes; a longer
+> frame was refused and the *previous* frame went out again, so long messages vanished
+> without a log line. Each step now waits for its status.
 
 > **Found 2026-09-07 on two SM-S947B handsets.** The first version started a new set for
 > every frame and stopped it through a single shared callback object. Android keys its
@@ -145,9 +167,7 @@ delivers a frame once however many times it is heard inside that.
 > That set could never be stopped: it advertised its frame for ever, the peer re-heard it
 > every four seconds and dropped it as a replay, and after sixteen of them (the
 > controller's limit) every start was refused with *too many advertisers* and the unit
-> went mute. `dumpsys bluetooth_manager` showed sixteen ongoing sets. Transfer worked for
-> the first dozen or so messages after each app start and then stopped, which looked like
-> whatever the operator had just done — a language change, in the report that found it.
+> went mute. `dumpsys bluetooth_manager` showed sixteen ongoing sets.
 
 ## 4. Wi-Fi — hotspot or any shared network
 
@@ -276,7 +296,7 @@ them.
 | --- | --- |
 | Discovery | RFCOMM: bonded devices first, then a bounded 12 s scan. BLE: advertise and scan on the service UUID, no bonding. Wi-Fi: none — frames are broadcast to the subnet on port `38173` and any unit on the network receives them |
 | Connection | RFCOMM: the unit with the lexicographically greater **Bluetooth name** dials, the other listens (`PeerPreference`). Two units with the same name, or no name, both dial and **both sockets are kept** — a duplicate frame costs nothing, a pair that closes each other's socket never connects. Broadcast roads have no connection at all |
-| Hello | Every 5 s and once on start: 16 bytes announcing this unit's epoch, so a peer that restarted or was reinstalled is verified in one check (PROTOCOL.md §9). The 2 s authenticated heartbeat in the original design was never sent, for the reason given there |
+| Hello | Every 5 s and once on start: 16 bytes announcing this unit's epoch, so a peer that restarted or was reinstalled is verified in one check (PROTOCOL.md §9). On the BLE road the latest hello is pinned to the advertisement, so it is on the air continuously. The 2 s authenticated heartbeat in the original design was never sent, for the reason given there |
 | Backoff | Exponential with jitter, 1.5 s → 15 s, reset on connection |
 | Recovery | Every 5 s the engine re-opens any road that is down — a radio switched off and on, a hotspot that appeared — and flushes the outbox if anything is queued. Returning to the application does the same at once |
 | Store and forward | Frames queue in the outbox while disconnected and flush in order on reconnection, and on every recovery tick |
