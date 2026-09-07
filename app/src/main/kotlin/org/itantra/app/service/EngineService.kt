@@ -145,6 +145,10 @@ class EngineService : LifecycleService() {
                 ACTION_RELAY_OFF -> false
                 else -> preferences.relayMode
             }
+        // The notification's "Stop relaying" arrives here with nobody on the screen to
+        // record it. Written before acting, so a restart after this reads the right
+        // answer and the switch on the screen agrees with the service.
+        if (preferences.relayMode != wanted) preferences.setRelayMode(wanted)
         if (wanted) enterRelayMode() else leaveRelayMode()
         // START_STICKY only while relaying: a service that was only ever bound has no
         // business coming back on its own.
@@ -253,7 +257,10 @@ class EngineService : LifecycleService() {
      * operator does next.
      */
     private fun describe(state: OperatingState?): String {
-        if (state == null) return "Relaying · starting up"
+        if (state == null) {
+            // No engine means no permission: the one thing this service cannot ask for.
+            return "Waiting for the Nearby devices permission. Open the app to grant it"
+        }
         state.degraded?.let { return "Relaying · ${it.message}" }
         val units =
             when (state.peerCount) {

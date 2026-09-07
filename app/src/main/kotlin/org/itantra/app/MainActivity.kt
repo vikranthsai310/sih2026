@@ -171,6 +171,21 @@ class MainActivity : ComponentActivity() {
     /** The text size factor, mirrored into Compose state so a change redraws at once. */
     private var textScale by mutableStateOf(1f)
 
+    /** Relay mode, mirrored the same way and for the same reason. */
+    private var relayMode by mutableStateOf(false)
+
+    /** The hop count, mirrored the same way. The engine's own value is the truth. */
+    private var ttl by mutableStateOf(3)
+
+    /**
+     * The roads on for routine traffic, mirrored the same way.
+     *
+     * The engine's `refresh()` republishes an `OperatingState` that a road switch does not
+     * change, and a `StateFlow` drops an equal value, so nothing would redraw. This is the
+     * state the transport screen actually reads.
+     */
+    private var roadsOn by mutableStateOf<Set<String>>(emptySet())
+
     private val transmitKey =
         PushToTalkKey(
             onPress = { engine?.onTransmit(true) },
@@ -213,6 +228,9 @@ class MainActivity : ComponentActivity() {
         }
 
         textScale = preferences.textScale
+        relayMode = preferences.relayMode
+        ttl = preferences.ttl
+        roadsOn = preferences.roads
 
         if (!startEngine()) permissions.launch(requiredPermissions())
 
@@ -246,6 +264,8 @@ class MainActivity : ComponentActivity() {
                                 packStatus = packStatus,
                                 downloads = onDisk.second,
                                 textScale = textScale,
+                                relayMode = relayMode,
+                                ttl = ttl,
                                 locate = running?.locate?.collectAsState()?.value,
                                 unitsHeard = running?.unitsEverHeard().orEmpty(),
                                 defaultUnitName = app.defaultUnitName(),
@@ -267,6 +287,16 @@ class MainActivity : ComponentActivity() {
                                 onStartLocating = { running?.startLocating(it) },
                                 onStopLocating = { running?.stopLocating() },
                                 onLocateSiren = { running?.setLocateSiren(it) },
+                                onRelayMode = ::switchRelayMode,
+                                onTtl = { hops ->
+                                    running?.setTtl(hops) ?: preferences.setTtl(hops)
+                                    ttl = running?.ttl ?: preferences.ttl
+                                },
+                                onRoad = { id, on ->
+                                    val next = if (on) roadsOn + id else roadsOn - id
+                                    running?.setRoads(next) ?: preferences.setRoads(next)
+                                    roadsOn = running?.roads ?: preferences.roads
+                                },
                                 onTextScale = {
                                     preferences.setTextScale(it)
                                     textScale = preferences.textScale
@@ -305,8 +335,22 @@ class MainActivity : ComponentActivity() {
                     },
                 detail = channel.detail,
                 carrying = channel.state == LinkState.CONNECTED,
+                enabled = channel.id in roadsOn,
             )
         }
+    }
+
+    /**
+     * Turns relay mode on or off: the preference, then the service's lifetime.
+     *
+     * The preference is written first so that a service the platform restarts after a kill
+     * reads the right answer. Starting a foreground service needs the application visible,
+     * which it is — this is called from a control on the screen.
+     */
+    private fun switchRelayMode(on: Boolean) {
+        preferences.setRelayMode(on)
+        relayMode = on
+        if (on) EngineService.startRelay(this) else EngineService.stopRelay(this)
     }
 
     /**
@@ -458,6 +502,9 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         val running = engine
         if (running == null) startEngine() else running.restartIfIdle()
+        // "Stop relaying" on the notification is answered by the service, not here. The
+        // switch has to agree with it when the operator comes back.
+        relayMode = preferences.relayMode
         // Coming back from the browser, or from a cable: whatever is on disk now is what
         // the storage screen should say.
         diskVersion++

@@ -52,7 +52,9 @@ import androidx.compose.ui.unit.dp
  * [Bin], [Plus], [Pause] and [Hourglass] are therefore **drawn** — the set's own vocabulary
  * applied to its gaps, at the same 2 px stroke on the same 24 unit grid — and each says so
  * in its own KDoc. If the canvas later defines one, replace it with the transcription and
- * delete the note. Every other glyph in this file is verbatim.
+ * delete the note. [Relay] is drawn for the same reason from the other direction: the
+ * canvas has no board for relay mode, so it has no symbol for it. Every other glyph in
+ * this file is verbatim.
  *
  * ## Colour
  *
@@ -468,6 +470,26 @@ object Icons {
             "Plus",
             24f,
             Part("M12 5.5v13M5.5 12h13", width = 2.4f, cap = StrokeCap.Round),
+        )
+    }
+
+    /**
+     * **Drawn here, not ported** — no board draws relay mode, so the canvas has no glyph
+     * for it. Two units with a hop between them: the arc is the rebroadcast, and the
+     * open ring on the right is the unit that only heard it because of the one on the
+     * left.
+     */
+    val Relay: ImageVector by lazy {
+        vector(
+            "Relay",
+            24f,
+            Part(
+                "M5.5 15.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM18.5 15.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" +
+                    "M8 13c1.2-3.2 2.7-4.8 4-4.8s2.8 1.6 4 4.8M12 4.2v2.3",
+                width = 2f,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round,
+            ),
         )
     }
 

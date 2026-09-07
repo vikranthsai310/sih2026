@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -30,10 +31,12 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 
@@ -58,6 +61,8 @@ fun ControlRoomScreen(
     state: AppState,
     onOpen: (Destination) -> Unit,
     onBack: () -> Unit,
+    onRelayMode: (Boolean) -> Unit = {},
+    onTtl: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
     /**
      * Whether traffic is going out under the fixed development key.
@@ -87,6 +92,14 @@ fun ControlRoomScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             UnitHeroCard(operating, phone = state.defaultUnitName) { onOpen(Destination.UNIT_NAME) }
+
+            RelayCard(
+                on = state.relayMode,
+                ttl = state.ttl,
+                unitsHeard = operating.peerCount,
+                onRelayMode = onRelayMode,
+                onTtl = onTtl,
+            )
 
             Column(
                 Modifier
@@ -348,6 +361,193 @@ private fun HeroTile(
         Text(label, fontSize = Tokens.Instrument, fontWeight = FontWeight.SemiBold, color = Color.White)
     }
 }
+
+/**
+ * Relay mode and the hop count — the two things an operator sets about how this handset
+ * carries traffic for others.
+ *
+ * ## Why it is a card and not a row
+ *
+ * Every row below answers a question and opens a screen. This is a switch, and a switch
+ * that opens a screen to be thrown is a switch two taps away in an incident. It sits
+ * directly under the unit's own card because it is about the unit's own behaviour, and
+ * it says what it costs on the card: the radios and the processor stay on, which is
+ * battery, and that is the operator's call to make and not the application's.
+ *
+ * ## The hop count
+ *
+ * Stepped rather than typed, 0 to 7, in a control a gloved thumb can work. Zero is direct
+ * range only. The number is in the instrument face because it is a number the wire
+ * carries, not a preference.
+ */
+@Composable
+private fun RelayCard(
+    on: Boolean,
+    ttl: Int,
+    unitsHeard: Int,
+    onRelayMode: (Boolean) -> Unit,
+    onTtl: (Int) -> Unit,
+) {
+    val p = palette
+    val family = if (on) p.mint else p.periwinkle
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(p.paper, RoundedCornerShape(Tokens.RadiusTile))
+            .border(
+                if (on) Tokens.SignalBorder else Tokens.Hairline,
+                if (on) family.mid else p.hairline,
+                RoundedCornerShape(Tokens.RadiusTile),
+            ),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = Tokens.SecondaryAction)
+                .clickable(role = Role.Switch) { onRelayMode(!on) }
+                .padding(horizontal = 14.dp, vertical = 12.dp)
+                .semantics(mergeDescendants = true) {
+                    contentDescription =
+                        if (on) {
+                            "Emergency relay mode, on. This handset keeps relaying with the screen off."
+                        } else {
+                            "Emergency relay mode, off."
+                        }
+                },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Icon(Icons.Relay, contentDescription = null, tint = family.core, modifier = Modifier.size(22.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    "Emergency relay mode",
+                    fontSize = Tokens.Body,
+                    fontWeight = FontWeight.SemiBold,
+                    color = p.ink,
+                )
+                Text(
+                    if (on) {
+                        "Keeps hearing and rebroadcasting with the screen off. Uses battery."
+                    } else {
+                        "Off. The radio stops when the app is closed."
+                    },
+                    fontSize = Tokens.Label,
+                    lineHeight = Tokens.Label * Tokens.INDIC_LINE_HEIGHT,
+                    color = if (on) family.deep else p.muted,
+                )
+            }
+            SwitchTrack(on, family)
+        }
+
+        Box(Modifier.fillMaxWidth().height(1.dp).background(p.sunken))
+
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = Tokens.SecondaryAction)
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "Relay hops, ${hopsWord(ttl)}."
+                },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Relay hops", fontSize = Tokens.Body, fontWeight = FontWeight.Medium, color = p.ink)
+                Text(
+                    hopsNote(ttl, unitsHeard),
+                    fontSize = Tokens.Label,
+                    lineHeight = Tokens.Label * Tokens.INDIC_LINE_HEIGHT,
+                    color = p.muted,
+                )
+            }
+            StepButton("\u2212", "Fewer hops", enabled = ttl > MIN_TTL) { onTtl(ttl - 1) }
+            Text(
+                "$ttl",
+                fontSize = Tokens.Title,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                color = p.ink,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(min = 28.dp),
+            )
+            StepButton("+", "More hops", enabled = ttl < MAX_TTL) { onTtl(ttl + 1) }
+        }
+    }
+}
+
+/** A switch drawn as a track and a thumb, tinted by the family that means "on" here. */
+@Composable
+private fun SwitchTrack(
+    on: Boolean,
+    family: ItantraPalette.Family,
+) {
+    val p = palette
+    Box(
+        Modifier
+            .size(width = 46.dp, height = 26.dp)
+            .background(if (on) family.core else p.hairlineStrong, RoundedCornerShape(Tokens.RadiusPill))
+            .padding(3.dp),
+        contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
+    ) {
+        Box(Modifier.size(20.dp).background(p.paper, CircleShape))
+    }
+}
+
+/** A 48 dp square, the smallest target rule 1 allows, for a control pressed once. */
+@Composable
+private fun StepButton(
+    label: String,
+    description: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val p = palette
+    Box(
+        Modifier
+            .size(48.dp)
+            .background(if (enabled) p.periwinkle.tint else p.sunken, RoundedCornerShape(Tokens.RadiusControl))
+            .border(
+                Tokens.Hairline,
+                if (enabled) p.periwinkle.mid else p.hairline,
+                RoundedCornerShape(Tokens.RadiusControl),
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            fontSize = Tokens.Title,
+            fontWeight = FontWeight.Bold,
+            color = if (enabled) p.periwinkle.deep else p.muted,
+        )
+    }
+}
+
+private fun hopsWord(ttl: Int): String =
+    when (ttl) {
+        0 -> "none, direct range only"
+        1 -> "one hop"
+        else -> "$ttl hops"
+    }
+
+/**
+ * What the number means, in terms of the net as it is. "Three hops" tells an operator
+ * nothing; "reaches units three relays away" tells them what they are setting.
+ */
+private fun hopsNote(
+    ttl: Int,
+    unitsHeard: Int,
+): String =
+    when {
+        ttl == 0 -> "Direct range only. Nobody rebroadcasts this unit's messages."
+        unitsHeard == 0 -> "Messages travel up to $ttl relay${if (ttl == 1) "" else "s"} past direct range."
+        else -> "Up to $ttl relay${if (ttl == 1) "" else "s"} past the $unitsHeard heard now."
+    }
+
+private const val MIN_TTL = 0
+private const val MAX_TTL = 7
 
 /**
  * The unsecured bar, pinned under the list.

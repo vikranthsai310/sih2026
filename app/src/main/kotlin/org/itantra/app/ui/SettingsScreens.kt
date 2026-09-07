@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -58,10 +59,12 @@ import androidx.compose.ui.unit.sp
  *   the cards are drawn — with their costs, which is the board's real contribution — and
  *   the unavailable one says it is not in this build rather than taking a tap and doing
  *   nothing.
- * - **Transport is not a chooser at all**, and drawing radios there would be worse than
- *   unimplemented, it would be *wrong*. Every channel runs at once; a frame goes down every
- *   one that is up and the replay window discards whichever copy arrives second. A selected
- *   radio would tell the operator their message left on one radio when it left on four.
+ * - **Transport is a set of switches, not a chooser.** Every channel runs at once; a frame
+ *   goes down every one that is on and the replay window discards whichever copy arrives
+ *   second. Radio buttons would tell the operator their message left on one radio when it
+ *   left on three, so each road gets its own switch, and the switch is on *sending*: a road
+ *   that is off is still up and still heard, and an alert goes down every road regardless.
+ *   The last road on cannot be switched off — the control refuses, and says why.
  *
  * ## The cost chips
  *
@@ -75,10 +78,15 @@ fun ModeAndTransportScreen(
     /** "PTT" or "Phone", as the engine reports it. */
     mode: String = "PTT",
     onModeChange: (String) -> Unit = {},
+    /** A road switched on or off for routine traffic. */
+    onRoad: (id: String, on: Boolean) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val p = palette
     val phone = mode.equals("Phone", ignoreCase = true)
+    // The last road on stays on. Below one there is no radio, and a radio that can be
+    // configured into silence is a radio that will be, by accident, in the dark.
+    val roadsOn = transports.count { it.enabled }
     Column(
         modifier
             .fillMaxSize()
@@ -126,7 +134,11 @@ fun ModeAndTransportScreen(
                 if (index > 0) {
                     Box(Modifier.fillMaxWidth().height(1.dp).background(p.sunken))
                 }
-                ChannelRow(option)
+                ChannelRow(
+                    option,
+                    lastOn = option.enabled && roadsOn <= 1,
+                    onToggle = { onRoad(option.id, !option.enabled) },
+                )
             }
             if (transports.isEmpty()) {
                 Text(
@@ -142,8 +154,9 @@ fun ModeAndTransportScreen(
             Modifier.padding(start = 4.dp, top = 10.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            SettingsInstrument("four transports behind one interface")
             SettingsInstrument("a frame is a frame on all of them")
+            SettingsInstrument("alerts go down every road, switched off or not")
+            SettingsInstrument("a road that is off still hears")
         }
     }
 }
@@ -231,27 +244,46 @@ private fun ModeCard(
 }
 
 /**
- * One channel, with what it is doing rather than a control that pretends to switch it.
+ * One channel: what it is doing, and a switch for whether this unit's routine traffic uses
+ * it.
  *
- * The status word carries the meaning, so it is the coloured one: an operator glancing here
- * is asking "is anything getting out", not reading a list of radio names.
+ * Two facts, kept visibly apart. The status chip is the radio's own state — up, looking,
+ * reaching nobody — which the operator cannot change from here. The switch is the
+ * operator's, and it is about sending only: a road that is off is still up and still
+ * heard, so its status chip goes on reporting the truth after the switch is thrown. The
+ * two would be one control if "off" meant "down", and it does not.
  *
  * **No signal bars.** Board 19 draws a four-bar meter per transport, which reads as range.
  * `TransportOption` carries a `detail` string and a link state and no reach at all, and a
  * bar chart derived from either would be a measurement this application has not made — on a
  * screen whose neighbours are all real numbers. The state is said in words instead.
+ *
+ * @param lastOn this is the only road on, so the switch refuses rather than leaving no
+ *   road at all. The row says so instead of silently ignoring the tap.
  */
 @Composable
-private fun ChannelRow(option: TransportOption) {
+private fun ChannelRow(
+    option: TransportOption,
+    lastOn: Boolean,
+    onToggle: () -> Unit,
+) {
     val p = palette
     val family = if (option.carrying) p.mint else p.butter
+    val switchable = !lastOn
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = Tokens.SecondaryAction)
+            .clickable(enabled = switchable, role = Role.Switch, onClick = onToggle)
             .padding(horizontal = 14.dp, vertical = 12.dp)
             .semantics(mergeDescendants = true) {
-                contentDescription = "${option.name}. ${option.status}. ${option.detail}"
+                contentDescription =
+                    buildString {
+                        append("${option.name}. ${option.status}. ")
+                        append(if (option.enabled) "On for routine traffic. " else "Off for routine traffic. ")
+                        if (lastOn) append("The last road on; cannot be switched off. ")
+                        append(option.detail)
+                    }
             },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(13.dp),
@@ -266,9 +298,9 @@ private fun ChannelRow(option: TransportOption) {
                 option.name,
                 fontSize = Tokens.Body,
                 fontWeight = if (option.carrying) FontWeight.SemiBold else FontWeight.Medium,
-                color = p.ink,
+                color = if (option.enabled) p.ink else p.muted,
             )
-            SettingsInstrument(option.detail)
+            SettingsInstrument(if (lastOn) "The last road on. Switch another on first" else option.detail)
         }
         Text(
             option.status,
@@ -283,14 +315,41 @@ private fun ChannelRow(option: TransportOption) {
                     )
                     .padding(horizontal = 8.dp, vertical = 5.dp),
         )
+        RoadSwitch(on = option.enabled, dimmed = !switchable)
+    }
+}
+
+/** The switch, drawn: periwinkle when on, the hairline grey when off, faded when locked. */
+@Composable
+private fun RoadSwitch(
+    on: Boolean,
+    dimmed: Boolean,
+) {
+    val p = palette
+    Box(
+        Modifier
+            .size(width = 42.dp, height = 24.dp)
+            .background(
+                when {
+                    on && dimmed -> p.periwinkle.mid
+                    on -> p.periwinkle.core
+                    else -> p.hairlineStrong
+                },
+                RoundedCornerShape(Tokens.RadiusPill),
+            )
+            .padding(3.dp),
+        contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
+    ) {
+        Box(Modifier.size(18.dp).background(p.paper, CircleShape))
     }
 }
 
 /**
  * A channel as the settings screen shows it.
  *
- * [carrying] is deliberately not "enabled": nothing here can be enabled or disabled by the
- * operator, and a control that looks switchable and is not is the defect this replaced.
+ * [carrying] is the radio's state and [enabled] is the operator's switch, and they are
+ * different facts: a road can be carrying traffic *for others* — it is up and hears — while
+ * off for this unit's own routine sends. Alerts ignore the switch.
  */
 data class TransportOption(
     val id: String,
@@ -298,6 +357,7 @@ data class TransportOption(
     val status: String,
     val detail: String,
     val carrying: Boolean,
+    val enabled: Boolean = true,
 )
 
 /**

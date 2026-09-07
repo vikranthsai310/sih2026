@@ -132,6 +132,13 @@ data class AppState(
     val loadingLabel: String? = null,
     /** 0..1, or null when the loader cannot say. */
     val loadingProgress: Float? = null,
+    /**
+     * Whether this handset keeps hearing and rebroadcasting with the screen off. Off by
+     * default; the control room's switch. See `EngineService`.
+     */
+    val relayMode: Boolean = false,
+    /** How many relay hops a message from this unit may travel, 0 to 7. */
+    val ttl: Int = 3,
     /** The application's own text size factor over the system's, 0.85 to 2.0. */
     val textScale: Float = 1f,
     /** The walk in progress, or null. */
@@ -174,6 +181,12 @@ data class AppActions(
     val onLocateSiren: (Boolean) -> Unit = {},
     /** The text size factor, 0.85 to 2.0. */
     val onTextScale: (Float) -> Unit = {},
+    /** Relay mode on or off. The engine goes on living when the screen does not. */
+    val onRelayMode: (Boolean) -> Unit = {},
+    /** The hop count for this unit's own messages, 0 to 7. */
+    val onTtl: (Int) -> Unit = {},
+    /** A road switched on or off for routine traffic. Alerts use every road regardless. */
+    val onRoad: (id: String, on: Boolean) -> Unit = { _, _ -> },
 )
 
 @Composable
@@ -244,6 +257,8 @@ private fun Routed(
                     state = state,
                     onOpen = { where = it },
                     onBack = { where = back(where) },
+                    onRelayMode = actions.onRelayMode,
+                    onTtl = actions.onTtl,
                     modifier = modifier,
                 )
 
@@ -332,6 +347,7 @@ private fun Routed(
                     transports = state.transports,
                     mode = state.operating.mode,
                     onModeChange = actions.onModeChange,
+                    onRoad = actions.onRoad,
                 )
 
             Destination.STORAGE ->
