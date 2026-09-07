@@ -177,13 +177,14 @@ Boards 15, 16, 11, 11·a, 11·b, 25.
 - [x] **6.1** Splash — the −52 dp overlap, three Sky figures, load progress. The canvas
       uses a drop-in image slot; ship a drawable placeholder, not a hotlinked photo
       (the app has no network path for one).
-- [~] **6.2** Wire every new screen. **Partly done.** `TEST_ALERT`, `TEXT_SIZE`, the control
-      room and the splash are wired and every control-room tile reaches what it claims to.
-      `AlertComposeScreen`, `AlertConfirmScreen` and `IncomingAlertScreen` are **not**
-      routed: each needs an engine action that does not exist (a template send, a
-      confidence gate, an incoming-alert intent), and this branch does not add engine code.
-      They are drawn, compiled and unreachable — the state they were in before, at the new
-      fidelity.
+- [~] **6.2** Wire every new screen. **Partly done.** `TEXT_SIZE`, the control room and
+      the splash are wired and every control-room tile reaches what it claims to. The
+      `TEST_ALERT` route was removed on 2026-09-07 (`e4268d1`): with no engine action behind
+      it the screen could only say "not wired", and a route to that is a dead end. So
+      `AlertSelfTestScreen`, `AlertComposeScreen`, `AlertConfirmScreen` and
+      `IncomingAlertScreen` are **not** routed: each needs an engine action that does not
+      exist (a self-test, a template send, a confidence gate, an incoming-alert intent).
+      They are drawn, compiled and unreachable.
 - [x] **6.3** Full pass — `:app:assembleDebug`, unit tests, and a walk of every route
       confirming nothing is unreachable and nothing lost its action.
 - [ ] **6.4** Field Mode toggle proven. **Not done.** `ItantraTheme(fieldMode = false)` is a
