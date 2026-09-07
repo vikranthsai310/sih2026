@@ -37,6 +37,21 @@ import kotlin.math.pow
  * signal rather than the figure. Readings arrive several times a second while the target
  * beacons; each is passed through a median of the last five, which kills single-reading
  * spikes, and then an exponential average, which keeps the rate from stuttering.
+ *
+ * Under three metres the figure is given in centimetres, because that is the resolution
+ * the last steps want, and beside it the spread of the recent readings, because a signal
+ * figure without its width is a false precision: "60 cm" from a reading that has ranged
+ * over 40 to 110 is "40 to 110 cm".
+ *
+ * ## The arrow always turns
+ *
+ * The arrow is drawn against the compass on every reading, whether or not there is
+ * anything to point at. With a usable target position it points at the target. Without
+ * one -- indoors, before a fix, or when the two fixes are closer than their own error --
+ * it points north and the screen says so. An arrow that froze whenever it had no target
+ * looked broken, and an operator turning on the spot could not tell a dead compass from a
+ * missing position. North is a true thing to show; a bearing between two fixes ten metres
+ * apart with twenty metres of error is not.
  */
 class Locator(
     private val positions: PositionSource?,
@@ -145,6 +160,13 @@ class Locator(
         val lost = lastSignalAtMillis == 0L || now - lastSignalAtMillis > LOST_AFTER_MILLIS
         val rssi = smoothedRssi
         val estimated = rssi?.let { metresFor(it) }
+        val centimetres = rssi?.let { centimetresFor(it) }
+        val spread =
+            if (recent.size >= 3) {
+                centimetresFor(recent.max().toDouble())..centimetresFor(recent.min().toDouble())
+            } else {
+                null
+            }
         val proximity = if (lost || rssi == null) 0f else proximityFor(rssi)
 
         val ours: Location? = positions?.latest
@@ -156,7 +178,8 @@ class Locator(
         val compass = heading?.degrees
         val needsCalibration = heading?.needsCalibration == true
         when {
-            positions == null || !positions.isPermitted() -> note = "Location permission is off, so there is no arrow."
+            positions == null || !positions.isPermitted() ->
+                note = "Location permission is off: the arrow can only show north."
             theirs == null ->
                 note = if (targetBeaconing) "Waiting for $name's position…" else "Waiting for $name to answer…"
             now - targetPositionAtMillis > POSITION_STALE_MILLIS -> note = "$name's last position is old."
@@ -171,16 +194,25 @@ class Locator(
                 // again: it is already steady, and a second stage on top of it is what
                 // made the arrow trail the handset by a second when it was turned.
                 bearing = Heading.smooth(bearing, Heading.normalise(results[1]), BEARING_SMOOTHING)
-                relativeBearing = Heading.normalise(bearing!! - compass)
                 val error = ours.accuracy.toInt() + theirs.accuracyMetres
+                if (gps >= error) {
+                    relativeBearing = Heading.normalise(bearing!! - compass)
+                }
                 note =
                     when {
-                        gps < error -> "Within $error m — the positions are too close to point. Follow the sound."
+                        gps < error ->
+                            "Within $error m of each other: closer than GPS can tell apart. Follow the sound."
                         needsCalibration -> "Compass unsure: move the handset in a figure of eight."
                         else -> null
                     }
             }
         }
+        if (relativeBearing == null && compass != null && needsCalibration) {
+            note = (note?.let { "$it " } ?: "") + "Compass unsure: move the handset in a figure of eight."
+        }
+        // What the arrow draws: the target when it can, north when it cannot, and it
+        // turns with the compass either way.
+        val arrow = relativeBearing ?: compass?.let { Heading.normalise(-it) }
 
         return LocateState(
             target = src,
@@ -188,7 +220,11 @@ class Locator(
             proximity = proximity,
             rssi = rssi?.toInt(),
             estimatedMetres = if (lost) null else estimated,
+            estimatedCentimetres = if (lost) null else centimetres,
+            spreadCentimetres = if (lost) null else spread,
             gpsMetres = gps,
+            arrowDeg = arrow,
+            arrowAtTarget = relativeBearing != null,
             targetAccuracyMetres = theirs?.accuracyMetres,
             relativeBearingDeg = relativeBearing,
             headingDeg = compass,
@@ -230,6 +266,15 @@ class Locator(
             10.0.pow(
                 (RSSI_AT_ONE_METRE - rssi) / (10 * PATH_LOSS_EXPONENT),
             ).toInt().coerceIn(0, 999)
+
+        /** The same model at the resolution the last few metres want. Capped at 999 m. */
+        fun centimetresFor(rssi: Double): Int =
+            (
+                100.0 *
+                    10.0.pow(
+                        (RSSI_AT_ONE_METRE - rssi) / (10 * PATH_LOSS_EXPONENT),
+                    )
+            ).toInt().coerceIn(0, 99_900)
 
         /** 0 at [FAR_RSSI], 1 at [NEAR_RSSI], on the signal's own logarithmic scale. */
         fun proximityFor(rssi: Double): Float = ((rssi - FAR_RSSI) / (NEAR_RSSI - FAR_RSSI)).toFloat().coerceIn(0f, 1f)

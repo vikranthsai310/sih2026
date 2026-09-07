@@ -217,6 +217,20 @@ fun LocateScreen(
                 color = if (state.lost) p.blush.deep else p.muted,
             )
 
+            // What the arrow means right now, said above it so the meaning cannot be
+            // missed: the target, or north while the target's position is unknown.
+            Text(
+                when {
+                    state.arrowDeg == null -> "NO COMPASS"
+                    state.arrowAtTarget -> "TO ${state.name.uppercase()}"
+                    else -> "NORTH · NO POSITION TO POINT AT"
+                },
+                fontSize = Tokens.Instrument,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Medium,
+                color = if (state.arrowAtTarget) p.periwinkle.deep else p.muted,
+            )
+
             Arrow(state, p)
 
             // The two headings in figures, so an operator with a map or a second compass
@@ -236,17 +250,27 @@ fun LocateScreen(
 
             SignalBar(state, p)
 
+            val cm = state.estimatedCentimetres
             val distance =
                 when {
-                    state.gpsMetres != null && state.gpsMetres >= 8 -> "${state.gpsMetres} m"
-                    state.estimatedMetres != null -> "about ${state.estimatedMetres} m"
-                    else -> "—"
+                    state.arrowAtTarget && state.gpsMetres != null -> "${state.gpsMetres} m"
+                    cm == null -> "—"
+                    cm < 300 -> "about $cm cm"
+                    cm < 1_000 -> "about ${cm / 100}.${cm / 10 % 10} m"
+                    else -> "about ${cm / 100} m"
                 }
             Text(distance, fontSize = Tokens.Display, fontWeight = FontWeight.Bold, color = p.ink)
             Text(
                 buildString {
                     state.rssi?.let { append("signal $it dBm") } ?: append("no signal yet")
-                    state.gpsMetres?.let { append(" · gps ±${state.targetAccuracyMetres ?: 0} m") }
+                    state.spreadCentimetres?.let { append(" · ${span(it)}") }
+                    if (state.arrowAtTarget) {
+                        state.gpsMetres?.let {
+                            append(
+                                " · gps ±${state.targetAccuracyMetres ?: 0} m",
+                            )
+                        }
+                    }
                 },
                 fontSize = Tokens.Instrument,
                 fontFamily = FontFamily.Monospace,
@@ -296,27 +320,33 @@ fun LocateScreen(
  * from the engine's reading: the compass fires some fifty times a second and the engine
  * subtracts it from the bearing on each one, so the arrow turns with the hand that turns
  * the phone. An animation here would chase a value that has already moved on, and would
- * spin the long way round at north. Without a bearing the arrow is drawn faint and
- * upright, so the screen still says what it would look like, and the note says why not.
+ * spin the long way round at north. It always turns: at the target when there is a usable
+ * position, at north when there is not, drawn in the quiet ink so the two are told apart
+ * at a glance as well as by the caption above.
  */
 @Composable
 private fun Arrow(
     state: LocateState,
     p: ItantraPalette,
 ) {
-    val bearing = state.relativeBearingDeg
+    val bearing = state.arrowDeg
     val arrowColour =
         when {
             bearing == null -> p.hairline
             state.compassNeedsCalibration -> p.butter.deep
-            else -> p.periwinkle.deep
+            state.arrowAtTarget -> p.periwinkle.deep
+            else -> p.hairlineStrong
         }
     Box(
         Modifier
             .size(250.dp)
             .semantics {
                 contentDescription =
-                    bearing?.let { "Arrow pointing ${clockFace(it)}" } ?: "No direction yet"
+                    when {
+                        bearing == null -> "No compass yet"
+                        state.arrowAtTarget -> "Arrow to ${state.name} pointing ${clockFace(bearing)}"
+                        else -> "Arrow pointing north, ${clockFace(bearing)}"
+                    }
             },
         contentAlignment = Alignment.Center,
     ) {
@@ -371,6 +401,14 @@ private fun SignalBar(
         )
     }
 }
+
+/** A range of centimetres in the unit that suits it: "40–110 cm", "1.2–3.5 m". */
+private fun span(cm: IntRange): String =
+    if (cm.last < 300) {
+        "${cm.first}–${cm.last} cm"
+    } else {
+        "${cm.first / 100}.${cm.first / 10 % 10}–${cm.last / 100}.${cm.last / 10 % 10} m"
+    }
 
 private fun clockFace(relativeDeg: Float): String {
     val hour = ((relativeDeg / 30f).toInt() + 12) % 12

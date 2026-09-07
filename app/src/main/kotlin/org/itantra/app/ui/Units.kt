@@ -38,7 +38,14 @@ data class UnitInfo(
  *
  * @param proximity 0 (far, or unknown) to 1 (within arm's reach), from signal strength
  * @param estimatedMetres from signal strength; a rough figure, and said so on screen
+ * @param estimatedCentimetres the same figure at the resolution the last few metres want
+ * @param spreadCentimetres the nearest and farthest the last few readings put it, when
+ *   there are enough of them to say: the honest width of the estimate
  * @param gpsMetres from both positions, when both are known
+ * @param arrowDeg the angle the arrow is drawn at, clockwise from the top of the screen,
+ *   or null when there is no compass. It turns with the handset whatever it points at.
+ * @param arrowAtTarget whether the arrow points at the target; otherwise it points north,
+ *   because the target's position is unknown or too close to this one to resolve
  * @param relativeBearingDeg where the target lies relative to the way this handset is
  *   pointing, clockwise, or null when either position or the compass is missing
  * @param bearingDeg the target's true bearing from here, or null without both positions
@@ -52,7 +59,11 @@ data class LocateState(
     val proximity: Float,
     val rssi: Int?,
     val estimatedMetres: Int?,
+    val estimatedCentimetres: Int? = null,
+    val spreadCentimetres: IntRange? = null,
     val gpsMetres: Int?,
+    val arrowDeg: Float? = null,
+    val arrowAtTarget: Boolean = false,
     val targetAccuracyMetres: Int?,
     val relativeBearingDeg: Float?,
     val headingDeg: Float?,

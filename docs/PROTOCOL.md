@@ -557,8 +557,11 @@ from a dead one.
 > is smoothed; the compass is followed on every reading, fifty a second. The magnetometer's
 > own accuracy flag is surfaced as a calibration note, and the two headings are printed in
 > degrees under the arrow so it can be checked against a map. `app/platform/Heading.kt`,
-> `HeadingTest`. Within the combined GPS error of the two fixes the arrow is meaningless and
-> the screen says so; the siren, from signal strength, takes over there.
+> `HeadingTest`. The arrow turns with the compass on every reading whether or not it has a
+> target: at the unit when both fixes are fresh and further apart than their combined
+> error, at north otherwise, with the caption saying which. Within that error the siren,
+> from signal strength, takes over, and the figure is given in centimetres under three
+> metres with the spread of the recent readings beside it.
 
 ---
 
