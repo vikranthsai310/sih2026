@@ -465,7 +465,7 @@ class MessageEngine(
             )
         _state.value =
             _state.value.copy(
-                messages = (listOf(entry) + _state.value.messages).take(MAX_ON_SCREEN),
+                messages = (_state.value.messages + entry).takeLast(MAX_ON_SCREEN),
                 metrics = _state.value.metrics.copy(lastFrameBytes = message.wireBytes),
             )
         // Both halves of this call arrived from different branches and both are needed:
@@ -596,7 +596,7 @@ class MessageEngine(
                 isAlert = false,
                 delivery = LoggedMessage.Delivery.REFUSED,
             )
-        _state.value = _state.value.copy(messages = (listOf(entry) + _state.value.messages).take(MAX_ON_SCREEN))
+        _state.value = _state.value.copy(messages = (_state.value.messages + entry).takeLast(MAX_ON_SCREEN))
     }
 
     private var lastDropShown: String? = null
@@ -765,7 +765,7 @@ class MessageEngine(
             )
         _state.value =
             _state.value.copy(
-                messages = (listOf(entry) + _state.value.messages).take(MAX_ON_SCREEN),
+                messages = (_state.value.messages + entry).takeLast(MAX_ON_SCREEN),
                 metrics = metricsFrom(clock, sent.wireBytes, heard),
                 queued = session.queuedCount,
                 partial = null,

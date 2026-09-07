@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -30,6 +31,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -550,8 +552,20 @@ private fun ThreadPane(
         )
         return
     }
+    val list = rememberLazyListState()
+    val reduced = reducedMotion
+    // Newest at the bottom, the way a conversation reads, and the thread follows it there:
+    // a message arriving under the fold of a list that does not move is a message the
+    // operator finds later. Keyed on the count, so a change to an existing bubble -- a
+    // delivery mark turning over -- does not yank the thread out from under a reader.
+    LaunchedEffect(state.messages.size) {
+        val last = state.messages.lastIndex
+        if (last < 0) return@LaunchedEffect
+        if (reduced) list.scrollToItem(last) else list.animateScrollToItem(last)
+    }
     LazyColumn(
         modifier,
+        state = list,
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -672,7 +686,7 @@ private fun Dock(
     // never what was meant, and the control says so by being unavailable rather than by
     // quietly doing nothing.
     val busySpeaking = dock == DockState.SEIZED || dock == DockState.LIVE
-    val lastReceived = state.messages.firstOrNull { it.delivery == LoggedMessage.Delivery.RECEIVED }
+    val lastReceived = state.messages.lastOrNull { it.delivery == LoggedMessage.Delivery.RECEIVED }
 
     Column(
         Modifier

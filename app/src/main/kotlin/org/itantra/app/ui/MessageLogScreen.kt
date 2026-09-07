@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -77,8 +79,18 @@ fun MessageLogScreen(
                 modifier = Modifier.weight(1f),
             )
         } else {
+            val list = rememberLazyListState()
+            val reduced = reducedMotion
+            // Oldest at the top, newest at the bottom, opened at the bottom: the last
+            // thing said is the thing the operator opened this to check.
+            LaunchedEffect(messages.size) {
+                val last = messages.lastIndex
+                if (last < 0) return@LaunchedEffect
+                if (reduced) list.scrollToItem(last) else list.animateScrollToItem(last)
+            }
             LazyColumn(
                 Modifier.weight(1f),
+                state = list,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
