@@ -221,6 +221,17 @@ that phone rather than assumed for every phone; the figures line says `calibrate
 that is so. The signal's rise or fall over the last three seconds is shown beside the
 `SIGNAL` label as `CLOSING` or `FURTHER` -- what the siren says to the ear, said to the eye.
 
+**Which handset sounds** is the operator's choice, on the screen: *this phone*, *their
+phone*, or *off*. This phone is the siren above, and says how close. Their phone is the
+answer to the last fifteen metres, where no radio a handset has can say which way and two
+ears can, to a few degrees: once the searcher is inside about twenty-five metres the
+target is asked to chirp -- a rising pair on the alarm stream at full volume, through a
+locked screen and a silenced ringer -- and the searcher walks towards the noise. The line
+under the selector says what the choice is doing right now, because a control that seems
+to do nothing for the first fifty metres has to say it is waiting rather than broken.
+The chirp holds for twenty seconds per request and is renewed while the searcher stays
+near, so a searcher whose handset dies does not leave a target chirping in a pocket.
+
 The compass behind it is the gyroscope, anchored to the magnetometer only while the
 magnetic field here has the strength and dip the geomagnetic model expects (`Heading`,
 `HeadingFusion`). A turn of the hand is followed at once and a steel door frame is not.

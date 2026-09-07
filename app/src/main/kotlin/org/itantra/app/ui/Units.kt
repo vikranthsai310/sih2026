@@ -86,7 +86,13 @@ data class LocateState(
     val beaconing: Boolean,
     /** What is missing for the arrow: permission, our fix, their fix, the compass. */
     val arrowNote: String?,
-    val sirenOn: Boolean,
+    /** Which handset makes the sound the searcher follows. */
+    val sound: SoundFrom = SoundFrom.THIS_PHONE,
+    /**
+     * Whether the target has been asked to chirp right now: [sound] is [SoundFrom.THEIR_PHONE]
+     * and the searcher is close enough for a chirp to be worth hearing.
+     */
+    val theirSoundAsked: Boolean = false,
     /** Whether the signal has risen or fallen over the last few seconds. Null when lost. */
     val trend: Trend? = null,
     /**
@@ -100,6 +106,25 @@ data class LocateState(
 
 /** The signal over the last few seconds, as a word: what the siren says to the ear. */
 enum class Trend { CLOSING, STEADY, FURTHER }
+
+/**
+ * Which handset sounds during a search.
+ *
+ * The searcher's own siren says *how close*, by rate. The target's chirp says *which
+ * way*, because two ears place a sound to a few degrees where no radio on a handset can.
+ * Both are offered and the operator picks: their own phone when the target must stay
+ * quiet, the target's when the last metres matter more than the target's silence.
+ */
+enum class SoundFrom {
+    /** The siren on this handset, faster as the signal rises. */
+    THIS_PHONE,
+
+    /** The target chirps, once the searcher is near enough to hear it. */
+    THEIR_PHONE,
+
+    /** Silence. The screen alone. */
+    OFF,
+}
 
 /** What the arrow on the locate screen is pointing at. */
 enum class ArrowMode {

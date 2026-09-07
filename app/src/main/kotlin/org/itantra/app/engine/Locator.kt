@@ -10,6 +10,7 @@ import org.itantra.app.platform.LocateSiren
 import org.itantra.app.platform.PositionSource
 import org.itantra.app.ui.ArrowMode
 import org.itantra.app.ui.LocateState
+import org.itantra.app.ui.SoundFrom
 import org.itantra.app.ui.Trend
 import org.itantra.link.Signal
 import org.itantra.proto.Presence
@@ -133,7 +134,10 @@ class Locator(
     private var targetPosition: Presence.Position? = null
     private var targetPositionAtMillis = 0L
     private var targetBeaconing = false
-    private var sirenWanted = true
+    private var sound = SoundFrom.THIS_PHONE
+
+    /** Whether the target is currently asked to chirp, with hysteresis on the distance. */
+    private var theirSoundAsked = false
 
     /** A position averaged over its recent fixes. */
     private class Estimate(
@@ -221,7 +225,8 @@ class Locator(
         heading?.start()
         siren.lost = true
         siren.proximity = 0f
-        if (sirenWanted) siren.start()
+        theirSoundAsked = false
+        if (sound == SoundFrom.THIS_PHONE) siren.start()
         _state.value = compute(src, SystemClock.elapsedRealtime())
     }
 
@@ -234,12 +239,21 @@ class Locator(
 
     val isActive: Boolean get() = _state.value != null
 
-    fun setSiren(on: Boolean) {
-        sirenWanted = on
+    /** Which handset sounds. Kept across searches: it is a preference, not a state. */
+    fun setSound(from: SoundFrom) {
+        sound = from
         if (!isActive) return
-        if (on) siren.start() else siren.stop()
+        if (from == SoundFrom.THIS_PHONE) siren.start() else siren.stop()
         tick()
     }
+
+    /**
+     * Whether the target should be chirping now: asked for, heard, and close enough for a
+     * chirp to carry. Judged on the signal-derived distance -- calibrated by then, and
+     * what the searcher has inside the GPS error -- with hysteresis, so a figure hovering
+     * at the edge does not start and stop the chirp every second.
+     */
+    val wantsTheirSound: Boolean get() = theirSoundAsked
 
     /** A signal reading from any unit; only the target's matter here. */
     @Synchronized
@@ -329,6 +343,12 @@ class Locator(
             }
         val proximity = if (lost || rssi == null) 0f else proximityFor(rssi)
         val trend = if (lost) null else trendOf(now)
+        theirSoundAsked =
+            when {
+                sound != SoundFrom.THEIR_PHONE || lost || estimated == null -> false
+                theirSoundAsked -> estimated <= CHIRP_STOP_METRES
+                else -> estimated <= CHIRP_WITHIN_METRES
+            }
 
         val fix: Location? = positions?.latest
         fix?.let { absorbOwnFix(it, now) }
@@ -471,7 +491,8 @@ class Locator(
             lost = lost,
             beaconing = targetBeaconing,
             arrowNote = note,
-            sirenOn = sirenWanted,
+            sound = sound,
+            theirSoundAsked = theirSoundAsked,
         )
     }
 
@@ -601,6 +622,15 @@ class Locator(
 
         /** Once pointing, keep pointing until the fixes are this fraction of their error apart. */
         const val STOP_POINTING_FRACTION = 0.6
+
+        /**
+         * The target is asked to chirp inside this, and stops being asked outside the
+         * larger. A chirp at full phone volume carries thirty metres or so outdoors; the
+         * figure is set where the ear starts being the better instrument, not where the
+         * chirp starts being audible.
+         */
+        const val CHIRP_WITHIN_METRES = 25
+        const val CHIRP_STOP_METRES = 40
 
         /** Over this long, a change of this much: closing or further. */
         const val TREND_WINDOW_MILLIS = 3_000L

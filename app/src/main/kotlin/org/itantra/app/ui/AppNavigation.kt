@@ -183,7 +183,8 @@ data class AppActions(
     /** Start walking towards the unit with this node id. */
     val onStartLocating: (Int) -> Unit = {},
     val onStopLocating: () -> Unit = {},
-    val onLocateSiren: (Boolean) -> Unit = {},
+    /** Which handset sounds during a search: this one, the target, or neither. */
+    val onLocateSound: (SoundFrom) -> Unit = {},
     /** The text size factor, 0.85 to 2.0. */
     val onTextScale: (Float) -> Unit = {},
     /** Relay mode on or off. The engine goes on living when the screen does not. */
@@ -311,7 +312,7 @@ private fun Routed(
                             actions.onStopLocating()
                             where = Destination.LOCATE
                         },
-                        onSiren = actions.onLocateSiren,
+                        onSound = actions.onLocateSound,
                         modifier = modifier,
                     )
                 } else {

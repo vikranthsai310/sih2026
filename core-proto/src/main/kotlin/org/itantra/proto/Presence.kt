@@ -164,20 +164,38 @@ data class Presence(
  * request reaches a unit three hops away.
  *
  * ```
- *  0    1    2
- *  ver  cmd  target
+ *  0    1    2       3
+ *  ver  cmd  target  flags
  * ```
+ *
+ * ## The fourth byte
+ *
+ * `flags` bit 0 is **sound**: the searcher is close, and asks the target to make itself
+ * heard. Inside the last fifteen metres no radio on a handset can say which way, and two
+ * ears can, to a few degrees; the target chirping is what turns the last steps of a
+ * search from a guess into a walk towards a noise. The byte is optional on the wire -- a
+ * unit reading the three-byte form ignores it, and a unit sending the three-byte form is
+ * read as asking for silence -- so the two versions share a channel.
  */
 data class Locate(
     val target: Int,
     val start: Boolean,
+    /** Whether the target should sound so the searcher can find it by ear. */
+    val sound: Boolean = false,
 ) {
-    fun encode(): ByteArray = byteArrayOf(VERSION.toByte(), (if (start) START else STOP).toByte(), target.toByte())
+    fun encode(): ByteArray =
+        byteArrayOf(
+            VERSION.toByte(),
+            (if (start) START else STOP).toByte(),
+            target.toByte(),
+            (if (sound) SOUND else 0).toByte(),
+        )
 
     companion object {
         const val VERSION = 1
         private const val START = 1
         private const val STOP = 2
+        private const val SOUND = 0x01
 
         fun decode(payload: ByteArray): Locate? {
             if (payload.size < 3) return null
@@ -188,7 +206,12 @@ data class Locate(
                     STOP -> false
                     else -> return null
                 }
-            return Locate(target = payload[2].toInt() and 0xFF, start = start)
+            val flags = if (payload.size >= 4) payload[3].toInt() and 0xFF else 0
+            return Locate(
+                target = payload[2].toInt() and 0xFF,
+                start = start,
+                sound = start && flags and SOUND != 0,
+            )
         }
     }
 }

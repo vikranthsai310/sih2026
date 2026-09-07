@@ -61,4 +61,19 @@ class PresenceTest {
         assertNull(Locate.decode(byteArrayOf(1, 9, 1)))
         assertNull(Locate.decode(byteArrayOf(2, 1, 1)))
     }
+
+    @Test
+    fun `the sound flag round-trips and is four bytes`() {
+        val asked = Locate(target = 5, start = true, sound = true)
+        assertEquals(4, asked.encode().size)
+        assertEquals(asked, Locate.decode(asked.encode()))
+        assertEquals(Locate(5, true, sound = false), Locate.decode(Locate(5, true).encode()))
+    }
+
+    /** The two versions share a channel: three bytes is silence, and a stop never sounds. */
+    @Test
+    fun `a three-byte request from an older unit reads as silence`() {
+        assertEquals(Locate(target = 5, start = true, sound = false), Locate.decode(byteArrayOf(1, 1, 5)))
+        assertEquals(Locate(target = 5, start = false, sound = false), Locate.decode(byteArrayOf(1, 2, 5, 1)))
+    }
 }

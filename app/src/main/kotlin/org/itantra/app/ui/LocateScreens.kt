@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import org.itantra.app.engine.Locator
 
 // The locate feature: who is on the channel, and the walk to one of them. Plus the one
 // setting it depends on, the unit's own name.
@@ -186,7 +187,7 @@ private fun ago(millis: Long): String =
 fun LocateScreen(
     state: LocateState,
     onStop: () -> Unit,
-    onSiren: (Boolean) -> Unit,
+    onSound: (SoundFrom) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val p = palette
@@ -314,12 +315,11 @@ fun LocateScreen(
 
             Spacer(Modifier.weight(1f))
 
+            // Which handset sounds. Three, not a switch: the searcher's own siren says how
+            // close; the target's chirp says which way, which no radio on a handset can.
+            SoundFromRow(state, onSound)
+
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Toggle(
-                    label = if (state.sirenOn) "SIREN ON" else "SIREN OFF",
-                    on = state.sirenOn,
-                    modifier = Modifier.weight(1f),
-                ) { onSiren(!state.sirenOn) }
                 Column(
                     Modifier
                         .weight(1f)
@@ -476,6 +476,61 @@ private fun span(cm: IntRange): String =
 private fun clockFace(relativeDeg: Float): String {
     val hour = ((relativeDeg / 30f).toInt() + 12) % 12
     return "${if (hour == 0) 12 else hour} o'clock"
+}
+
+/**
+ * The sound selector: this phone, their phone, or nothing.
+ *
+ * Under it, one line saying what the choice is doing right now -- because "their phone"
+ * chirps only once the searcher is near enough to hear it, and a control that seems to
+ * do nothing for the first fifty metres needs to say it is waiting rather than broken.
+ */
+@Composable
+private fun SoundFromRow(
+    state: LocateState,
+    onSound: (SoundFrom) -> Unit,
+) {
+    val p = palette
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            "SOUND FROM",
+            fontSize = Tokens.Instrument,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Medium,
+            color = p.muted,
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Toggle("THIS PHONE", state.sound == SoundFrom.THIS_PHONE, Modifier.weight(1f)) {
+                onSound(SoundFrom.THIS_PHONE)
+            }
+            Toggle("THEIR PHONE", state.sound == SoundFrom.THEIR_PHONE, Modifier.weight(1f)) {
+                onSound(SoundFrom.THEIR_PHONE)
+            }
+            Toggle("OFF", state.sound == SoundFrom.OFF, Modifier.weight(0.6f)) {
+                onSound(SoundFrom.OFF)
+            }
+        }
+        val line =
+            when (state.sound) {
+                SoundFrom.THIS_PHONE -> "This handset beeps faster as the signal rises."
+                SoundFrom.THEIR_PHONE ->
+                    when {
+                        state.theirSoundAsked -> "${state.name} is chirping. Follow the sound."
+                        state.lost -> "${state.name} will chirp once its signal is heard and near."
+                        else ->
+                            "${state.name} will chirp inside about ${Locator.CHIRP_WITHIN_METRES} m. " +
+                                "Keep walking in."
+                    }
+                SoundFrom.OFF -> "No sound. The screen alone."
+            }
+        Text(
+            line,
+            fontSize = Tokens.Label,
+            lineHeight = Tokens.Label * Tokens.INDIC_LINE_HEIGHT,
+            color = if (state.theirSoundAsked) p.mint.deep else p.muted,
+            modifier = Modifier.semantics { contentDescription = line },
+        )
+    }
 }
 
 @Composable

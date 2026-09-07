@@ -541,9 +541,13 @@ from a dead one.
 >   present for 35 s after its last authenticated frame, which is what the "N units"
 >   figure means.
 > - **Locate**: type `POSITION`, sealed, relayed. Payload: version, command (start or
->   stop), target node id. The target answers by beaconing its presence with position every
->   second for ten minutes, renewed while the locator keeps asking. No consent dialog: the
->   request is authenticated under the net's key.
+>   stop), target node id, and since 2026-09-08 an optional fourth byte of flags whose bit
+>   0 is **sound** -- the searcher is near and asks the target to chirp so it can be found
+>   by ear. A three-byte request reads as silence, so the two forms share a channel. The
+>   target answers by beaconing its presence with position every second for ten minutes,
+>   renewed while the locator keeps asking, and chirps for twenty seconds per request
+>   with sound set, renewed every five while the searcher stays near. No consent dialog:
+>   the request is authenticated under the net's key.
 >
 > Position is sent **only** while beaconing or locating, and only inside these sealed
 > frames. `core-proto/Presence.kt`, `SessionPresenceTest`.

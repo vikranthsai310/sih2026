@@ -296,7 +296,7 @@ class MainActivity : ComponentActivity() {
                                 onUnitName = { running?.setUnitName(it) ?: preferences.setUnitName(it) },
                                 onStartLocating = { running?.startLocating(it) },
                                 onStopLocating = { running?.stopLocating() },
-                                onLocateSiren = { running?.setLocateSiren(it) },
+                                onLocateSound = { running?.setLocateSound(it) },
                                 onRelayMode = ::switchRelayMode,
                                 onOpened = { locked = false },
                                 onTtl = { hops ->

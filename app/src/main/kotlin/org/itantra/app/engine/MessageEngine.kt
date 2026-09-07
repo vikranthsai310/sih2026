@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import org.itantra.app.platform.FoundBeacon
 import org.itantra.app.platform.Heading
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.PositionSource
@@ -29,6 +30,7 @@ import org.itantra.app.ui.LanguageOption
 import org.itantra.app.ui.LocateState
 import org.itantra.app.ui.LoggedMessage
 import org.itantra.app.ui.OperatingState
+import org.itantra.app.ui.SoundFrom
 import org.itantra.asr.BiasingLexicon
 import org.itantra.asr.LexiconCorrector
 import org.itantra.audio.EngineState
@@ -199,6 +201,17 @@ class MessageEngine(
     /** Until when this unit beacons its position, because another asked. Zero when it does not. */
     private var beaconingUntilMillis = 0L
 
+    /**
+     * The chirp this unit makes when a searcher close by asks for it, and how long the
+     * last request holds. A searcher whose handset died must not leave a target chirping
+     * in a pocket for the rest of the day.
+     */
+    private val foundBeacon = FoundBeacon(wifiContext)
+    private var chirpUntilMillis = 0L
+
+    /** What this unit last asked its target about sound, so a change is sent at once. */
+    private var askedTheirSound = false
+
     /** What the speaker is saying, or said within the last few seconds, for the echo filter. */
     @Volatile
     private var speakingText: String? = null
@@ -357,6 +370,7 @@ class MessageEngine(
         }
 
     fun stop() {
+        foundBeacon.stop()
         speaker?.close()
         speech?.close()
         bluetoothNet?.stop()
@@ -1074,10 +1088,40 @@ class MessageEngine(
             beaconingUntilMillis = now + BEACON_MILLIS
             positions?.start()
             scope.launch { sendPresence() }
+            // The searcher is close and wants to follow a sound. Held for a bounded time
+            // and renewed by every request, so the chirp ends when the requests do.
+            if (received.locate.sound) {
+                chirpUntilMillis = now + CHIRP_MILLIS
+                foundBeacon.start()
+            } else {
+                stopChirping()
+            }
         } else {
             beaconingUntilMillis = 0L
+            stopChirping()
             if (!locator.isActive) positions?.stop()
         }
+    }
+
+    private fun stopChirping() {
+        chirpUntilMillis = 0L
+        foundBeacon.stop()
+    }
+
+    /**
+     * Tells the target whether to chirp, when the answer changes and every few seconds
+     * while it is yes. The request is one advertisement, so it is repeated; a target that
+     * hears none of them stops by itself when the last one it heard runs out.
+     */
+    private suspend fun syncTheirSound(
+        tick: Long,
+        force: Boolean = false,
+    ) {
+        val target = locator.target ?: return
+        val want = locator.wantsTheirSound
+        if (!force && want == askedTheirSound && !(want && tick % CHIRP_RENEW_TICKS == 0L)) return
+        askedTheirSound = want
+        session.sendLocate(Locate(target, true, sound = want), System.currentTimeMillis())
     }
 
     private suspend fun sendPresence() {
@@ -1111,8 +1155,11 @@ class MessageEngine(
         val beaconing = now < beaconingUntilMillis
         if (!beaconing && beaconingUntilMillis != 0L) {
             beaconingUntilMillis = 0L
+            stopChirping()
             if (!locator.isActive) positions?.stop()
         }
+        if (chirpUntilMillis != 0L && now > chirpUntilMillis) stopChirping()
+        if (locator.isActive) syncTheirSound(tick)
         // Every second while somebody is walking towards this unit, every ten otherwise.
         if (beaconing || locator.isActive || tick % PRESENCE_EVERY_TICKS == 0L) sendPresence()
         if (locator.isActive && tick % LOCATE_RENEW_TICKS == 0L) {
@@ -1145,11 +1192,16 @@ class MessageEngine(
     fun stopLocating() {
         val src = locator.target
         locator.stop()
+        askedTheirSound = false
         if (beaconingUntilMillis == 0L) positions?.stop()
         if (src != null) scope.launch { session.sendLocate(Locate(src, false), System.currentTimeMillis()) }
     }
 
-    fun setLocateSiren(on: Boolean) = locator.setSiren(on)
+    /** Which handset sounds during the search. A change reaches the target at once. */
+    fun setLocateSound(from: SoundFrom) {
+        locator.setSound(from)
+        scope.launch { syncTheirSound(tick = 0L, force = true) }
+    }
 
     // ── the open line ────────────────────────────────────────────────────────
 
@@ -1379,6 +1431,10 @@ class MessageEngine(
         const val BEACON_MILLIS = 10 * 60_000L
 
         const val LOCATE_RENEW_TICKS = 60L
+
+        /** A chirp request holds this long; the searcher renews it every few seconds. */
+        const val CHIRP_MILLIS = 20_000L
+        const val CHIRP_RENEW_TICKS = 5L
         const val LOCATE_REPEAT_MILLIS = 700L
 
         /** After the speaker finishes, how long its words still count as echo. */
