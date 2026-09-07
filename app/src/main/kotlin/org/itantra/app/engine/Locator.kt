@@ -14,6 +14,7 @@ import org.itantra.link.Signal
 import org.itantra.proto.Presence
 import kotlin.math.abs
 import kotlin.math.atan2
+import kotlin.math.max
 import kotlin.math.pow
 
 /**
@@ -106,6 +107,9 @@ class Locator(
     private val recent = ArrayDeque<Int>()
     private var smoothedRssi: Double? = null
     private var lastSignalAtMillis = 0L
+
+    /** The target's transmit power, from its advertising header, when it says. */
+    private var targetTxPower: Int? = null
     private var targetPosition: Presence.Position? = null
     private var targetPositionAtMillis = 0L
     private var targetBeaconing = false
@@ -147,6 +151,7 @@ class Locator(
         stop()
         this.name = name
         recent.clear()
+        targetTxPower = null
         smoothedRssi = null
         lastSignalAtMillis = 0L
         targetPosition = null
@@ -191,10 +196,24 @@ class Locator(
     fun onSignal(signal: Signal) {
         val t = target ?: return
         if (signal.src != t) return
+        signal.txPower?.let { targetTxPower = it }
         recent.addLast(signal.rssi)
         while (recent.size > MEDIAN_WINDOW) recent.removeFirst()
         val median = recent.sorted()[recent.size / 2].toDouble()
-        smoothedRssi = smoothedRssi?.let { it + (median - it) * SMOOTHING } ?: median
+        // Smoothed against time, not against the count of readings, so the response is
+        // the same whether they come ten a second or one: a step settles in under a
+        // second either way. A large move is followed faster still -- that is a wall, or
+        // a body, or a stride, and not noise.
+        val previous = smoothedRssi
+        smoothedRssi =
+            if (previous == null || lastSignalAtMillis == 0L) {
+                median
+            } else {
+                val dt = (signal.atMillis - lastSignalAtMillis).coerceAtLeast(0L) / 1000.0
+                var alpha = 1.0 - kotlin.math.exp(-dt / SMOOTHING_SECONDS)
+                if (abs(median - previous) > BIG_STEP_DB) alpha = max(alpha, BIG_STEP_ALPHA)
+                previous + (median - previous) * alpha
+            }
         lastSignalAtMillis = signal.atMillis
         heading?.degrees?.let { compass ->
             val now = SystemClock.elapsedRealtime()
@@ -239,11 +258,12 @@ class Locator(
     ): LocateState {
         val lost = lastSignalAtMillis == 0L || now - lastSignalAtMillis > LOST_AFTER_MILLIS
         val rssi = smoothedRssi
-        val estimated = rssi?.let { metresFor(it) }
-        val centimetres = rssi?.let { centimetresFor(it) }
+        val reference = referenceFor(targetTxPower)
+        val estimated = rssi?.let { metresFor(it, reference) }
+        val centimetres = rssi?.let { centimetresFor(it, reference) }
         val spread =
             if (recent.size >= 3) {
-                centimetresFor(recent.max().toDouble())..centimetresFor(recent.min().toDouble())
+                centimetresFor(recent.max().toDouble(), reference)..centimetresFor(recent.min().toDouble(), reference)
             } else {
                 null
             }
@@ -311,6 +331,20 @@ class Locator(
                 remembered != null -> ArrowMode.LAST_KNOWN
                 else -> ArrowMode.NORTH
             }
+        // Two independent bearings -- positions and the sweep -- are combined weighted by
+        // the inverse square of their spreads, the way two instruments of known error
+        // are: the sharper one leads, the other pulls it a little its way.
+        if (mode == ArrowMode.TARGET && sweep != null && spreadDeg != null && compass != null) {
+            val wGps = 1.0 / (spreadDeg!! * spreadDeg!!)
+            val wSweep = 1.0 / (sweep.spreadDeg * sweep.spreadDeg)
+            val gpsBearing = lastBearing!!
+            val fused =
+                Heading.normalise(
+                    gpsBearing + arc(sweep.bearingDeg - gpsBearing) * (wSweep / (wGps + wSweep)).toFloat(),
+                )
+            relativeBearing = Heading.normalise(fused - compass)
+            spreadDeg = (1.0 / kotlin.math.sqrt(wGps + wSweep)).toFloat()
+        }
         val arrow =
             when (mode) {
                 ArrowMode.NONE -> null
@@ -406,8 +440,8 @@ class Locator(
         /** Signal expected one metre from a handset advertising at high power, dBm. */
         const val RSSI_AT_ONE_METRE = -59.0
 
-        /** Path-loss exponent: 2 is free space, 3 to 4 indoors. In between for a field. */
-        const val PATH_LOSS_EXPONENT = 2.6
+        /** Path-loss exponent at range: 2 is free space, 3 to 4 deep indoors. In between for a field. */
+        const val PATH_LOSS_EXPONENT = 2.8
 
         /** Where the siren is at its fastest: this close, the eyes take over. */
         const val NEAR_RSSI = -50.0
@@ -416,7 +450,22 @@ class Locator(
         const val FAR_RSSI = -95.0
 
         const val MEDIAN_WINDOW = 5
-        const val SMOOTHING = 0.35
+
+        /** Time constant of the signal smoothing: a step is two-thirds followed in this long. */
+        const val SMOOTHING_SECONDS = 0.6
+
+        /** A jump this large in the median is a real change and is followed at [BIG_STEP_ALPHA] at least. */
+        const val BIG_STEP_DB = 8.0
+        const val BIG_STEP_ALPHA = 0.5
+
+        /**
+         * What a phone loses between its own antenna and another's at one metre, in dB,
+         * over and above the transmit power: free-space loss at 2.44 GHz (41 dB) plus the
+         * two handset antennas and their mismatch. The contact-tracing measurement studies
+         * that calibrated phone-to-phone Bluetooth put the one-metre attenuation at 50 to
+         * 60 dB; this is their middle.
+         */
+        const val ATTENUATION_AT_ONE_METRE_DB = 57.0
 
         /** Beacons come every second; five missed is a unit that has moved out of range. */
         const val LOST_AFTER_MILLIS = 6_000L
@@ -456,22 +505,43 @@ class Locator(
         const val SWEEP_MIN_COVERAGE_DEG = 240
         const val SWEEP_MIN_SAMPLES = 8
 
-        /** How peaked the signal must be round the circle for the mean to mean anything. */
-        const val SWEEP_MIN_RESULTANT = 0.2
+        const val SWEEP_BINS = 24
 
-        fun metresFor(rssi: Double): Int =
-            10.0.pow(
-                (RSSI_AT_ONE_METRE - rssi) / (10 * PATH_LOSS_EXPONENT),
-            ).toInt().coerceIn(0, 999)
+        /** The hump must stand this far above the trough for the body to be the cause. */
+        const val SWEEP_MIN_HEIGHT_DB = 3.0
+
+        /** The signal expected at one metre: from the sender's own power when it says, else assumed. */
+        fun referenceFor(txPower: Int?): Double = txPower?.let { it - ATTENUATION_AT_ONE_METRE_DB } ?: RSSI_AT_ONE_METRE
+
+        /**
+         * Distance in metres from a signal, against the one-metre reference.
+         *
+         * The path-loss exponent is not one number. Within a few metres and in sight of
+         * each other the two antennas are in free space, exponent 2; further off, with
+         * walls and floors and bodies in the way, it climbs towards 3. So the exponent
+         * rises with the loss itself: 2 at the reference, [PATH_LOSS_EXPONENT] thirty
+         * decibels below it, continuously between, which keeps the last metre honest
+         * without pretending a corridor is free space.
+         */
+        fun distanceFor(
+            rssi: Double,
+            reference: Double = RSSI_AT_ONE_METRE,
+        ): Double {
+            val loss = reference - rssi
+            val n = 2.0 + (PATH_LOSS_EXPONENT - 2.0) * (loss / 30.0).coerceIn(0.0, 1.0)
+            return 10.0.pow(loss / (10 * n))
+        }
+
+        fun metresFor(
+            rssi: Double,
+            reference: Double = RSSI_AT_ONE_METRE,
+        ): Int = distanceFor(rssi, reference).toInt().coerceIn(0, 999)
 
         /** The same model at the resolution the last few metres want. Capped at 999 m. */
-        fun centimetresFor(rssi: Double): Int =
-            (
-                100.0 *
-                    10.0.pow(
-                        (RSSI_AT_ONE_METRE - rssi) / (10 * PATH_LOSS_EXPONENT),
-                    )
-            ).toInt().coerceIn(0, 99_900)
+        fun centimetresFor(
+            rssi: Double,
+            reference: Double = RSSI_AT_ONE_METRE,
+        ): Int = (100.0 * distanceFor(rssi, reference)).toInt().coerceIn(0, 99_900)
 
         /** 0 at [FAR_RSSI], 1 at [NEAR_RSSI], on the signal's own logarithmic scale. */
         fun proximityFor(rssi: Double): Float = ((rssi - FAR_RSSI) / (NEAR_RSSI - FAR_RSSI)).toFloat().coerceIn(0f, 1f)
@@ -490,37 +560,115 @@ class Locator(
         /**
          * The direction of strongest signal round the circle.
          *
-         * Each reading is weighted by its power relative to the strongest few -- a reading
-         * ten decibels down counts a tenth -- and the weighted circular mean of the
-         * headings is the answer. The resultant length says how peaked the signal was: a
-         * signal the same all round gives a resultant near zero and no answer, which is
-         * right, because then the body is not between the phones in any direction and
-         * there is nothing to say. Null until the circle is mostly covered.
+         * The body's shadow makes the signal, plotted against heading, one broad hump: a
+         * cosine, at its top where the operator faces the target. So a cosine is fitted.
+         * The readings are first averaged into fifteen-degree bins, because an operator
+         * turns unevenly -- slowly here, quickly there, a pause at the end -- and a fit to
+         * the raw readings would be dragged towards wherever they lingered. On the binned
+         * means the fit `a + b·cos θ + c·sin θ` is linear least squares, solved in closed
+         * form; the peak is at `atan2(c, b)` and its height `√(b² + c²)` is how much the
+         * body is doing. Under three decibels of hump the body is not between the phones
+         * in any direction that matters and there is no answer, which is the right one.
+         * The spread comes from the hump's height and how well the cosine fits: a tall
+         * clean hump is a narrow arrow, a low ragged one a wide fan. Null until the
+         * circle is mostly covered.
          */
         fun sweepOf(
             headings: List<Float>,
             rssis: List<Int>,
         ): Sweep? {
             if (headings.size < SWEEP_MIN_SAMPLES || coverageOf(headings) < SWEEP_MIN_COVERAGE_DEG) return null
-            val top = rssis.sortedDescending().take(3)
-            val reference = top.average()
-            var x = 0.0
-            var y = 0.0
-            var total = 0.0
+            val sums = DoubleArray(SWEEP_BINS)
+            val angles = DoubleArray(SWEEP_BINS)
+            val counts = IntArray(SWEEP_BINS)
             for (i in headings.indices) {
-                val w = 10.0.pow((rssis[i] - reference) / 10.0)
-                val rad = Math.toRadians(headings[i].toDouble())
-                x += w * kotlin.math.cos(rad)
-                y += w * kotlin.math.sin(rad)
-                total += w
+                val h = Heading.normalise(headings[i])
+                val bin = (h / (360f / SWEEP_BINS)).toInt().coerceIn(0, SWEEP_BINS - 1)
+                sums[bin] += rssis[i].toDouble()
+                // The bin's angle is where its readings actually were, not its centre: a
+                // turn sampled on the bin edges would otherwise read half a bin out.
+                angles[bin] += h.toDouble()
+                counts[bin]++
             }
-            if (total <= 0.0) return null
-            val resultant = kotlin.math.hypot(x, y) / total
-            if (resultant < SWEEP_MIN_RESULTANT) return null
-            val bearing = Heading.normalise(Math.toDegrees(atan2(y, x)).toFloat())
-            // A resultant of 1 is every reading in one direction; of 0.2, a broad hump.
-            val spread = ((1.0 - resultant) * 90.0).toFloat().coerceIn(10f, 80f)
+            // Normal equations for y = a + b cos θ + c sin θ over the filled bins.
+            var n = 0.0
+            var sc = 0.0
+            var ss = 0.0
+            var scc = 0.0
+            var sss = 0.0
+            var scs = 0.0
+            var sy = 0.0
+            var syc = 0.0
+            var sys = 0.0
+            for (bin in 0 until SWEEP_BINS) {
+                if (counts[bin] == 0) continue
+                val theta = Math.toRadians(angles[bin] / counts[bin])
+                val cs = kotlin.math.cos(theta)
+                val sn = kotlin.math.sin(theta)
+                val y = sums[bin] / counts[bin]
+                n += 1.0
+                sc += cs
+                ss += sn
+                scc += cs * cs
+                sss += sn * sn
+                scs += cs * sn
+                sy += y
+                syc += y * cs
+                sys += y * sn
+            }
+            val solved = solve3(n, sc, ss, sc, scc, scs, ss, scs, sss, sy, syc, sys) ?: return null
+            val (a, b, c) = solved
+            val height = kotlin.math.hypot(b, c)
+            if (height < SWEEP_MIN_HEIGHT_DB) return null
+            // Residual: how much of the ring the cosine does not explain.
+            var residual = 0.0
+            for (bin in 0 until SWEEP_BINS) {
+                if (counts[bin] == 0) continue
+                val theta = Math.toRadians(angles[bin] / counts[bin])
+                val fit = a + b * kotlin.math.cos(theta) + c * kotlin.math.sin(theta)
+                val y = sums[bin] / counts[bin]
+                residual += (y - fit) * (y - fit)
+            }
+            val rms = kotlin.math.sqrt(residual / n)
+            val bearing = Heading.normalise(Math.toDegrees(atan2(c, b)).toFloat())
+            // Spread: a 15 dB hump with a 1 dB residual is a sharp arrow; a 4 dB hump with
+            // 3 dB of residual a broad fan.
+            val spread = (90.0 * (rms + 1.0) / height).toFloat().coerceIn(10f, 80f)
             return Sweep(bearing, spread)
+        }
+
+        /** Cramer's rule for a 3×3 system; null when singular. */
+        private fun solve3(
+            a11: Double,
+            a12: Double,
+            a13: Double,
+            a21: Double,
+            a22: Double,
+            a23: Double,
+            a31: Double,
+            a32: Double,
+            a33: Double,
+            b1: Double,
+            b2: Double,
+            b3: Double,
+        ): Triple<Double, Double, Double>? {
+            fun det(
+                m11: Double,
+                m12: Double,
+                m13: Double,
+                m21: Double,
+                m22: Double,
+                m23: Double,
+                m31: Double,
+                m32: Double,
+                m33: Double,
+            ) = m11 * (m22 * m33 - m23 * m32) - m12 * (m21 * m33 - m23 * m31) + m13 * (m21 * m32 - m22 * m31)
+            val d = det(a11, a12, a13, a21, a22, a23, a31, a32, a33)
+            if (abs(d) < 1e-9) return null
+            val x = det(b1, a12, a13, b2, a22, a23, b3, a32, a33) / d
+            val y = det(a11, b1, a13, a21, b2, a23, a31, b3, a33) / d
+            val z = det(a11, a12, b1, a21, a22, b2, a31, a32, b3) / d
+            return Triple(x, y, z)
         }
 
         /** Degrees into −180..180. */

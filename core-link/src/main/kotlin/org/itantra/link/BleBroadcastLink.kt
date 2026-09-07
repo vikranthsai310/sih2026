@@ -213,11 +213,12 @@ class BleBroadcastLink(
                             keyId = payload[KEYID_OFFSET].toInt() and 0xFF,
                             rssi = result.rssi,
                             atMillis = android.os.SystemClock.elapsedRealtime(),
+                            txPower = result.txPower.takeIf { it != ScanResult.TX_POWER_NOT_PRESENT },
                         ),
                     )
                 }
                 if (!isNew(payload)) return
-                Log.i(TAG, "heard ${payload.size} B, rssi ${result.rssi}")
+                Log.i(TAG, "heard ${payload.size} B, rssi ${result.rssi}, tx ${result.txPower}")
 
                 _metrics.update {
                     it.copy(
@@ -341,8 +342,19 @@ class BleBroadcastLink(
                 .setConnectable(false)
                 .setScannable(false)
                 .setLegacyMode(!extendedSupported())
-                .setInterval(AdvertisingSetParameters.INTERVAL_LOW)
+                // Ten advertisements a second, not one. Every one a scanner hears is a
+                // reading of how far away the sender is, and the locate screen is made
+                // of those readings: at one a second a walk towards a unit showed on the
+                // screen twenty seconds late, after the median and the smoothing had seen
+                // enough of them. At ten a second it shows within one. A frame on the air
+                // is also heard by more scanners across its window, which is the other
+                // reason to be dense.
+                .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
                 .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+                // The extended header carries the transmit power the controller actually
+                // uses, so a receiver can reckon distance against it. It costs nothing in
+                // the payload; legacy advertising has no such header.
+                .setIncludeTxPower(extendedSupported())
                 .build()
 
         while (scope.isActive) {

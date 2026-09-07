@@ -105,6 +105,17 @@ handsets, a 400 ms burst was heard about one time in three. A message gets twent
 chances; a hello has another behind it in five seconds. The receiver's 4 s repeat window
 delivers a frame once however many times it is heard inside that.
 
+> **Amended 2026-09-07 — ten a second.** The set's interval was `INTERVAL_LOW`, one
+> advertisement a second, so "twenty-five chances" above was a hope: a 2.5 s window held
+> two or three. It is now `INTERVAL_HIGH`, 100 ms, which is what the paragraph assumed.
+> The other reason is the locate screen: every advertisement a scanner hears is a reading
+> of the sender's distance, and at one a second a walk towards a unit reached the screen
+> twenty seconds late, after the median and the smoothing had seen enough readings. At ten
+> a second it reaches it inside one. The extended header now also carries the sender's
+> transmit power (`setIncludeTxPower`), read back as `ScanResult.txPower`, so distance is
+> reckoned against the power that actually left the antenna rather than one figure for
+> every make of phone. `Signal.txPower`, `Locator.referenceFor`.
+
 > **Found 2026-09-07 on two SM-S947B handsets.** The first version started a new set for
 > every frame and stopped it through a single shared callback object. Android keys its
 > callback registry on that object, and the previous set's asynchronous "stopped"

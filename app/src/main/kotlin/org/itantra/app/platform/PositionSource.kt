@@ -22,7 +22,11 @@ import org.itantra.proto.Presence
  * not, rather than pretending.
  *
  * GPS and the network provider are both asked, because indoors GPS gives nothing and a
- * network fix, though coarse, still points an arrow the right way across a compound.
+ * network fix, though coarse, still points an arrow the right way across a compound. On
+ * Android 12 and later the platform's own fused provider is asked as well: it blends the
+ * satellite fix with the inertial sensors, so a fix keeps coming between satellite
+ * epochs and through the momentary dropouts under a tree or beside a wall, and it is what
+ * every map application on the handset is drawing from.
  */
 class PositionSource(private val context: Context) {
     private val manager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
@@ -76,7 +80,11 @@ class PositionSource(private val context: Context) {
         val lm = manager ?: return false
         if (!isPermitted()) return false
         var any = false
-        for (provider in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
+        val providers = mutableListOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            providers += LocationManager.FUSED_PROVIDER
+        }
+        for (provider in providers) {
             runCatching {
                 if (lm.isProviderEnabled(provider)) {
                     lm.requestLocationUpdates(provider, INTERVAL_MILLIS, 0f, listener, Looper.getMainLooper())

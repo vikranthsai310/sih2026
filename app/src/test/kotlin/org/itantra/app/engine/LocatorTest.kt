@@ -17,13 +17,32 @@ class LocatorTest {
         val near = Locator.centimetresFor(-50.0)
         val far = Locator.centimetresFor(-70.0)
         assertTrue("$near cm at -50 dBm", near in 30..60)
-        assertTrue("$far cm at -70 dBm", far in 200..300)
+        assertTrue("$far cm at -70 dBm", far in 250..350)
         assertTrue(near < far)
     }
 
     @Test
     fun `the figure is capped rather than absurd`() {
-        assertEquals(99_900, Locator.centimetresFor(-140.0))
+        assertEquals(99_900, Locator.centimetresFor(-200.0))
+    }
+
+    @Test
+    fun `the sender's own power sets the one-metre reference`() {
+        // A sender at +4 dBm is expected at -53 dBm one metre off; at 0 dBm, -57.
+        assertEquals(-53.0, Locator.referenceFor(4), 0.01)
+        assertEquals(-57.0, Locator.referenceFor(0), 0.01)
+        assertEquals(Locator.RSSI_AT_ONE_METRE, Locator.referenceFor(null), 0.01)
+        assertEquals(100, Locator.centimetresFor(-53.0, Locator.referenceFor(4)))
+    }
+
+    @Test
+    fun `the exponent is free space close in and rises with range`() {
+        // 20 dB below the reference: exponent 2.53, so nearer than free space's 10 m
+        // would say and further than a corridor's 5 m.
+        val d = Locator.distanceFor(Locator.RSSI_AT_ONE_METRE - 20)
+        assertTrue("$d", d > 5.0 && d < 10.0)
+        // 6 dB above it: half a metre, free space.
+        assertEquals(0.5, Locator.distanceFor(Locator.RSSI_AT_ONE_METRE + 6), 0.02)
     }
 }
 
@@ -66,6 +85,23 @@ class LocatorSweepTest {
             assertTrue("peak $peak read as ${sweep.bearingDeg}", kotlin.math.abs(delta) < 8f)
             assertTrue("spread ${sweep.spreadDeg}", sweep.spreadDeg < 60f)
         }
+    }
+
+    @Test
+    fun `an uneven turn does not drag the peak towards where the operator lingered`() {
+        // Peak at 90°, but forty readings taken while standing at 270° and one each
+        // elsewhere: a mean of the readings would sit near 270; the fit must not.
+        val (h0, r0) = circle(90f, 16.0)
+        val h = ArrayList(h0)
+        val r = ArrayList(r0)
+        repeat(40) {
+            h += 270f
+            r += r0[h0.indexOf(270f)]
+        }
+        val sweep = Locator.sweepOf(h, r) ?: error("no sweep")
+        var delta = sweep.bearingDeg - 90f
+        if (delta > 180f) delta -= 360f
+        assertTrue("read as ${sweep.bearingDeg}", kotlin.math.abs(delta) < 8f)
     }
 
     @Test

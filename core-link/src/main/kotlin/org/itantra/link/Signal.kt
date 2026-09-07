@@ -19,6 +19,14 @@ data class Signal(
     val rssi: Int,
     /** `SystemClock.elapsedRealtime()` at reception. */
     val atMillis: Long,
+    /**
+     * The sender's transmit power in dBm, when its extended advertising header carried
+     * it, or null. With it, a distance can be reckoned against the power that actually
+     * left the sender's antenna rather than a figure assumed for every handset; two phones
+     * of different make differ by ten decibels at the same range, which is the difference
+     * between "one metre" and "three".
+     */
+    val txPower: Int? = null,
 )
 
 /** A link that can say how strongly it hears each sender. Only a radio can. */
