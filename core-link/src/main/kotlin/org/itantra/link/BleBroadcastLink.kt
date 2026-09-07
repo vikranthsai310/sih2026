@@ -13,6 +13,7 @@ import android.bluetooth.le.ScanSettings
 import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.itantra.proto.Frame
 import java.util.UUID
 
@@ -110,14 +112,27 @@ class BleBroadcastLink(
     private val outgoing = Channel<ByteArray>(capacity = 32, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     private var pump: Job? = null
-    private var advertising: AdvertisingSet? = null
 
     /**
-     * Frames heard recently, so one advertisement repeated on the air is surfaced once.
+     * The one advertising set this link ever holds, or null while there is none.
      *
-     * The replay window would discard the duplicates anyway; catching them here keeps them
-     * out of the AEAD, which is the expensive part of receiving.
+     * One set, its data replaced per frame, rather than a set per frame. The first version
+     * started a set for every frame and stopped it through one shared callback object.
+     * Android keys its callback registry on that object, and the *previous* set's
+     * asynchronous "stopped" notification unregisters whatever the callback is mapped to
+     * by the time it lands -- which is the new set. That set could then never be stopped:
+     * it advertised its frame for ever, the peer heard it again every four seconds, and
+     * after sixteen of them the controller answered every start with "too many
+     * advertisers" and this unit went mute. Seen on an SM-S947B: sixteen ongoing sets in
+     * `dumpsys bluetooth_manager`, every hello refused.
      */
+    @Volatile
+    private var set: AdvertisingSet? = null
+
+    /** Settled by the callback for the set being started: the set, or null on refusal. */
+    @Volatile
+    private var starting: CompletableDeferred<AdvertisingSet?>? = null
+
     private val heard = LinkedHashMap<Int, Long>()
 
     private val advertiseCallback =
@@ -127,9 +142,7 @@ class BleBroadcastLink(
                 txPower: Int,
                 status: Int,
             ) {
-                advertising = set
-                active = status == ADVERTISE_SUCCESS
-                if (status != ADVERTISE_SUCCESS) {
+                if (status != ADVERTISE_SUCCESS || set == null) {
                     // Ignoring this status was a mistake worth not repeating: the
                     // controller refuses an advertisement for perfectly ordinary reasons --
                     // data too large for the chosen mode, too many sets already registered --
@@ -137,18 +150,38 @@ class BleBroadcastLink(
                     // listening.
                     Log.w(TAG, "advertisement refused, status $status (${describe(status)})")
                     _metrics.update { it.copy(framesLost = it.framesLost + 1) }
+                    this@BleBroadcastLink.set = null
+                    starting?.complete(null)
+                    return
                 }
+                this@BleBroadcastLink.set = set
+                starting?.complete(set)
             }
 
             override fun onAdvertisingSetStopped(set: AdvertisingSet?) {
-                advertising = null
-                active = false
+                this@BleBroadcastLink.set = null
+            }
+
+            override fun onAdvertisingDataSet(
+                set: AdvertisingSet?,
+                status: Int,
+            ) {
+                if (status != ADVERTISE_SUCCESS) {
+                    Log.w(TAG, "advertising data refused, status $status (${describe(status)})")
+                    _metrics.update { it.copy(framesLost = it.framesLost + 1) }
+                }
+            }
+
+            override fun onAdvertisingEnabled(
+                set: AdvertisingSet?,
+                enable: Boolean,
+                status: Int,
+            ) {
+                if (status != ADVERTISE_SUCCESS && enable) {
+                    Log.w(TAG, "could not put the set on the air, status $status (${describe(status)})")
+                }
             }
         }
-
-    /** Whether a set is registered, so a stop is not attempted before any start. */
-    @Volatile
-    private var active = false
 
     private val scanCallback =
         object : ScanCallback() {
@@ -269,10 +302,11 @@ class BleBroadcastLink(
     /**
      * Puts one frame on the air at a time.
      *
-     * A controller advertises one payload per set until told otherwise, so frames are queued
-     * rather than overlapped. Each is held for [AIR_TIME_MILLIS] — long enough for a
-     * scanning unit to catch it across several advertising intervals, short enough that a
-     * queue of them still drains at conversational speed.
+     * The set is created on the first frame and kept. Every later frame replaces the
+     * set's data and switches it on for [AIR_TIME_MILLIS] -- long enough for a scanning
+     * unit to catch it across several advertising intervals -- after which the controller
+     * switches it off by itself. A frame left on the air is heard again by every peer every
+     * few seconds and dropped as a replay each time, and it occupies the radio meanwhile.
      */
     private suspend fun transmitLoop() {
         val advertiser = adapter.bluetoothLeAdvertiser ?: return
@@ -310,29 +344,97 @@ class BleBroadcastLink(
                     .addServiceData(ParcelUuid(SERVICE_UUID), frame)
                     .build()
 
-            stopAdvertising()
-            runCatching {
-                advertiser.startAdvertisingSet(parameters, data, null, null, null, advertiseCallback)
-            }.onSuccess {
+            val existing = set
+            val onAir =
+                if (existing != null) {
+                    runCatching {
+                        existing.setAdvertisingData(data)
+                        existing.enableAdvertising(true, airUnits(frame), 0)
+                    }.onFailure {
+                        // The set is gone under us -- the radio was cycled. Forget it and
+                        // start afresh on the next frame; this one is lost.
+                        Log.w(TAG, "the advertising set failed: $it")
+                        stopAdvertising()
+                    }.isSuccess
+                } else {
+                    start(advertiser, parameters, data, airUnits(frame)) != null
+                }
+
+            if (onAir) {
                 Log.i(TAG, "advertising ${frame.size} B (mtu $mtu, extended ${extendedSupported()})")
                 _metrics.update {
                     it.copy(framesSent = it.framesSent + 1, bytesSent = it.bytesSent + frame.size)
                 }
-            }.onFailure { failure ->
-                Log.w(TAG, "startAdvertisingSet threw: $failure")
+                delay(airMillis(frame) + SETTLE_MILLIS)
+            } else {
                 _metrics.update { it.copy(framesLost = it.framesLost + 1) }
+                // A controller with no set to give is not going to have one in ten
+                // milliseconds. Wait before asking again, so the queue does not spin.
+                delay(START_RETRY_MILLIS)
             }
-            delay(AIR_TIME_MILLIS)
         }
     }
 
+    /**
+     * Starts the set with its first frame, and waits for the controller's answer.
+     *
+     * On the air for [AIR_TIME_MILLIS] from the start, like every frame after it. The
+     * callback is the one registered for this link, and it is registered exactly once per
+     * set, which is the whole of the fix described on [set].
+     */
+    private suspend fun start(
+        advertiser: android.bluetooth.le.BluetoothLeAdvertiser,
+        parameters: AdvertisingSetParameters,
+        data: AdvertiseData,
+        airUnits: Int,
+    ): AdvertisingSet? {
+        val answer = CompletableDeferred<AdvertisingSet?>()
+        starting = answer
+        val began =
+            runCatching {
+                advertiser.startAdvertisingSet(parameters, data, null, null, null, airUnits, 0, advertiseCallback)
+            }
+        if (began.isFailure) {
+            Log.w(TAG, "startAdvertisingSet threw: ${began.exceptionOrNull()}")
+            starting = null
+            // The callback may be left registered against a set that never started;
+            // clearing it is what lets the next attempt register again.
+            runCatching { advertiser.stopAdvertisingSet(advertiseCallback) }
+            return null
+        }
+        val result = withTimeoutOrNull(START_TIMEOUT_MILLIS) { answer.await() }
+        starting = null
+        if (result == null) runCatching { advertiser.stopAdvertisingSet(advertiseCallback) }
+        return result
+    }
+
+    /**
+     * How long a frame stays on the air.
+     *
+     * Measured on two SM-S947B handsets scanning at low latency: of hellos put on the air
+     * for 400 ms, roughly one in three was heard. An advertisement is not a packet; it is
+     * a chance, repeated every advertising interval, and a scanner's own duty cycle
+     * decides how many of those chances it takes. A message gets two and a half seconds
+     * -- some twenty-five chances -- because a message missed is a message lost. A hello
+     * gets less: there is another one in five seconds, and the channel is shared.
+     */
+    private fun airMillis(frame: ByteArray): Long = if (isHello(frame)) HELLO_AIR_TIME_MILLIS else AIR_TIME_MILLIS
+
+    private fun airUnits(frame: ByteArray): Int = (airMillis(frame) / 10).toInt()
+
+    /** The type nibble of the frame header, without decoding the frame. */
+    private fun isHello(frame: ByteArray): Boolean =
+        frame.size > 1 && ((frame[1].toInt() shr 4) and 0xF) == HEARTBEAT_TYPE
+
     private fun stopAdvertising() {
-        // Only when one is registered. Stopping a set that was never started logs
-        // "Fail to get GATT" on every frame, which buries the failures that matter.
-        if (!active) return
+        // Only when one is registered, or being registered. Stopping a set that was never
+        // started logs "callback does not belong to any advertising set" on every call,
+        // which buries the failures that matter.
+        if (set == null && starting == null) return
         runCatching { adapter.bluetoothLeAdvertiser?.stopAdvertisingSet(advertiseCallback) }
-        advertising = null
-        active = false
+        set = null
+        starting?.complete(null)
+        starting = null
     }
 
     private fun extendedSupported(): Boolean =
@@ -391,10 +493,25 @@ class BleBroadcastLink(
         /** Below this nothing useful fits and fragmentation would never terminate. */
         const val MIN_MTU = 8
 
-        /** Long enough to be caught across several advertising intervals. */
-        const val AIR_TIME_MILLIS = 400L
+        /** A message: long enough that a scanner taking one chance in three still hears it. */
+        const val AIR_TIME_MILLIS = 2_500L
 
-        /** A repeated advertisement inside this window is the same transmission. */
+        /** A hello: another follows in five seconds, and the channel is shared. */
+        const val HELLO_AIR_TIME_MILLIS = 600L
+
+        /** `MessageType.HEARTBEAT`, as it sits in the high nibble of header byte 1. */
+        const val HEARTBEAT_TYPE = 0x5
+
+        /** After the air time, before the next frame's data is set: the controller's own turnaround. */
+        const val SETTLE_MILLIS = 50L
+
+        /** How long to wait for the controller to answer a start. */
+        const val START_TIMEOUT_MILLIS = 3_000L
+
+        /** After a refused start, how long before the next frame tries again. */
+        const val START_RETRY_MILLIS = 5_000L
+
+        /** A repeated advertisement inside this window is the same transmission. Longer than any air time. */
         const val REPEAT_WINDOW_MILLIS = 4_000L
 
         /** Bounded: a busy channel must not grow this map without limit. */

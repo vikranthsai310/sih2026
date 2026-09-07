@@ -93,6 +93,29 @@ Power consumption is roughly a tenth of Bluetooth Classic, which makes BLE the c
 **standby** transport and is what supports the eight-hour endurance claim. It is also
 natively broadcast, which makes all-units operation straightforward.
 
+### The broadcast road as shipped: one advertising set
+
+What ships is not GATT but **extended advertising** (`BleBroadcastLink`): every frame goes
+out as service data under the UUID above and every unit scans for it. The link holds
+**one advertising set** for its whole life, replaces the set's data for each frame, and
+puts it on the air with the controller's own duration timer: **2.5 s for a message,
+600 ms for a hello**. An advertisement is a chance repeated every 100 ms, not a packet,
+and a scanner's duty cycle decides how many chances it takes — measured on two SM-S947B
+handsets, a 400 ms burst was heard about one time in three. A message gets twenty-five
+chances; a hello has another behind it in five seconds. The receiver's 4 s repeat window
+delivers a frame once however many times it is heard inside that.
+
+> **Found 2026-09-07 on two SM-S947B handsets.** The first version started a new set for
+> every frame and stopped it through a single shared callback object. Android keys its
+> callback registry on that object, and the previous set's asynchronous "stopped"
+> notification unregisters whichever set the callback maps to when it lands — the new one.
+> That set could never be stopped: it advertised its frame for ever, the peer re-heard it
+> every four seconds and dropped it as a replay, and after sixteen of them (the
+> controller's limit) every start was refused with *too many advertisers* and the unit
+> went mute. `dumpsys bluetooth_manager` showed sixteen ongoing sets. Transfer worked for
+> the first dozen or so messages after each app start and then stopped, which looked like
+> whatever the operator had just done — a language change, in the report that found it.
+
 ## 4. Wi-Fi — hotspot or any shared network
 
 Two mechanisms produce the same result: a local network between the devices, with no
