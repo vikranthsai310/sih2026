@@ -986,7 +986,7 @@ parallel with week 1.**
     after a wrap would be suppressed as a duplicate of one from before it*
   · *The hop count is the operator's, 0–7, from the control room. Applied to frames this
     unit originates; a frame passing through is decremented from whatever its sender chose*
-- [x] **W6.14** — Road switches: each of BLE, Wi-Fi and RFCOMM on or off for routine
+- [x] **W6.19** — Road switches: each of BLE, Wi-Fi and RFCOMM on or off for routine
   traffic; alerts down every road regardless
   · *`MeshLink.roads` and `Link.send(frame, urgent)`. The switch is on sending only — a
     road that is off is still up and still heard. The last road on refuses to go off, an
