@@ -139,6 +139,11 @@ data class AppState(
     val relayMode: Boolean = false,
     /** How many relay hops a message from this unit may travel, 0 to 7. */
     val ttl: Int = 3,
+    /**
+     * Whether the hold screen stands in front of everything. True on every arrival at the
+     * application; false once the circle has been held. See [HoldScreen].
+     */
+    val locked: Boolean = false,
     /** The application's own text size factor over the system's, 0.85 to 2.0. */
     val textScale: Float = 1f,
     /** The walk in progress, or null. */
@@ -187,6 +192,8 @@ data class AppActions(
     val onTtl: (Int) -> Unit = {},
     /** A road switched on or off for routine traffic. Alerts use every road regardless. */
     val onRoad: (id: String, on: Boolean) -> Unit = { _, _ -> },
+    /** The circle was held for three seconds. */
+    val onOpened: () -> Unit = {},
 )
 
 @Composable
@@ -218,6 +225,16 @@ private fun Routed(
     BackHandler(enabled = where != Destination.OPERATING) {
         if (where == Destination.LOCATE_UNIT) actions.onStopLocating()
         where = back(where)
+    }
+
+    // The hold screen stands in front of everything, the splash included: the three
+    // seconds it takes usually cover the model preload, so the splash is rarely seen
+    // behind it. It is the one screen that ignores the navigation state, and it does not
+    // reset it -- an operator who was on the metrics screen comes back to the metrics
+    // screen.
+    if (state.locked) {
+        HoldScreen(onOpened = actions.onOpened, modifier = modifier)
+        return
     }
 
     // Risk T-11: the transmit control must never be live over an unloaded recogniser.

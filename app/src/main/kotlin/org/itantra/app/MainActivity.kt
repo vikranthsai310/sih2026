@@ -174,6 +174,14 @@ class MainActivity : ComponentActivity() {
     /** Relay mode, mirrored the same way and for the same reason. */
     private var relayMode by mutableStateOf(false)
 
+    /**
+     * Whether the hold screen is in front. True at launch and on every return from the
+     * background; false once the circle has been held. Saved across a configuration
+     * change, so turning the handset does not ask for the hold again, and restored after a
+     * process death, so coming back from one does.
+     */
+    private var locked by mutableStateOf(true)
+
     /** The hop count, mirrored the same way. The engine's own value is the truth. */
     private var ttl by mutableStateOf(3)
 
@@ -201,6 +209,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        locked = savedInstanceState?.getBoolean(LOCKED_KEY, true) ?: true
 
         // Token tables and voice configs, out of the installer and onto the disk. Free
         // after the first run, and it means a language pack is one or two downloads
@@ -266,6 +275,7 @@ class MainActivity : ComponentActivity() {
                                 textScale = textScale,
                                 relayMode = relayMode,
                                 ttl = ttl,
+                                locked = locked,
                                 locate = running?.locate?.collectAsState()?.value,
                                 unitsHeard = running?.unitsEverHeard().orEmpty(),
                                 defaultUnitName = app.defaultUnitName(),
@@ -288,6 +298,7 @@ class MainActivity : ComponentActivity() {
                                 onStopLocating = { running?.stopLocating() },
                                 onLocateSiren = { running?.setLocateSiren(it) },
                                 onRelayMode = ::switchRelayMode,
+                                onOpened = { locked = false },
                                 onTtl = { hops ->
                                     running?.setTtl(hops) ?: preferences.setTtl(hops)
                                     ttl = running?.ttl ?: preferences.ttl
@@ -634,24 +645,39 @@ class MainActivity : ComponentActivity() {
             .onFailure { packStatus = "This handset has no file picker to open." }
     }
 
+    // The hardware key is not live behind the hold screen. A gate the volume key walks
+    // straight through is not a gate.
     override fun onKeyDown(
         keyCode: Int,
         event: android.view.KeyEvent,
     ): Boolean =
-        transmitKey.onKey(keyCode, event.action, event.repeatCount) ||
+        (!locked && transmitKey.onKey(keyCode, event.action, event.repeatCount)) ||
             super.onKeyDown(keyCode, event)
 
     override fun onKeyUp(
         keyCode: Int,
         event: android.view.KeyEvent,
     ): Boolean =
-        transmitKey.onKey(keyCode, event.action, event.repeatCount) ||
+        (!locked && transmitKey.onKey(keyCode, event.action, event.repeatCount)) ||
             super.onKeyUp(keyCode, event)
 
     override fun onPause() {
         super.onPause()
         // An operator interrupted mid-transmission must not leave the floor held.
         transmitKey.releaseIfHeld()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Leaving for the background locks; turning the handset does not. On Android 9 and
+        // later this runs before the state is saved, so what is restored after a process
+        // death is the locked value -- which is the right answer for a return from one.
+        if (!isChangingConfigurations) locked = true
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(LOCKED_KEY, locked)
     }
 
     override fun onDestroy() {
@@ -717,6 +743,8 @@ class MainActivity : ComponentActivity() {
         )
 
     private companion object {
+        const val LOCKED_KEY = "locked"
+
         /** Between two addresses handed to the browser. Long enough to be two tabs, not one. */
         const val BROWSER_HANDOFF_MILLIS = 350L
 
