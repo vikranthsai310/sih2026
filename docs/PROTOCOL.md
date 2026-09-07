@@ -31,7 +31,7 @@ integrity and authentication. The payload is what remains.
 | `LEN` | 2 | Payload length in bytes, big-endian, **not** including header or CRC. MUST be ≤ 1024. This field is the basis of stream framing. |
 | `SRC` | 1 | Sender node identifier (§8). **There is no destination field** — every frame is broadcast to every unit holding the key, exactly as a walkie-talkie is. See §8. |
 | `KEYID` | 1 | First byte of SHA-256 of the shared key. A **cheap reject filter**, not a security control — it lets a frame from an unpaired transmitter be dropped without running AEAD verification. Derived automatically; never configured, never shown to the user. A collision (1 in 256) costs one wasted verification and is then rejected by the tag. |
-| `TTL` | 1 | Remaining relay hops. Decremented on forward; a frame arriving with `TTL == 0` MUST NOT be forwarded. Default 3. |
+| `TTL` | 1 | Remaining relay hops. Decremented on forward; a frame arriving with `TTL == 0` MUST NOT be forwarded. Default 3; the sending unit's operator MAY set 0–7 ([TRANSPORT.md §8](TRANSPORT.md#the-hop-count)). Left out of the AEAD associated data so a relay can decrement it (§6). |
 | `PAYLOAD` | `LEN` | Packed text, template identifier, coordinates, or control data. Sealed when `ENCRYPTED` is set (§6). |
 | `CRC16` | 2 | CRC-16/CCITT-FALSE over bytes 0 … n-3 inclusive — the header and the payload exactly as transmitted, ciphertext included. |
 

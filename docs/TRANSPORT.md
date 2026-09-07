@@ -307,8 +307,59 @@ permissions on both. For the fastest road, bond the two in Android's Bluetooth s
 the application dials only bonded handsets and never makes itself discoverable. Either
 turn on one handset's hotspot and join the other to it, or rely on BLE broadcast between
 two Bluetooth 5 handsets; both roads need no bonding. Check the node id in band A differs
-on the two units. Keep the application in the foreground: the engine lives with the
-activity.
+on the two units. With relay mode off the engine lives with the screen — keep the
+application in the foreground. With it on, it does not; see below.
+
+### Relay mode
+
+Every unit already rebroadcasts what it hears, within the hop count (PROTOCOL.md §8). What
+relay mode changes is **whether it keeps doing so with the screen off**. Off, the engine
+lives and dies with the activity, which is the right lifetime for a screen and the wrong one
+for a unit whose operator has put it in a pocket to wade through water. On, the engine
+belongs to a foreground service that outlives the activity: the radios stay up, a partial
+wake lock keeps the processor answering scan results, and a silent notification says what
+the unit is hearing. The service is `START_STICKY`, and builds its own engine, so a kill
+under memory pressure brings the relay back working rather than back empty.
+
+It is a switch in the control room, **off by default**, and it says on the card what it
+costs. The radios and the processor stay on; that is battery, and it is the operator's
+decision. The notification carries **Stop relaying**, which the service answers itself and
+records, so the switch on the screen agrees with it when the operator comes back.
+
+| Preconditions the code already meets | Why it matters |
+| --- | --- |
+| BLE scans with a `ScanFilter` on the service UUID | Android 8.1 and later kill an unfiltered scan when the screen goes off |
+| Wi-Fi holds a `MulticastLock` | Power save otherwise drops broadcast datagrams before they reach the socket |
+| Foreground service | Exempt from Doze's network restrictions, which is what lets the Wi-Fi road keep receiving |
+| `connectedDevice` foreground type | What Android 14 requires of a service whose job is Bluetooth and Wi-Fi |
+
+### Which roads a unit sends on
+
+The three roads run at once and always have. What the operator can choose, on the mode and
+radio screen, is which of them **routine traffic** goes down: each road has its own switch.
+Not a chooser — a chosen radio would tell the operator their message left on one road when
+it left on three. Two rules make the switches safe to offer:
+
+- **A road that is off is still up, and still heard.** The switch is on sending only.
+  Nothing an operator can set makes a unit deaf on a radio.
+- **An alert goes down every road that is up, switched off or not.** `Link.send` carries
+  one bit of context for this, set by `Session` for an `ALERT` and by the engine for a
+  relayed one. A preference set on a quiet afternoon must never be why an evacuation order
+  stayed on one handset. A queued alert keeps the bit through the outbox.
+
+The last road on cannot be switched off — the control refuses, and the row says why — and
+a stored selection that names nothing that exists reads back as everything. A selection
+that would leave no road standing at the moment of sending (only a road that is down, say)
+is set aside and the frame goes everywhere: the right failure for a radio is to transmit.
+
+### The hop count
+
+`TTL` is the operator's, 0 to 7, stepped in the control room and applied to frames this
+unit originates. Zero is direct range only — read by the receiver, never rebroadcast. A
+frame passing through is decremented from whatever *its* sender chose; this unit's setting
+has no say in that. The ceiling is protection against a slip of the finger, not a protocol
+limit: the byte allows 255, and on a channel with a loop in it that is a storm bounded only
+by the seen-set.
 
 **Pairing is the most common cause of demonstration failure.** Devices are paired before
 the session, QR provisioning is the fallback, and a third pre-configured handset is kept

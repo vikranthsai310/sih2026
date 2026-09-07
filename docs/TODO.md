@@ -184,10 +184,16 @@ the target is now met with room to spare.
   · *[WIREFRAMES.md §1](WIREFRAMES.md#1-layout-system) — 8 dp grid, 64 dp minimum target*
 - [x] **W1.13** — `EngineService` foreground service with persistent notification
   · *[ARCHITECTURE.md §3](ARCHITECTURE.md#3-threading-and-lifecycle)*
-  · *Owns the `EngineState` machine and rejects an illegal transition rather than
-    applying it. `FOREGROUND_SERVICE_TYPE_MICROPHONE`, `START_STICKY`, and a
-    deliberately **silent low-importance** channel — this runs for hours, and a radio
-    that pings on every state change is switched off within the first hour*
+  · *Was in the manifest with a comment saying it owned the engine, and owned nothing
+    and was never started; the engine lived with the activity. It now owns the engine
+    for real — the activity binds and borrows — and builds it itself, so `START_STICKY`
+    brings back a working relay. The `EngineState` machine it held had no callers and
+    is gone; the notification is driven from the engine's real state*
+  · *Foreground only in **relay mode** ([TRANSPORT.md §8](TRANSPORT.md#relay-mode)),
+    the operator's switch in the control room, off by default. `microphone |
+    connectedDevice`, a partial wake lock, and a deliberately **silent low-importance**
+    channel — this runs for hours, and a radio that pings on every state change is
+    switched off within the first hour*
   · *The manifest had declared this class since week 1 without it existing, which
     Android Lint caught as `MissingClass`*
 - [x] **W1.14** — Runtime permissions: `RECORD_AUDIO`, `BLUETOOTH_CONNECT`,
@@ -978,6 +984,15 @@ parallel with week 1.**
     message — and asserts exactly three rebroadcasts and then silence*
   · *The epoch is in the key because `SEQ` wraps at 65 536; without it the first frame
     after a wrap would be suppressed as a duplicate of one from before it*
+  · *The hop count is the operator's, 0–7, from the control room. Applied to frames this
+    unit originates; a frame passing through is decremented from whatever its sender chose*
+- [x] **W6.14** — Road switches: each of BLE, Wi-Fi and RFCOMM on or off for routine
+  traffic; alerts down every road regardless
+  · *`MeshLink.roads` and `Link.send(frame, urgent)`. The switch is on sending only — a
+    road that is off is still up and still heard. The last road on refuses to go off, an
+    empty selection reads as everything, and a selection that leaves nothing standing at
+    the moment of sending is set aside. Board 19's rows are the switches; they used to be
+    status only, because a chooser would have been wrong*
 - [x] **W6.14** — UNSECURED banner: red, permanent, undismissable, no silent path
   · *`UnsecuredBanner`. **A banner an operator can dismiss is a banner an operator will
     dismiss**, and the condition persists after the dismissal — which is why this is a
