@@ -79,6 +79,8 @@ data class LocateState(
     val bearingDeg: Float? = null,
     val compassErrorDeg: Float? = null,
     val compassNeedsCalibration: Boolean = false,
+    /** Iron nearby: the heading is being carried by the gyroscope from the last clean place. */
+    val compassDisturbed: Boolean = false,
     val lost: Boolean,
     /** Whether the target has answered the request and is beaconing. */
     val beaconing: Boolean,

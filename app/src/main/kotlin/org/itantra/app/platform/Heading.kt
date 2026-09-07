@@ -7,9 +7,11 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.Location
+import android.os.SystemClock
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.hypot
+import kotlin.math.sqrt
 
 /**
  * Which way the handset is pointing, as degrees clockwise from true north.
@@ -32,13 +34,20 @@ import kotlin.math.hypot
  * then right at every angle an operator actually holds a phone at, without a mode
  * switch and without a jump at the crossover.
  *
- * ## The sensors
+ * ## The sensors, and why there are two headings
  *
  * The rotation vector is the platform's fusion of magnetometer, accelerometer and
- * gyroscope, and is what every serious compass uses: the gyroscope carries the heading
- * through a turn at hundreds of hertz while the magnetometer, slow and noisy, only has
- * to hold it steady. A handset without one falls back to accelerometer and magnetometer
- * combined here, which is the same geometry with more jitter.
+ * gyroscope, and it knows where north is. The *game* rotation vector is the same fusion
+ * without the magnetometer: it knows nothing about north, but nothing magnetic can fool
+ * it, and it follows a turn of the hand exactly. [HeadingFusion] takes the second as the
+ * moment-to-moment reading and anchors it to the first only while the magnetic field
+ * looks like the Earth's -- its strength and its dip against the geomagnetic model for
+ * this position -- so a steel door frame swings the magnetic heading and not the arrow.
+ * That is what the research on smartphone heading under magnetic anomalies does with a
+ * Kalman filter, done with an offset and a gate. A handset without a game rotation
+ * vector uses the magnetic heading alone, as before; one without a rotation vector at
+ * all falls back to accelerometer and magnetometer combined here, which is the same
+ * geometry with more jitter.
  *
  * The magnetometer's own accuracy is reported by the platform and surfaced as
  * [needsCalibration]: near iron, or after a change of magnetic surroundings, the sensor
@@ -52,7 +61,14 @@ import kotlin.math.hypot
  */
 class Heading(context: Context) {
     private val manager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+
+    /** The magnetic rotation matrix, from the rotation vector or the fallback pair. */
     private val rotation = FloatArray(9)
+
+    /** The gyroscope's rotation matrix, from the game rotation vector. */
+    private val gyroRotation = FloatArray(9)
+
+    private val fusion = HeadingFusion()
 
     @Volatile
     var degrees: Float? = null
@@ -71,14 +87,35 @@ class Heading(context: Context) {
     var needsCalibration: Boolean = false
         private set
 
+    /**
+     * The magnetic field here does not look like the Earth's, and the heading is being
+     * carried by the gyroscope from the last place it did. Moving a few metres cures it.
+     */
+    @Volatile
+    var magneticallyDisturbed: Boolean = false
+        private set
+
     @Volatile
     private var declination = 0f
+
+    @Volatile
+    private var expectedStrengthMicroTesla: Float? = null
+
+    @Volatile
+    private var expectedDipDegrees: Float? = null
 
     /** Called on every reading, on the sensor thread, so an arrow can follow in real time. */
     @Volatile
     var onChanged: (() -> Unit)? = null
 
     private var listening = false
+    private var hasGyroHeading = false
+
+    // The latest of each instrument, on the sensor thread.
+    private var magneticDegrees: Float? = null
+    private var gyroDegrees: Float? = null
+    private var field: FloatArray? = null
+    private var fieldTrusted = true
 
     // The fallback pair, when there is no rotation vector.
     private var gravity: FloatArray? = null
@@ -89,7 +126,7 @@ class Heading(context: Context) {
             override fun onSensorChanged(event: SensorEvent) {
                 when (event.sensor.type) {
                     Sensor.TYPE_ROTATION_VECTOR -> {
-                        SensorManager.getRotationMatrixFromVector(rotation, event.values)
+                        SensorManager.getRotationMatrixFromVector(rotation, quaternion(event.values))
                         // values[4], when present and non-negative, is the platform's own
                         // estimate of the heading error, in radians.
                         errorDegrees =
@@ -97,14 +134,24 @@ class Heading(context: Context) {
                                 .getOrNull(4)
                                 ?.takeIf { it >= 0f }
                                 ?.let { Math.toDegrees(it.toDouble()).toFloat() }
+                        magneticDegrees = normalise(forwardAzimuth(rotation) + declination)
                         publish()
+                    }
+                    Sensor.TYPE_GAME_ROTATION_VECTOR -> {
+                        SensorManager.getRotationMatrixFromVector(gyroRotation, quaternion(event.values))
+                        gyroDegrees = smooth(gyroDegrees, forwardAzimuth(gyroRotation), GYRO_SMOOTHING)
+                        publish()
+                    }
+                    Sensor.TYPE_MAGNETIC_FIELD -> {
+                        field = event.values.copyOf(3)
+                        judgeField()
+                        if (!hasGyroHeading) {
+                            geomagnetic = lowPass(event.values, geomagnetic)
+                            fallback()
+                        }
                     }
                     Sensor.TYPE_ACCELEROMETER -> {
                         gravity = lowPass(event.values, gravity)
-                        fallback()
-                    }
-                    Sensor.TYPE_MAGNETIC_FIELD -> {
-                        geomagnetic = lowPass(event.values, geomagnetic)
                         fallback()
                     }
                 }
@@ -122,14 +169,34 @@ class Heading(context: Context) {
                 needsCalibration =
                     accuracy == SensorManager.SENSOR_STATUS_ACCURACY_LOW ||
                     accuracy == SensorManager.SENSOR_STATUS_UNRELIABLE
+                judgeField()
                 onChanged?.invoke()
             }
         }
 
+    /** Whether the latest raw field looks like the Earth's, against the model for this place. */
+    private fun judgeField() {
+        val b = field ?: return
+        val strength = sqrt(b[0] * b[0] + b[1] * b[1] + b[2] * b[2])
+        // The dip needs the handset's attitude, and the gyroscope's matrix gives one that
+        // the field itself cannot have bent.
+        val dip = if (hasGyroHeading && gyroDegrees != null) HeadingFusion.dipOf(gyroRotation, b) else null
+        fieldTrusted =
+            HeadingFusion.looksLikeEarth(
+                strengthMicroTesla = strength,
+                dipDegrees = dip,
+                expectedStrengthMicroTesla = expectedStrengthMicroTesla,
+                expectedDipDegrees = expectedDipDegrees,
+                accuracyOk = !needsCalibration,
+            )
+    }
+
     private fun fallback() {
+        if (hasGyroHeading) return
         val g = gravity ?: return
         val m = geomagnetic ?: return
         if (!SensorManager.getRotationMatrix(rotation, null, g, m)) return
+        magneticDegrees = normalise(forwardAzimuth(rotation) + declination)
         publish()
     }
 
@@ -137,15 +204,23 @@ class Heading(context: Context) {
     private var reportedAtMillis = 0L
 
     private fun publish() {
-        val azimuth = forwardAzimuth(rotation) + declination
-        degrees = smooth(degrees, normalise(azimuth))
+        val now = SystemClock.elapsedRealtime()
+        val fused = fusion.update(gyroDegrees, magneticDegrees, fieldTrusted, now)
+        degrees =
+            if (hasGyroHeading) {
+                fused
+            } else {
+                // No gyroscope heading: the magnetic one, lightly smoothed as before.
+                fused?.let { smooth(degrees, it) }
+            }
+        magneticallyDisturbed = hasGyroHeading && (!fieldTrusted || fusion.isHolding(now))
         readings++
-        val now = android.os.SystemClock.elapsedRealtime()
         if (now - reportedAtMillis >= 1_000L) {
             android.util.Log.d(
                 "Heading",
-                "$readings readings/s, forward ${degrees?.toInt()}°, raw ${normalise(azimuth).toInt()}°, " +
-                    "top-up ${"%.2f".format(rotation[7])}, err ${errorDegrees?.toInt()}, cal ${!needsCalibration}",
+                "$readings readings/s, forward ${degrees?.toInt()}°, magnetic ${magneticDegrees?.toInt()}°, " +
+                    "gyro ${gyroDegrees?.toInt()}° offset ${fusion.offsetDegrees?.toInt()}, " +
+                    "field trusted $fieldTrusted, err ${errorDegrees?.toInt()}, cal ${!needsCalibration}",
             )
             readings = 0
             reportedAtMillis = now
@@ -156,13 +231,25 @@ class Heading(context: Context) {
     fun start(): Boolean {
         if (listening) return true
         val sm = manager ?: return false
+        fusion.reset()
+        magneticDegrees = null
+        gyroDegrees = null
+        field = null
+        fieldTrusted = true
         val fused = sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        val game = sm.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
+        val mag = sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
         listening =
             if (fused != null) {
-                sm.registerListener(listener, fused, SensorManager.SENSOR_DELAY_GAME)
+                val ok = sm.registerListener(listener, fused, SensorManager.SENSOR_DELAY_GAME)
+                hasGyroHeading = game != null && sm.registerListener(listener, game, SensorManager.SENSOR_DELAY_GAME)
+                // The raw field, for the gate. Not a heading source when the vector is there.
+                if (mag != null) sm.registerListener(listener, mag, SensorManager.SENSOR_DELAY_UI)
+                ok
             } else {
+                hasGyroHeading = false
                 val accel = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return false
-                val mag = sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD) ?: return false
+                if (mag == null) return false
                 sm.registerListener(listener, accel, SensorManager.SENSOR_DELAY_GAME) &&
                     sm.registerListener(listener, mag, SensorManager.SENSOR_DELAY_GAME)
             }
@@ -173,34 +260,60 @@ class Heading(context: Context) {
         if (!listening) return
         manager?.unregisterListener(listener)
         listening = false
+        hasGyroHeading = false
         degrees = null
         errorDegrees = null
+        magneticallyDisturbed = false
         gravity = null
         geomagnetic = null
+        magneticDegrees = null
+        gyroDegrees = null
+        field = null
     }
 
-    /** Corrects for the difference between magnetic and true north where the handset is. */
+    /**
+     * Corrects for the difference between magnetic and true north where the handset is,
+     * and learns the field strength and dip expected there, for the gate.
+     */
     fun calibrate(location: Location) {
-        declination =
+        val model =
             GeomagneticField(
                 location.latitude.toFloat(),
                 location.longitude.toFloat(),
                 location.altitude.toFloat(),
                 System.currentTimeMillis(),
-            ).declination
+            )
+        declination = model.declination
+        // Nanotesla from the model; microtesla from the sensor.
+        expectedStrengthMicroTesla = model.fieldStrength / 1_000f
+        expectedDipDegrees = model.inclination
     }
 
     companion object {
         /**
-         * How much of a new reading is taken each time. The rotation vector is already
-         * fused and steady, so this is light: a turn is followed within a few readings, a
-         * tenth of a second, and a jitter of a degree is halved.
+         * How much of a new reading is taken each time, on the fallback and no-gyroscope
+         * paths. The rotation vector is already fused and steady, so this is light: a turn
+         * is followed within a few readings, a tenth of a second, and a jitter of a degree
+         * is halved.
          */
         const val SMOOTHING = 0.35f
+
+        /** The gyroscope's heading is clean already; this only rounds off the last fraction of a degree. */
+        const val GYRO_SMOOTHING = 0.6f
 
         private const val FALLBACK_LOW_PASS = 0.2f
 
         fun normalise(deg: Float): Float = ((deg % 360f) + 360f) % 360f
+
+        /**
+         * The rotation vector as the matrix routine wants it.
+         *
+         * Some handsets report five values -- the quaternion and a heading error -- and
+         * some builds of the routine refuse more than four. Only ever the first four are
+         * passed; three are left as three, because padding a fourth with zero would be
+         * read as a real scalar part rather than one to be derived.
+         */
+        fun quaternion(values: FloatArray): FloatArray = if (values.size > 4) values.copyOf(4) else values
 
         /**
          * The direction the phone is pointing, from its rotation matrix, in degrees

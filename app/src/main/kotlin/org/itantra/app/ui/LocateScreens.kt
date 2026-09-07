@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -254,6 +255,7 @@ fun LocateScreen(
                     append(state.bearingDeg?.let { "${it.toInt()}°" } ?: "—")
                     state.compassErrorDeg?.let { if (it >= 1f) append(" · ±${it.toInt()}°") }
                     state.headingCorrectionDeg?.let { append(" · walk ${if (it >= 0) "+" else ""}${it.toInt()}°") }
+                    if (state.compassDisturbed) append(" · gyro")
                 },
                 fontSize = Tokens.Instrument,
                 fontFamily = FontFamily.Monospace,
@@ -342,7 +344,7 @@ private fun Arrow(
     val arrowColour =
         when {
             bearing == null -> p.hairline
-            state.compassNeedsCalibration -> p.butter.deep
+            state.compassNeedsCalibration || state.compassDisturbed -> p.butter.deep
             state.arrowMode == ArrowMode.TARGET -> p.periwinkle.deep
             state.arrowMode == ArrowMode.SWEEP -> p.periwinkle.deep
             state.arrowMode == ArrowMode.LAST_KNOWN -> p.periwinkle.mid
@@ -368,6 +370,21 @@ private fun Arrow(
     ) {
         Canvas(Modifier.fillMaxSize()) {
             val half = size.minDimension / 2
+            // A ring with north on it, turning with the compass, so an operator with the
+            // sun or a map can check the compass itself before trusting what it points
+            // the arrow at. Drawn in the quiet ink; the arrow is the instrument.
+            state.headingDeg?.let { heading ->
+                drawCircle(color = p.hairline, radius = half * 0.99f, center = center, style = Stroke(width = 2f))
+                rotate(-heading, pivot = center) {
+                    val tickTop = center.y - half * 0.99f
+                    drawLine(
+                        color = p.hairlineStrong,
+                        start = androidx.compose.ui.geometry.Offset(center.x, tickTop),
+                        end = androidx.compose.ui.geometry.Offset(center.x, tickTop + half * 0.12f),
+                        strokeWidth = 6f,
+                    )
+                }
+            }
             rotate(bearing ?: 0f, pivot = center) {
                 // The arrow's own doubt, as a faint fan behind it: the combined GPS error
                 // over the distance. Wide when the units are close, a sliver when far.

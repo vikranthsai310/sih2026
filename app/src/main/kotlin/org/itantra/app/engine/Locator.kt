@@ -132,6 +132,10 @@ class Locator(
     private var courseAtMillis = 0L
     private var courseFixAtMillis = 0L
 
+    /** Lessons that have agreed so far, and what they say; applied at [COURSE_LESSONS_NEEDED]. */
+    private var courseLessons = 0
+    private var courseCandidate = 0f
+
     /** Whether the fixes are far enough apart for a direction, with hysteresis. */
     private var pointing = false
     private var lastBearing: Float? = null
@@ -161,6 +165,8 @@ class Locator(
         courseOffset = 0f
         courseAtMillis = 0L
         courseFixAtMillis = 0L
+        courseLessons = 0
+        courseCandidate = 0f
         pointing = false
         lastBearing = null
         lastBearingAtMillis = 0L
@@ -273,6 +279,7 @@ class Locator(
         fix?.let { absorbOwnFix(it, now) }
         val compassRaw = heading?.degrees
         val needsCalibration = heading?.needsCalibration == true
+        val disturbed = heading?.magneticallyDisturbed == true
         val correction = courseCorrection(now)
         val compass = compassRaw?.let { Heading.normalise(it + correction) }
         val theirPosition = targetPosition
@@ -292,30 +299,32 @@ class Locator(
             here == null -> note = "Waiting for this handset's own position…"
             compass == null -> note = "Waiting for the compass…"
             else -> {
-                val results = FloatArray(2)
-                Location.distanceBetween(here.latitude, here.longitude, there.latitude, there.longitude, results)
-                gps = results[0].toInt()
-                val bearing = Heading.normalise(results[1])
-                val error = (here.accuracy + there.accuracy).toInt().coerceAtLeast(1)
+                val metres = Geodesy.distanceMetres(here.latitude, here.longitude, there.latitude, there.longitude)
+                gps = metres.toInt()
+                val bearing = Geodesy.bearingDegrees(here.latitude, here.longitude, there.latitude, there.longitude)
+                val error = combinedError(here.accuracy, there.accuracy)
                 // Hysteresis: in at one error, out at well under it.
-                pointing = if (pointing) gps >= error * STOP_POINTING_FRACTION else gps >= error
+                pointing = if (pointing) metres >= error * STOP_POINTING_FRACTION else metres >= error
                 if (pointing) {
                     lastBearing = bearing
                     lastBearingAtMillis = now
                     relativeBearing = Heading.normalise(bearing - compass)
-                    spreadDeg = Math.toDegrees(atan2(error.toDouble(), gps.toDouble())).toFloat()
+                    spreadDeg = bearingSpread(error, metres, compassErrorDeg(heading))
                 }
                 note =
                     when {
                         !pointing ->
-                            "Within $error m of each other: closer than GPS can tell apart. Follow the sound."
+                            "Within ${error.toInt()} m of each other: closer than GPS can tell apart. Follow the sound."
                         needsCalibration -> "Compass unsure: move the handset in a figure of eight."
+                        disturbed -> IRON_NOTE
                         else -> null
                     }
             }
         }
         if (relativeBearing == null && compass != null && needsCalibration) {
             note = (note?.let { "$it " } ?: "") + "Compass unsure: move the handset in a figure of eight."
+        } else if (relativeBearing == null && compass != null && disturbed) {
+            note = (note?.let { "$it " } ?: "") + IRON_NOTE
         }
 
         // What the arrow draws, and what it means.
@@ -391,6 +400,7 @@ class Locator(
                 },
             compassErrorDeg = heading?.errorDegrees,
             compassNeedsCalibration = needsCalibration,
+            compassDisturbed = disturbed,
             lost = lost,
             beaconing = targetBeaconing,
             arrowNote = note,
@@ -415,11 +425,26 @@ class Locator(
         if (fixAt == courseFixAtMillis) return
         val compassRaw = heading?.degrees ?: return
         if (!fix.hasSpeed() || fix.speed < WALKING_SPEED || !fix.hasBearing()) return
-        if (fix.hasBearingAccuracy() && fix.bearingAccuracyDegrees > COURSE_ACCURACY_LIMIT_DEG) return
+        // A receiver that states its course error is believed only when that error is
+        // small; one that does not state it is believed only at a brisk walk, where the
+        // course is least noisy.
+        val courseError = if (fix.hasBearingAccuracy()) fix.bearingAccuracyDegrees else null
+        if (courseError != null && courseError > COURSE_ACCURACY_LIMIT_DEG) return
+        if (courseError == null && fix.speed < BRISK_SPEED) return
         courseFixAtMillis = fixAt
         val sample = arc(fix.bearing - compassRaw)
         if (abs(sample) > COURSE_OFFSET_LIMIT_DEG) return
-        courseOffset = if (courseAtMillis == 0L) sample else courseOffset + (sample - courseOffset) * COURSE_SMOOTHING
+        // Three lessons that agree before any of them is applied: one fix with a wrong
+        // course is a common thing, and an arrow that swings on it is worse than one that
+        // waits a few seconds.
+        if (courseLessons > 0 && abs(arc(sample - courseCandidate)) > COURSE_AGREEMENT_DEG) {
+            courseLessons = 0
+        }
+        courseCandidate =
+            if (courseLessons == 0) sample else courseCandidate + arc(sample - courseCandidate) * COURSE_SMOOTHING
+        courseLessons++
+        if (courseLessons < COURSE_LESSONS_NEEDED) return
+        courseOffset = courseCandidate.coerceIn(-COURSE_OFFSET_CAP_DEG, COURSE_OFFSET_CAP_DEG)
         courseAtMillis = now
     }
 
@@ -484,7 +509,22 @@ class Locator(
         /** A fix slower than this is standing still; its course is which way it drifted. */
         const val WALKING_SPEED = 1.0f
 
-        const val COURSE_ACCURACY_LIMIT_DEG = 30f
+        const val COURSE_ACCURACY_LIMIT_DEG = 20f
+
+        /** Without a stated course error, only a walk this fast has a course worth learning from. */
+        const val BRISK_SPEED = 1.5f
+
+        /** Lessons within this of each other agree. */
+        const val COURSE_AGREEMENT_DEG = 25f
+        const val COURSE_LESSONS_NEEDED = 3
+
+        /** No correction beyond this: a compass that far out is one to be recalibrated, not corrected. */
+        const val COURSE_OFFSET_CAP_DEG = 45f
+
+        /** What the compass is taken to be out by when the platform does not say. */
+        const val COMPASS_ERROR_ASSUMED_DEG = 5f
+
+        const val IRON_NOTE = "Iron nearby: the compass is held on the gyroscope. Move a few metres."
 
         /** Beyond this the phone is not being carried forward, and the course says nothing about the compass. */
         const val COURSE_OFFSET_LIMIT_DEG = 60f
@@ -509,6 +549,38 @@ class Locator(
 
         /** The hump must stand this far above the trough for the body to be the cause. */
         const val SWEEP_MIN_HEIGHT_DB = 3.0
+
+        /**
+         * The two fixes' errors combined, in metres.
+         *
+         * In quadrature, not added: each accuracy is the radius the fix is inside with
+         * two chances in three, the two errors are independent, and the error of the
+         * line between them is the root of the sum of their squares. Adding them made the
+         * arrow wait for the units to be twenty metres apart when fourteen would do.
+         */
+        fun combinedError(
+            ownAccuracy: Float,
+            targetAccuracy: Float,
+        ): Double {
+            val squares = ownAccuracy.toDouble().pow(2) + targetAccuracy.toDouble().pow(2)
+            return kotlin.math.sqrt(squares).coerceAtLeast(1.0)
+        }
+
+        /**
+         * How far the arrow may be out, in degrees: the positions' error over the distance,
+         * and the compass's own error, in quadrature.
+         */
+        fun bearingSpread(
+            errorMetres: Double,
+            distanceMetres: Double,
+            compassErrorDeg: Float,
+        ): Float {
+            val fromPositions = Math.toDegrees(atan2(errorMetres, distanceMetres.coerceAtLeast(0.1)))
+            return kotlin.math.sqrt(fromPositions * fromPositions + compassErrorDeg.toDouble().pow(2)).toFloat()
+        }
+
+        private fun compassErrorDeg(heading: Heading?): Float =
+            heading?.errorDegrees?.takeIf { it > 0f } ?: COMPASS_ERROR_ASSUMED_DEG
 
         /** The signal expected at one metre: from the sender's own power when it says, else assumed. */
         fun referenceFor(txPower: Int?): Double = txPower?.let { it - ATTENUATION_AT_ONE_METRE_DB } ?: RSSI_AT_ONE_METRE
@@ -698,9 +770,9 @@ class Locator(
             val acc = accuracy.coerceAtLeast(1f)
             if (estimate == null) return Estimate(latitude, longitude, acc, fixAtMillis)
             if (fixAtMillis == estimate.fixAtMillis) return estimate
-            val results = FloatArray(1)
-            Location.distanceBetween(estimate.latitude, estimate.longitude, latitude, longitude, results)
-            val moved = results[0] > estimate.accuracy + acc
+            val moved =
+                Geodesy.distanceMetres(estimate.latitude, estimate.longitude, latitude, longitude) >
+                    estimate.accuracy + acc
             val w =
                 if (moved) 1f else (POSITION_SMOOTHING * (estimate.accuracy / acc)).coerceIn(0.1f, 1f)
             estimate.latitude += (latitude - estimate.latitude) * w

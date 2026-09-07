@@ -55,6 +55,24 @@ class LocatorBearingTest {
         assertEquals(170f, Locator.arc(170f), 0.01f)
         assertEquals(-170f, Locator.arc(190f), 0.01f)
     }
+
+    @Test
+    fun `two fixes' errors combine in quadrature, never below a metre`() {
+        assertEquals(5.0, Locator.combinedError(3f, 4f), 0.001)
+        assertEquals(14.14, Locator.combinedError(10f, 10f), 0.01)
+        assertEquals(1.0, Locator.combinedError(0f, 0f), 0.0)
+    }
+
+    @Test
+    fun `the fan is the positions' error over the distance, and the compass's, together`() {
+        // Ten metres of error at a hundred metres is under six degrees; with a five-degree
+        // compass that is under eight.
+        assertEquals(7.6f, Locator.bearingSpread(10.0, 100.0, 5f), 0.2f)
+        // The same error at ten metres is forty-five degrees, and the compass hardly matters.
+        assertEquals(45.3f, Locator.bearingSpread(10.0, 10.0, 5f), 0.2f)
+        // Far off, only the compass is left.
+        assertEquals(5f, Locator.bearingSpread(1.0, 10_000.0, 5f), 0.05f)
+    }
 }
 
 /** The sweep: direction of strongest signal from a turn on the spot. */

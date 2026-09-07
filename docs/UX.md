@@ -181,6 +181,8 @@ returns and the protocol version increments.
 | Settings | Packs and storage, provisioning, alert test, metrics export, about and licences | 2 taps |
 | Provisioning | QR display or scan | 2 taps |
 | Metrics | Latency histogram, resource graph, CSV export | 2 taps |
+| Locate list | Every unit heard this run, nearest first, with signal bars | 1 tap |
+| Locate | The walk to one unit: an arrow, a signal bar, a distance figure and a siren | 2 taps |
 
 Each of these is drawn in [WIREFRAMES.md](WIREFRAMES.md), which also covers the build order
 — the interface is never further ahead than the engine feeding it.
@@ -189,6 +191,31 @@ The **alert test** control in settings sends an alert to your own device. It exi
 step 5 of the demonstration can be rehearsed without a second operator, and so that a user
 can verify alert delivery works on their specific handset — vendor audio policy varies
 enough that this is a real concern, not a convenience.
+
+### The locate screen, and what the arrow is allowed to claim
+
+A phone can measure two things about another radio: how strongly it hears it, and, with
+a position on each side, which way it lies. The screen keeps the two apart. **How close**
+is signal strength -- the bar, the distance figure with its spread, and the siren, which
+beeps faster as the operator closes in. **Which way** is the arrow, and the caption above
+it always says what the arrow means, because the same shape points at four different
+things:
+
+| Caption | What the arrow is | When |
+| --- | --- | --- |
+| `TO <unit>` | The bearing between the two GPS positions, against the compass | Both positions known and further apart than their combined error |
+| `SIGNAL STRONGEST THIS WAY` | The direction the signal peaked in as the operator turned a circle | Indoors, or nearer than GPS can tell apart, after most of a circle |
+| `NEAR · LAST KNOWN DIRECTION` | The bearing from when the positions were last far enough apart | Inside the GPS error, for ninety seconds |
+| `NORTH · …` | North, so the compass can be seen to be alive | Nothing else is known yet |
+
+The compass behind it is the gyroscope, anchored to the magnetometer only while the
+magnetic field here has the strength and dip the geomagnetic model expects (`Heading`,
+`HeadingFusion`). A turn of the hand is followed at once and a steel door frame is not.
+When the field stops looking like the Earth's the arrow turns amber, the figures line says
+`gyro`, and the note asks the operator to move a few metres. A thin ring with a north tick
+turns with the compass so an operator with the sun or a map can check it. The faint fan
+behind the arrow is its stated doubt: the positions' error over the distance and the
+compass's own error together, wide when the units are close and a sliver when far.
 
 ## 7. States the interface must show
 
