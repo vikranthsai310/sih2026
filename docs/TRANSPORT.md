@@ -116,6 +116,28 @@ delivers a frame once however many times it is heard inside that.
 > reckoned against the power that actually left the antenna rather than one figure for
 > every make of phone. `Signal.txPower`, `Locator.referenceFor`.
 
+> **Amended 2026-09-07 — "it sends for a while, then stops, then sometimes sends".** Two
+> causes, one each side.
+>
+> *Receiving.* Android puts a thirty-minute limit on every scan, filtered or not on recent
+> releases, after which the scan is silently downgraded to *opportunistic*: the application
+> is no longer scanning and is handed results only when some other application on the
+> handset scans for the same thing. No callback says so. That is "stops half an hour in and
+> then works at random". The scan is now stopped and restarted every ten minutes
+> (`keepScanning`), which is well inside the limit and well outside the platform's other
+> limit of five starts in thirty seconds.
+>
+> *Sending.* The transmit loop wrote the next frame into the advertising set and re-enabled
+> it without waiting for the controller's answer to either command, and took "no
+> exception" for success. Data written while a set is still enabled must fit one packet,
+> 251 bytes; a longer frame was refused and the *previous* frame went out again, which
+> every receiver dropped as a repeat, so long messages vanished without a log line. A set
+> the controller had quietly lost answered the enable with an error that was logged and
+> otherwise ignored while the loop slept out the frame's air time. Each step -- disable,
+> set data, enable -- now waits for its status (`putOnAir`); a refusal at any step tears
+> the set down and tries the frame once more on a fresh one, and only a frame the
+> controller has accepted is counted as sent.
+
 > **Found 2026-09-07 on two SM-S947B handsets.** The first version started a new set for
 > every frame and stopped it through a single shared callback object. Android keys its
 > callback registry on that object, and the previous set's asynchronous "stopped"

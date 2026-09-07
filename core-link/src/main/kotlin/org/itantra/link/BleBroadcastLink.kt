@@ -180,8 +180,8 @@ class BleBroadcastLink(
             ) {
                 if (status != ADVERTISE_SUCCESS) {
                     Log.w(TAG, "advertising data refused, status $status (${describe(status)})")
-                    _metrics.update { it.copy(framesLost = it.framesLost + 1) }
                 }
+                dataSet?.complete(status)
             }
 
             override fun onAdvertisingEnabled(
@@ -192,8 +192,28 @@ class BleBroadcastLink(
                 if (status != ADVERTISE_SUCCESS && enable) {
                     Log.w(TAG, "could not put the set on the air, status $status (${describe(status)})")
                 }
+                // The controller also reports here when a duration runs out: enable false,
+                // unasked. Only the step waiting for this particular answer is settled.
+                if (enable) enabled?.complete(status) else disabled?.complete(status)
             }
         }
+
+    /** The step of the transmit loop waiting on the controller, if any. See [putOnAir]. */
+    @Volatile
+    private var dataSet: CompletableDeferred<Int>? = null
+
+    @Volatile
+    private var enabled: CompletableDeferred<Int>? = null
+
+    @Volatile
+    private var disabled: CompletableDeferred<Int>? = null
+
+    /** The scan's filters and settings, kept so the scan can be restarted as it was. */
+    private var scanFilters: List<ScanFilter> = emptyList()
+    private var scanSettings: ScanSettings? = null
+
+    /** Restarts the scan on a cycle. See [keepScanning]. */
+    private var keeper: Job? = null
 
     private val scanCallback =
         object : ScanCallback() {
@@ -243,6 +263,8 @@ class BleBroadcastLink(
         // and the advertising set gone, with nothing to notice: the first version returned
         // here as long as the transmit loop was alive, which it always was, so the channel
         // stayed "connected" and carried nothing until the application was restarted.
+        keeper?.cancel()
+        keeper = null
         pump?.cancel()
         pump = null
         runCatching { adapter.bluetoothLeScanner?.stopScan(scanCallback) }
@@ -298,6 +320,8 @@ class BleBroadcastLink(
                 }
                 .build()
 
+        scanFilters = filters
+        scanSettings = settings
         runCatching { scanner.startScan(filters, settings, scanCallback) }
             .onFailure {
                 _state.value = LinkState.DEGRADED
@@ -309,9 +333,43 @@ class BleBroadcastLink(
         _state.value = LinkState.CONNECTED
         Log.i(TAG, "channel open: mtu $mtu, extended advertising ${extendedSupported()}")
         pump = scope.launch { transmitLoop() }
+        keeper?.cancel()
+        keeper = scope.launch { keepScanning() }
+    }
+
+    /**
+     * Stops and restarts the scan every [SCAN_CYCLE_MILLIS].
+     *
+     * The platform puts a time limit on every scan: thirty minutes after it starts, the
+     * scan is quietly downgraded to *opportunistic*, which means this application is no
+     * longer scanning at all and is only handed results when some other application on
+     * the handset happens to scan for the same thing. There is no callback. On a phone
+     * with a few Bluetooth accessories that is now and then; on a phone with none it is
+     * never. It looked, from the other unit, like messages that stopped arriving half an
+     * hour into a session and then arrived again at random. A scan restarted well inside
+     * the limit is a scan that never reaches it. The gap between stop and start is a few
+     * milliseconds against a frame that is on the air for two and a half seconds.
+     */
+    private suspend fun keepScanning() {
+        while (scope.isActive) {
+            delay(SCAN_CYCLE_MILLIS)
+            if (_state.value != LinkState.CONNECTED) continue
+            val scanner = adapter.bluetoothLeScanner ?: continue
+            val settings = scanSettings ?: continue
+            runCatching { scanner.stopScan(scanCallback) }
+            val restarted = runCatching { scanner.startScan(scanFilters, settings, scanCallback) }
+            if (restarted.isFailure) {
+                Log.w(TAG, "scan restart failed: ${restarted.exceptionOrNull()}")
+                _state.value = LinkState.DEGRADED
+            } else {
+                Log.i(TAG, "scan restarted")
+            }
+        }
     }
 
     override suspend fun disconnect() {
+        keeper?.cancel()
+        keeper = null
         pump?.cancel()
         pump = null
         runCatching { adapter.bluetoothLeScanner?.stopScan(scanCallback) }
@@ -380,21 +438,14 @@ class BleBroadcastLink(
                     .addServiceData(ParcelUuid(SERVICE_UUID), frame)
                     .build()
 
-            val existing = set
-            val onAir =
-                if (existing != null) {
-                    runCatching {
-                        existing.setAdvertisingData(data)
-                        existing.enableAdvertising(true, airUnits(frame), 0)
-                    }.onFailure {
-                        // The set is gone under us -- the radio was cycled. Forget it and
-                        // start afresh on the next frame; this one is lost.
-                        Log.w(TAG, "the advertising set failed: $it")
-                        stopAdvertising()
-                    }.isSuccess
-                } else {
-                    start(advertiser, parameters, data, airUnits(frame)) != null
-                }
+            // Once with the set as it is; if the controller refuses, once more with a
+            // fresh set. A refusal is nearly always the set having died under us -- the
+            // radio cycled, the stack restarted -- and a fresh set is the cure.
+            var onAir = putOnAir(existingSet = true, advertiser, parameters, data, frame)
+            if (!onAir) {
+                stopAdvertising()
+                onAir = putOnAir(existingSet = false, advertiser, parameters, data, frame)
+            }
 
             if (onAir) {
                 Log.i(TAG, "advertising ${frame.size} B (mtu $mtu, extended ${extendedSupported()})")
@@ -409,6 +460,64 @@ class BleBroadcastLink(
                 delay(START_RETRY_MILLIS)
             }
         }
+    }
+
+    /**
+     * Puts one frame on the air and reports honestly whether it is there.
+     *
+     * Three commands go to the controller -- disable, set data, enable -- and each is
+     * answered asynchronously, with a status. The first version issued the last two back
+     * to back and took "no exception" for success. Two things go wrong that way. Data set
+     * while the set is still enabled must fit one packet, 251 bytes; a longer frame is
+     * refused and the *previous* frame goes out again, which every receiver drops as a
+     * repeat, so a long message vanished without a line in the log. And a controller that
+     * has quietly lost the set answers the enable with an error, which was logged and
+     * otherwise ignored while the loop slept for the frame's air time as if it were being
+     * heard. So each step now waits for its answer, and a refusal at any step is a false
+     * return, which the loop turns into a fresh set and one more try.
+     *
+     * The disable is explicit even though the previous frame's duration should have run
+     * out: "should have" is a race against the controller's own timer, and the answer to
+     * disabling an already-disabled set is success.
+     */
+    private suspend fun putOnAir(
+        existingSet: Boolean,
+        advertiser: android.bluetooth.le.BluetoothLeAdvertiser,
+        parameters: AdvertisingSetParameters,
+        data: AdvertiseData,
+        frame: ByteArray,
+    ): Boolean {
+        val units = airUnits(frame)
+        val current = set
+        if (!existingSet || current == null) {
+            return start(advertiser, parameters, data, units) != null
+        }
+        val off = CompletableDeferred<Int>()
+        disabled = off
+        if (runCatching { current.enableAdvertising(false, 0, 0) }.isFailure) return false
+        withTimeoutOrNull(STEP_TIMEOUT_MILLIS) { off.await() }
+        disabled = null
+
+        val written = CompletableDeferred<Int>()
+        dataSet = written
+        if (runCatching { current.setAdvertisingData(data) }.isFailure) return false
+        val dataStatus = withTimeoutOrNull(STEP_TIMEOUT_MILLIS) { written.await() }
+        dataSet = null
+        if (dataStatus != AdvertisingSetCallback.ADVERTISE_SUCCESS) {
+            Log.w(TAG, "data for a ${frame.size} B frame was not accepted (status $dataStatus)")
+            return false
+        }
+
+        val on = CompletableDeferred<Int>()
+        enabled = on
+        if (runCatching { current.enableAdvertising(true, units, 0) }.isFailure) return false
+        val onStatus = withTimeoutOrNull(STEP_TIMEOUT_MILLIS) { on.await() }
+        enabled = null
+        if (onStatus != AdvertisingSetCallback.ADVERTISE_SUCCESS) {
+            Log.w(TAG, "the set would not go on the air (status $onStatus)")
+            return false
+        }
+        return true
     }
 
     /**
@@ -468,6 +577,9 @@ class BleBroadcastLink(
         // which buries the failures that matter.
         if (set == null && starting == null) return
         runCatching { adapter.bluetoothLeAdvertiser?.stopAdvertisingSet(advertiseCallback) }
+        dataSet?.complete(AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR)
+        enabled?.complete(AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR)
+        disabled?.complete(AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR)
         set = null
         starting?.complete(null)
         starting = null
@@ -550,6 +662,16 @@ class BleBroadcastLink(
 
         /** After a refused start, how long before the next frame tries again. */
         const val START_RETRY_MILLIS = 5_000L
+
+        /** How long one controller command may take to be answered before the frame is given up. */
+        const val STEP_TIMEOUT_MILLIS = 1_500L
+
+        /**
+         * The scan is restarted this often: well inside the platform's thirty-minute
+         * limit, after which a scan is downgraded to hearing only what other applications
+         * scan for, and far outside its limit of five starts in thirty seconds.
+         */
+        const val SCAN_CYCLE_MILLIS = 10 * 60_000L
 
         /** A repeated advertisement inside this window is the same transmission. Longer than any air time. */
         const val REPEAT_WINDOW_MILLIS = 4_000L
