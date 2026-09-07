@@ -234,6 +234,10 @@ class UtteranceDecoder(
      */
     private fun spoken(words: List<Placed>): String {
         val out = StringBuilder()
+        // A hesitation before the sentence -- "अ", "um" -- is a sound, not a word, and it
+        // is the commonest thing a recogniser writes down that a speaker did not say.
+        var words = words
+        while (words.size > 1 && Transcript.isFiller(words.first().text)) words = words.drop(1)
         for ((i, word) in words.withIndex()) {
             if (i > 0) out.append(' ')
             out.append(word.text)
@@ -372,6 +376,7 @@ class UtteranceDecoder(
     ): List<Placed> {
         val range = decodeRange(endFrame, includeTail) ?: return emptyList()
         val audio = pcm.copyOfRange(range.from, range.to)
+        silenceBlips(audio, range)
         val transcript = decode(audio)
         return transcript.words.map { word ->
             Placed(
@@ -383,6 +388,27 @@ class UtteranceDecoder(
 
     /** Sample offsets into the open segment: [from] inclusive, [to] exclusive. */
     private class Span(val from: Int, val to: Int)
+
+    /**
+     * Zeroes any loud frame that sits in the quiet before speech begins.
+     *
+     * The lead is kept for context, and a click in it is context of the wrong kind: the
+     * model reads it as the onset of a word. A frame of digital silence in its place is
+     * what the model saw before every utterance it was trained on.
+     */
+    private fun silenceBlips(
+        audio: ShortArray,
+        range: Span,
+    ) {
+        val fromFrame = range.from / frameSamples
+        val onset = firstSpeechFrame(min(analysedFrames, range.to / frameSamples))
+        if (onset < 0) return
+        for (f in fromFrame until onset) {
+            if (!isSpeech(f)) continue
+            val start = f * frameSamples - range.from
+            for (i in max(0, start) until min(audio.size, start + frameSamples)) audio[i] = 0
+        }
+    }
 
     /**
      * The sample range worth decoding: the speech, plus [keepQuietMillis] either side.
@@ -406,8 +432,13 @@ class UtteranceDecoder(
             fromFrame = 0
             toFrame = end
         } else {
-            fromFrame = max(0, first - frames(keepQuietMillis))
-            toFrame = min(end, last + 1 + frames(keepQuietMillis))
+            // A short clause keeps more quiet around it. The model normalises its
+            // features over the whole buffer it is given, and a half-second word with a
+            // sliver of context either side is normalised against almost nothing.
+            val spanMillis = (last - first + 1) * FRAME_MILLIS
+            val keep = if (spanMillis < SHORT_CLAUSE_MILLIS) KEEP_QUIET_SHORT_MILLIS else keepQuietMillis
+            fromFrame = max(0, first - frames(keep))
+            toFrame = min(end, last + 1 + frames(keep))
         }
         val fromSample = fromFrame * frameSamples
         val toSample =
@@ -507,9 +538,21 @@ class UtteranceDecoder(
         return speech * FRAME_MILLIS >= MIN_TAIL_SPEECH_MILLIS || (speech == 0 && isAudible(analysedFrames))
     }
 
+    /**
+     * Where speech begins: the first frame that opens a run of [ONSET_FRAMES] speech
+     * frames. A single loud frame before that -- the press of the control, a knock, a
+     * breath -- is not the start of a word, and a CTC model handed one as the first thing
+     * it hears tends to write a vowel down for it. Where there is no such run at all (a
+     * very short word), the first speech frame stands.
+     */
     private fun firstSpeechFrame(end: Int = analysedFrames): Int {
-        for (f in 0 until end) if (isSpeech(f)) return f
-        return -1
+        var lone = -1
+        for (f in 0 until end) {
+            if (!isSpeech(f)) continue
+            if (lone < 0) lone = f
+            if ((f until min(end, f + ONSET_FRAMES)).all { isSpeech(it) } && f + ONSET_FRAMES <= end) return f
+        }
+        return lone
     }
 
     private fun lastSpeechFrame(end: Int = analysedFrames): Int {
@@ -600,5 +643,13 @@ class UtteranceDecoder(
 
         /** Louder than a quiet room. The fallback when the floor found no speech. */
         const val AUDIBLE_DB = -45f
+
+        /** Speech begins with this many frames in a row: a word, not a click. */
+        const val ONSET_FRAMES = 3
+
+        /** Below this much speech a clause is short, and keeps [KEEP_QUIET_SHORT_MILLIS] around it. */
+        const val SHORT_CLAUSE_MILLIS = 1_000
+
+        const val KEEP_QUIET_SHORT_MILLIS = 600
     }
 }

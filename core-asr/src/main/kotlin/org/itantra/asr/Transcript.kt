@@ -69,6 +69,28 @@ data class Transcript(val words: List<Word>) {
             return Transcript(words)
         }
 
+        /**
+         * Whether a word is a hesitation rather than a word.
+         *
+         * In every Indic block the independent vowels A and AA sit at the same two
+         * offsets, and a lone one is what an "uh" or an "aa" before a sentence is written
+         * as. A single Latin filler is listed. Nothing longer is ever a filler: "अब" is a
+         * word, and so is "आग".
+         */
+        fun isFiller(word: String): Boolean {
+            val bare = word.trim { !it.isLetterOrDigit() }
+            if (bare.isEmpty()) return false
+            if (bare.lowercase() in LATIN_FILLERS) return true
+            if (bare.codePointCount(0, bare.length) != 1) return false
+            val cp = bare.codePointAt(0)
+            return cp in 0x0900..0x0DFF && (cp and 0x7F) in INDIC_FILLER_OFFSETS
+        }
+
+        private val LATIN_FILLERS = setOf("um", "umm", "uh", "uhh", "hmm", "hm", "er", "erm", "aa", "ah", "a")
+
+        /** Independent vowel A and AA, at the same offsets in every Indic block. */
+        private val INDIC_FILLER_OFFSETS = setOf(0x05, 0x06)
+
         /** For a decoder that offers text only. Every word is untimed. */
         fun fromText(text: String): Transcript =
             Transcript(text.split(WHITESPACE).filter { it.isNotBlank() }.map { Word(it) })

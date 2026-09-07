@@ -421,3 +421,95 @@ class TranscriptTest {
         assertTrue(t.words.none { it.isTimed })
     }
 }
+
+class UtteranceCleanupTest {
+    @Test
+    fun `a lone vowel before the sentence is a hesitation and is dropped`() {
+        assertTrue(Transcript.isFiller("अ"))
+        assertTrue(Transcript.isFiller("आ"))
+        assertTrue(Transcript.isFiller("అ"))
+        assertTrue(Transcript.isFiller("um"))
+        assertFalse(Transcript.isFiller("अब"))
+        assertFalse(Transcript.isFiller("आग"))
+        assertFalse(Transcript.isFiller("मदद"))
+        assertFalse(Transcript.isFiller("इ"))
+    }
+
+    /** The scripted model reports a word only if its audio is still there: a silenced blip is not. */
+    private class Script {
+        private var out = ShortArray(16_000 * 4)
+        var length = 0
+        val words = ArrayList<Triple<String, Int, Int>>()
+        private var seed = 99L
+
+        private fun next(): Int {
+            seed = seed * 6364136223846793005L + 1442695040888963407L
+            return (seed ushr 33).toInt()
+        }
+
+        private fun emit(v: Short) {
+            if (length == out.size) out = out.copyOf(out.size * 2)
+            out[length++] = v
+        }
+
+        fun say(
+            text: String,
+            millis: Int,
+        ) {
+            val s = length
+            repeat(16 * millis) { emit((next() % 12_000).toShort()) }
+            words += Triple(text, s, length)
+        }
+
+        fun quiet(millis: Int) = repeat(16 * millis) { emit((next() % 40).toShort()) }
+
+        fun pcm(): ShortArray = out.copyOf(length)
+
+        fun decode(window: ShortArray): Transcript {
+            // Place the window by its loudest run, since a silenced blip changes the start.
+            var at = -1
+            for (i in 0..length - window.size) {
+                var ok = true
+                var j = 0
+                while (j < window.size && ok) {
+                    if (window[j].toInt() != 0 && out[i + j] != window[j]) ok = false
+                    j += 97
+                }
+                if (ok) {
+                    at = i
+                    break
+                }
+            }
+            val end = at + window.size
+            val heard = ArrayList<Word>()
+            for ((text, start, stop) in words) {
+                if (stop <= at || start >= end) continue
+                val silenced = (maxOf(start, at) until minOf(stop, end)).all { window[it - at].toInt() == 0 }
+                if (silenced) continue
+                heard += Word(text, (maxOf(start, at) - at).toFloat() / 16_000)
+            }
+            return Transcript(heard)
+        }
+    }
+
+    @Test
+    fun `a click before the first word is silenced before the model hears it`() {
+        val script = Script()
+        script.quiet(400)
+        script.say("click", 40)
+        script.quiet(200)
+        script.say("मुझे", 320)
+        script.quiet(60)
+        script.say("बचाओ", 320)
+        script.quiet(100)
+        val d = UtteranceDecoder(decode = script::decode)
+        val pcm = script.pcm()
+        var at = 0
+        while (at < pcm.size) {
+            val e = minOf(pcm.size, at + 320)
+            d.onAudio(pcm.copyOfRange(at, e))
+            at = e
+        }
+        assertEquals("मुझे बचाओ", d.onEndpoint())
+    }
+}

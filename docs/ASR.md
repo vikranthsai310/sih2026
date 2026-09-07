@@ -234,6 +234,16 @@ claims under test are properties of the cutting, not of the recogniser:
 - **Silence is never sent to the model.** A held control with nothing said into it, a
   click, and seven seconds of thought before a sentence all leave the model idle, and the
   sentence is decoded with 300 ms of its own quiet rather than the seven seconds.
+- **A click is not the start of a word.** Speech begins where three frames in a row are
+  above the floor; a lone loud frame before that — the press, a knock, a breath — is
+  silenced in the audio the model receives, because a CTC model handed one as the first
+  thing it hears writes a vowel down for it. A clause under a second keeps 600 ms of its own
+  quiet either side rather than 300, so the model's per-utterance normalisation has
+  something to normalise against.
+- **A hesitation is not a word.** A lone independent vowel (अ, आ and their counterparts in
+  every Indic block) or a Latin "um" at the front of a sentence is dropped before the text
+  goes out. `"अ मुझे बचाओ"` was the first thing a handset transcribed after the previous
+  fix, and it was right about the sound and wrong about the sentence.
 
 **The two ends of the utterance** are handled in `SherpaSpeech`, because both are where
 words go missing on a real handset and neither is the model's fault. The screen says
