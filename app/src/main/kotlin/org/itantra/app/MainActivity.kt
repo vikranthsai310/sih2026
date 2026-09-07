@@ -1,18 +1,15 @@
 package org.itantra.app
 
 import android.Manifest
-import android.annotation.SuppressLint
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
+import android.content.ServiceConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
 import android.os.SystemClock
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,21 +25,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.itantra.app.engine.MessageEngine
-import org.itantra.app.platform.DataStoreEpochStore
 import org.itantra.app.platform.EspeakData
-import org.itantra.app.platform.Heading
 import org.itantra.app.platform.InstallIndex
 import org.itantra.app.platform.ModelStore
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.PackInstaller
 import org.itantra.app.platform.PiperVoiceMetadata
-import org.itantra.app.platform.PositionSource
 import org.itantra.app.platform.PushToTalkKey
 import org.itantra.app.platform.ReportExport
-import org.itantra.app.platform.SherpaSpeech
 import org.itantra.app.platform.SmallArtefacts
-import org.itantra.app.platform.Speaker
 import org.itantra.app.platform.UnitPreferences
+import org.itantra.app.service.EngineService
 import org.itantra.app.ui.AppActions
 import org.itantra.app.ui.AppState
 import org.itantra.app.ui.Download
@@ -54,11 +47,9 @@ import org.itantra.app.ui.PackRow
 import org.itantra.app.ui.TransportOption
 import org.itantra.app.ui.describeSize
 import org.itantra.app.ui.rememberReducedMotion
-import org.itantra.asr.BiasingLexicon
 import org.itantra.audio.EngineState
 import org.itantra.link.LinkState
 import org.itantra.proto.Language
-import org.itantra.proto.TemplateProfile
 import java.io.File
 
 /**
@@ -71,16 +62,25 @@ import java.io.File
  * neither. The week-2 bring-up screen that used to live here — a text field and two
  * Bluetooth buttons — was deleted in W3.12 and is not coming back.
  *
+ * ## Who owns the engine
+ *
+ * Not this class. It **binds** to [EngineService], which builds the engine and keeps it,
+ * and borrows the reference for as long as it is bound. With relay mode off the service
+ * lives exactly as long as the binding, so the engine's lifetime is what it always was;
+ * with relay mode on the service is started as well as bound and outlives this screen.
+ * See the service for why.
+ *
  * ## Why the engine is Compose state
  *
- * It is created *after* the permission answer, which arrives long after the first
- * composition. Held in a plain field it was invisible to Compose: the screen composed once
- * against `null`, fell back to [startingState], and stayed there for the life of the
- * process — showing `node 00`, `0 units` and `NO LINK` on a handset whose net was up. Every
- * control was live and every one of them was talking to an engine the screen could not see.
+ * It arrives *after* the permission answer and after the service connects, both long after
+ * the first composition. Held in a plain field it was invisible to Compose: the screen
+ * composed once against `null`, fell back to [startingState], and stayed there for the life
+ * of the process — showing `node 00`, `0 units` and `NO LINK` on a handset whose net was up.
+ * Every control was live and every one of them was talking to an engine the screen could
+ * not see.
  *
  * `mutableStateOf` is the whole fix, and the bug is worth naming because nothing about the
- * symptom points at it.
+ * symptom points at it. The service holds its engine the same way, for the same reason.
  *
  * ## What works on two or more handsets today
  *
@@ -94,8 +94,30 @@ import java.io.File
  * size is real; its latency figures stay as dashes until there is a recogniser to measure.
  */
 class MainActivity : ComponentActivity() {
-    /** Compose state, not a field. See the class comment — this was a real defect. */
-    private var engine by mutableStateOf<MessageEngine?>(null)
+    /** The service this screen is bound to, once it has connected. Compose state; see above. */
+    private var service by mutableStateOf<EngineService?>(null)
+
+    /** The engine the service holds, or null before permission and before the connection. */
+    private val engine: MessageEngine? get() = service?.engine
+
+    private var bound = false
+
+    private val connection =
+        object : ServiceConnection {
+            override fun onServiceConnected(
+                name: ComponentName,
+                binder: IBinder,
+            ) {
+                val connected = (binder as EngineService.LocalBinder).service
+                service = connected
+                // The permission answer may have arrived before the connection did.
+                connected.ensureEngine()
+            }
+
+            override fun onServiceDisconnected(name: ComponentName) {
+                service = null
+            }
+        }
 
     /** Set once the operator has said no, since Android will not ask a second time. */
     private var permissionRefused by mutableStateOf(false)
@@ -105,15 +127,6 @@ class MainActivity : ComponentActivity() {
 
     /** Bumped whenever the disk may have changed behind the screen's back, so it looks again. */
     private var diskVersion by mutableStateOf(0)
-
-    /**
-     * When the engine started, for the soak duration the report conditions require.
-     *
-     * `elapsedRealtime` rather than `currentTimeMillis`: the wall clock can be moved by the
-     * network or by hand mid-run, and a soak that appears to last minus four minutes is not
-     * a soak that can be reported.
-     */
-    private var engineStartedAt = SystemClock.elapsedRealtime()
 
     /**
      * The file picker, and the whole answer to "no language installed" on a handset that
@@ -148,14 +161,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-    /** The operator's name for this unit, its mode and its text size, kept across restarts. */
-    private val preferences by lazy { UnitPreferences(applicationContext, unitName()) }
+    private val app: ItantraApplication get() = ItantraApplication.of(this)
 
-    private val identity by lazy { NodeIdentity.of(installationId(), preferences.unitName) }
+    /** The operator's settings, shared with the service. See [ItantraApplication]. */
+    private val preferences: UnitPreferences get() = app.preferences
 
-    /** Position and compass, for finding a unit. Both idle until somebody is looking. */
-    private val positions by lazy { PositionSource(applicationContext) }
-    private val heading by lazy { Heading(applicationContext) }
+    private val identity: NodeIdentity get() = app.identity
 
     /** The text size factor, mirrored into Compose state so a change redraws at once. */
     private var textScale by mutableStateOf(1f)
@@ -237,7 +248,7 @@ class MainActivity : ComponentActivity() {
                                 textScale = textScale,
                                 locate = running?.locate?.collectAsState()?.value,
                                 unitsHeard = running?.unitsEverHeard().orEmpty(),
-                                defaultUnitName = unitName(),
+                                defaultUnitName = app.defaultUnitName(),
                             ),
                         actions =
                             AppActions(
@@ -434,23 +445,6 @@ class MainActivity : ComponentActivity() {
             ),
         )
 
-    /**
-     * The alert lexicon for a language, from the assets the build copies out of `models/`.
-     *
-     * Null rather than empty when a file is missing: an empty lexicon and an absent one look
-     * identical to a corrector, and only one of them is a packaging fault worth noticing.
-     */
-    private fun lexiconFor(code: String): BiasingLexicon? {
-        val domain = readAsset("lexicon/alert-lexicon.$code.txt") ?: return null
-        // Negation is optional only in the sense that a missing file must not stop the
-        // domain terms loading; every language in this repository ships one.
-        val negation = readAsset("lexicon/negation.$code.txt").orEmpty()
-        return BiasingLexicon.of(domain, negation)
-    }
-
-    private fun readAsset(path: String): String? =
-        runCatching { assets.open(path).bufferedReader().use { it.readText() } }.getOrNull()
-
     /** Verbatim, from `assets/licences/`. */
     private fun readLicence(file: String): String? =
         runCatching { assets.open("licences/$file").bufferedReader().use { it.readText() } }.getOrNull()
@@ -469,31 +463,20 @@ class MainActivity : ComponentActivity() {
         diskVersion++
     }
 
-    /** @return false when a permission is still needed, so the caller can ask for it. */
+    /**
+     * Binds to the service and asks it for an engine.
+     *
+     * Binding is done once; the engine is asked for on every call, because the first call
+     * usually comes before the permission answer and the service will have built nothing.
+     *
+     * @return false when a permission is still needed, so the caller can ask for it
+     */
     private fun startEngine(): Boolean {
-        if (engine != null) return true
-        if (!hasBluetoothPermission()) return false
-
-        val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
-
-        engine =
-            MessageEngine(
-                scope = lifecycleScope,
-                adapter = adapter,
-                identity = identity,
-                epochStore = DataStoreEpochStore(applicationContext),
-                templates = deploymentProfile(),
-                bondedDevices = { bonded(adapter) },
-                speech = SherpaSpeech(ModelStore(applicationContext)),
-                lexicons = ::lexiconFor,
-                wifiContext = applicationContext,
-                speaker = Speaker(ModelStore(applicationContext), applicationContext),
-                preferences = preferences,
-                positions = positions,
-                heading = heading,
-            ).also { it.start() }
-        // The soak clock starts with the workload, not with the process.
-        engineStartedAt = SystemClock.elapsedRealtime()
+        if (!app.hasBluetoothPermission()) return false
+        if (!bound) {
+            bound = bindService(EngineService.bindIntent(this), connection, Context.BIND_AUTO_CREATE)
+        }
+        service?.ensureEngine()
         return true
     }
 
@@ -513,8 +496,8 @@ class MainActivity : ComponentActivity() {
             packStatus = "The engine is not running, so there is nothing to report."
             return
         }
-        val soakMinutes =
-            ((SystemClock.elapsedRealtime() - engineStartedAt) / 60_000L).toInt()
+        val startedAt = service?.engineStartedAt ?: SystemClock.elapsedRealtime()
+        val soakMinutes = ((SystemClock.elapsedRealtime() - startedAt) / 60_000L).toInt()
         packStatus =
             ReportExport(applicationContext)
                 .export(traces = running.traces.value, soakMinutes = soakMinutes)
@@ -604,35 +587,6 @@ class MainActivity : ComponentActivity() {
             .onFailure { packStatus = "This handset has no file picker to open." }
     }
 
-    /**
-     * The deployment profile, from the asset the build copies out of `models/`.
-     *
-     * A failure here is fatal by choice. Every unit must hold the same table, and a handset
-     * that started with an empty one would send bytes that mean nothing on arrival — which
-     * is worse than not starting, because it looks like it is working.
-     */
-    private fun deploymentProfile() =
-        TemplateProfile
-            .parse(assets.open(PROFILE_ASSET).bufferedReader().use { it.readText() })
-            .toTable()
-
-    /** Stable per device, per signing key, across restarts. See [NodeIdentity]. */
-    @SuppressLint("HardwareIds")
-    private fun installationId(): String =
-        Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: Build.MODEL
-
-    /** The handset's own Bluetooth name is what the operator already calls this unit. */
-    private fun unitName(): String = (Build.MODEL ?: "UNIT").uppercase()
-
-    private fun bonded(adapter: BluetoothAdapter?): List<BluetoothDevice> =
-        try {
-            if (hasBluetoothPermission()) adapter?.bondedDevices?.toList().orEmpty() else emptyList()
-        } catch (denied: SecurityException) {
-            // The platform can revoke between the check and the call. A crash here would
-            // take out the whole screen for a permission problem.
-            emptyList()
-        }
-
     override fun onKeyDown(
         keyCode: Int,
         event: android.view.KeyEvent,
@@ -655,8 +609,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // Finding a unit is driven from this screen; it ends with the screen. The engine
+        // does not: the service decides whether it outlives this binding.
         engine?.stopLocating()
-        engine?.stop()
+        if (bound) {
+            unbindService(connection)
+            bound = false
+        }
+        service = null
     }
 
     private fun requiredPermissions(): Array<String> =
@@ -685,20 +645,6 @@ class MainActivity : ComponentActivity() {
         }
 
     /**
-     * All three Bluetooth permissions became runtime permissions in Android 12, and the
-     * net needs all three: CONNECT for the bonded sockets, SCAN to hear the broadcast
-     * channel, ADVERTISE to speak on it. Checking CONNECT alone let the engine start with
-     * the other two refused, on a channel it could neither hear nor speak.
-     */
-    private fun hasBluetoothPermission(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-            listOf(
-                Manifest.permission.BLUETOOTH_CONNECT,
-                Manifest.permission.BLUETOOTH_SCAN,
-                Manifest.permission.BLUETOOTH_ADVERTISE,
-            ).all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
-
-    /**
      * Shown between launch and the permission answer, and for good if it was refused.
      *
      * It carries the real node id rather than a zero: the id comes from the installation
@@ -724,8 +670,6 @@ class MainActivity : ComponentActivity() {
         )
 
     private companion object {
-        const val PROFILE_ASSET = "templates.json"
-
         /** Between two addresses handed to the browser. Long enough to be two tabs, not one. */
         const val BROWSER_HANDOFF_MILLIS = 350L
 
