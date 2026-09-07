@@ -3,11 +3,9 @@ package org.itantra.app.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,8 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.itantra.bench.UtteranceTrace
@@ -68,6 +63,25 @@ enum class Destination(val title: String) {
     METRICS("METRICS"),
     MODE("MODE & TRANSPORT"),
     STORAGE("STORAGE"),
+
+    /**
+     * The alert path, run against this handset only. Board 22.
+     *
+     * Its own destination rather than a control inside settings, because it is six measured
+     * steps and a verdict — a screen's worth of answer to "did the alert actually sound on
+     * *this* model of phone", which vendor audio policy makes a real question.
+     */
+    TEST_ALERT("TEST ALERT"),
+
+    /**
+     * Text size. Board 23, and gap **G4** resolved.
+     *
+     * Purely additive: no existing route changes, and the screen sets nothing. Android owns
+     * text scaling; what was missing was somewhere to *see* the interface at 200 % and watch
+     * the Indic line box hold. See [TextSizeScreen].
+     */
+    TEXT_SIZE("TEXT SIZE"),
+
     LICENCES("LICENCES"),
 
     /**
@@ -95,6 +109,26 @@ data class AppState(
     val packStatus: String? = null,
     /** Every file every language can use, with whether this handset has it, for the storage screen. */
     val downloads: List<Download> = emptyList(),
+    /**
+     * The colophon on the about screen — `build 1.0 · 27.1 MB · Apache-2.0`.
+     *
+     * Null rather than a placeholder: a build line nobody supplied is not a build line, and
+     * board 24 prints nothing where this screen has nothing to say.
+     */
+    val buildLine: String? = null,
+    /**
+     * Whether the speech models are loaded and the transmit control means anything.
+     *
+     * False draws [SplashScreen]. Defaulted true so nothing that constructs an `AppState`
+     * for a preview or a test has to know about a loading phase it is not exercising —
+     * and so that a build whose loader never reports simply never shows a splash, rather
+     * than showing one for ever.
+     */
+    val ready: Boolean = true,
+    /** What is loading, in the language being loaded. Board 01's caption. */
+    val loadingLabel: String? = null,
+    /** 0..1, or null when the loader cannot say. */
+    val loadingProgress: Float? = null,
 )
 
 /** What the shell can ask the engine to do. */
@@ -134,6 +168,18 @@ fun ItantraApp(
     // swipes back and lands outside the application has left the net.
     BackHandler(enabled = where != Destination.OPERATING) { where = back(where) }
 
+    // Risk T-11: the transmit control must never be live over an unloaded recogniser.
+    // The splash is that interval made visible, and it is the only screen that outranks
+    // the navigation state entirely.
+    if (!state.ready) {
+        SplashScreen(
+            loading = state.loadingLabel,
+            progress = state.loadingProgress,
+            modifier = modifier,
+        )
+        return
+    }
+
     if (where == Destination.OPERATING) {
         OperatingScreen(
             state = state.operating,
@@ -141,15 +187,49 @@ fun ItantraApp(
             onAlert = actions.onAlert,
             onLanguageSelected = actions.onLanguageChosen,
             onMenu = { where = Destination.MENU },
+            onReplay = actions.onReplay,
             modifier = modifier,
         )
         return
     }
 
+    // Three screens draw their own header because their boards do: the control room's title
+    // sits over a hero card, and the self-test and text-size headers are part of the sheet
+    // they head. Wrapping them in SubScreen's bar would show two back controls.
+    if (where in OwnHeader) {
+        when (where) {
+            Destination.MENU ->
+                ControlRoomScreen(
+                    state = state,
+                    onOpen = { where = it },
+                    onBack = { where = back(where) },
+                    modifier = modifier,
+                )
+
+            Destination.TEST_ALERT ->
+                AlertSelfTestScreen(
+                    steps = emptyList(),
+                    lastRun = null,
+                    verdict = null,
+                    device = null,
+                    // Nothing reaches AndroidAlertAudio from here yet, and this branch does
+                    // not add engine code. A null draws the control unavailable instead of
+                    // shipping a button that silently does nothing.
+                    onRun = null,
+                    onBack = { where = back(where) },
+                    modifier = modifier,
+                )
+
+            Destination.TEXT_SIZE ->
+                TextSizeScreen(onBack = { where = back(where) }, modifier = modifier)
+
+            else -> Unit
+        }
+        return
+    }
+
     SubScreen(title = where.title, onBack = { where = back(where) }, modifier = modifier) {
         when (where) {
-            Destination.MENU -> MenuScreen(onOpen = { where = it })
-
             Destination.MESSAGES ->
                 MessageLogScreen(
                     messages = state.operating.messages,
@@ -190,6 +270,7 @@ fun ItantraApp(
                 AboutScreen(
                     components = state.licences,
                     distributionNotice = state.distributionNotice,
+                    buildLine = state.buildLine,
                     onOpenLicence = {
                         licence = it
                         where = Destination.LICENCE_TEXT
@@ -206,10 +287,14 @@ fun ItantraApp(
                     )
                 }
 
-            Destination.OPERATING -> Unit
+            Destination.OPERATING, Destination.MENU, Destination.TEST_ALERT, Destination.TEXT_SIZE -> Unit
         }
     }
 }
+
+/** Destinations whose board draws its own back header. */
+private val OwnHeader =
+    setOf(Destination.MENU, Destination.TEST_ALERT, Destination.TEXT_SIZE)
 
 /** One step towards the operating screen, wherever we are. */
 private fun back(from: Destination): Destination =
@@ -262,42 +347,5 @@ private fun SubScreen(
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.Rule))
         content()
-    }
-}
-
-/** The list behind ☰. One row per screen, and nothing that is not a screen. */
-@Composable
-private fun MenuScreen(onOpen: (Destination) -> Unit) {
-    val rows =
-        listOf(
-            Destination.MESSAGES to "Everything sent and received, last 24 hours",
-            Destination.LANGUAGE to "What this unit speaks and reads",
-            Destination.METRICS to "Measured latency, from real utterances",
-            Destination.MODE to "Push-to-talk, and the radio in use",
-            Destination.STORAGE to "Language packs on this handset",
-            Destination.LICENCES to "What this application is built from",
-        )
-    LazyColumn(Modifier.fillMaxSize().padding(Tokens.ScreenMargin)) {
-        item {
-            // The heading the other six screens each carry for themselves.
-            Text("SETTINGS", fontSize = Tokens.Title, fontWeight = FontWeight.Bold, color = Tokens.Ink)
-            Spacer(Modifier.height(Tokens.Grid))
-        }
-        items(rows) { (destination, blurb) ->
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = Tokens.TouchTarget)
-                    .clickable { onOpen(destination) }
-                    .semantics { contentDescription = destination.title + ". " + blurb }
-                    .padding(vertical = Tokens.Grid),
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text(destination.title, fontSize = Tokens.Body, fontWeight = FontWeight.Bold, color = Tokens.Ink)
-                Text(blurb, fontSize = Tokens.Status, color = Tokens.Muted)
-            }
-            Spacer(Modifier.height(1.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Tokens.Rule))
-        }
     }
 }

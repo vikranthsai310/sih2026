@@ -120,4 +120,103 @@ object Tokens {
      * a rendering bug rather than a layout one.
      */
     const val INDIC_LINE_HEIGHT = 1.4f
+
+    // ── the rest of the type scale, from iTantra Screens v2 ──────────────────
+    //
+    // The four sizes above predate the redesign and are unchanged, because changing them
+    // would move every existing screen. These are the sizes the canvas adds. All `sp`, for
+    // the same reason as the others: rule 9, 200 % without truncation.
+
+    /** The splash mark, and nothing else. */
+    val Display: TextUnit = 46.sp
+
+    /** A screen's own name where it is the only thing on the line. */
+    val Headline: TextUnit = 28.sp
+
+    /** A figure a jury reads at arm's length — the metrics screen's own numbers. */
+    val Figure: TextUnit = 22.sp
+
+    /** A card's heading, and the unit name in the chrome. */
+    val Subtitle: TextUnit = 19.sp
+
+    /** A row's primary line where [Body] would crowd it. */
+    val Callout: TextUnit = 17.sp
+
+    /** Secondary body — a tile's explanatory line. */
+    val BodySmall: TextUnit = 15.sp
+
+    /** A label above a value, and a bubble's meta row. */
+    val Label: TextUnit = 13.sp
+
+    /** The smallest text that may carry meaning. Below this is decoration, and there is none. */
+    val Caption: TextUnit = 11.sp
+
+    // ── shape ────────────────────────────────────────────────────────────────
+    //
+    // Six radii, and a rule for choosing: the larger the surface, the larger the radius,
+    // except a pill, which is a pill because it is a chip and chips are pills. A seventh
+    // value is a drift, not a decision.
+
+    /** Chips, dots, tracks, the transmit circle. Anything whose radius is its own height. */
+    val RadiusPill: Dp = 999.dp
+
+    /** The dock — the one raised surface on the operating screen. */
+    val RadiusDock: Dp = 28.dp
+
+    /** A card that holds other things: the unit card, a thread bubble. */
+    val RadiusCard: Dp = 20.dp
+
+    /** A tile in a grid — an alert template, a control-room destination. */
+    val RadiusTile: Dp = 18.dp
+
+    /** A control inside a card: a button, a field, a segment. */
+    val RadiusControl: Dp = 14.dp
+
+    /** A hairline inset — a code badge, a tag. */
+    val RadiusInset: Dp = 6.dp
+
+    /** Borders. A 2 dp border is a *signal* border and is never used for structure. */
+    val Hairline: Dp = 1.dp
+    val SignalBorder: Dp = 2.dp
+
+    // ── the dock, from board 06 ──────────────────────────────────────────────
+
+    /** The transmit circle. Rule 1's third of the screen, expressed as the circle it became. */
+    val TransmitCircle: Dp = 132.dp
+
+    /** ALERT and REPLAY, flanking it. Still past the 64 dp glove minimum. */
+    val DockFlank: Dp = 64.dp
+
+    // ── motion ───────────────────────────────────────────────────────────────
+    //
+    // Every loop in the canvas, with its period. Two rules govern all of them:
+    //
+    //   1. No step exceeds 320 ms, so nothing on this screen ever feels like a wait.
+    //   2. Every one of them stops under reduced motion -- see `Motion.kt`. Motion here is
+    //      always a second carrier for something a static reading already gives, so
+    //      removing it costs an operator nothing.
+
+    /** Expanding rings on the live transmit dock. Two, offset by half a period. */
+    const val HALO_MILLIS = 1_600
+
+    /** The seven-bar capture equaliser, per bar, on a 90 ms stagger. */
+    const val EQ_MILLIS = 720
+    const val EQ_STAGGER_MILLIS = 90
+    const val EQ_BARS = 7
+
+    /** The link dot, breathing while the link is up. */
+    const val PULSE_MILLIS = 2_000
+
+    /** Sound arcs on the bubble currently being spoken. */
+    const val ARC_MILLIS = 1_400
+
+    /** The splash progress sheen. The only loop that is decoration, and the only one on
+     *  a screen an operator sees once per cold start. */
+    const val SHIMMER_MILLIS = 1_600
+
+    /** A surface drawing attention to itself without moving — the incoming alert. */
+    const val BREATHE_MILLIS = 2_600
+
+    /** A state change the eye should follow rather than notice. Rule 2's ceiling. */
+    const val TRANSITION_MILLIS = 320
 }

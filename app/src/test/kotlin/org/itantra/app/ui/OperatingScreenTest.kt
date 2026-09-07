@@ -172,4 +172,92 @@ class OperatingScreenTest {
         assertNull(state.partial)
         assertEquals(BandFMetrics(), state.metrics)
     }
+
+    // ── the dock is a pure function of the engine ────────────────────────────
+
+    private fun state(
+        transmitting: Boolean = false,
+        listening: Boolean = false,
+        speakingFrom: String? = null,
+        mode: String = "PTT",
+    ) = OperatingState(
+        unitName = "BASE",
+        nodeId = 1,
+        peerCount = 2,
+        linkUp = true,
+        transportName = "bluetooth",
+        mode = mode,
+        audience = "ALL UNITS",
+        language = "हिन्दी",
+        transmitting = transmitting,
+        listening = listening,
+        speakingFrom = speakingFrom,
+    )
+
+    /**
+     * The volume key reaches the engine, never this screen — `MainActivity` wires
+     * `PushToTalkKey` straight to `onTransmit`. So the dock has to be derivable from state
+     * alone, and these five cases are that claim written down. If the dock ever grows a
+     * `remember { mutableStateOf(pressed) }`, the hardware key desyncs it and nothing else
+     * in this project would notice.
+     */
+    @Test
+    fun `each dock state is reached from the engine state alone`() {
+        assertEquals(DockState.IDLE, dockStateOf(state()))
+        assertEquals(DockState.SEIZED, dockStateOf(state(transmitting = true)))
+        assertEquals(DockState.LIVE, dockStateOf(state(transmitting = true, listening = true)))
+        assertEquals(DockState.BUSY, dockStateOf(state(speakingFrom = "node 02")))
+        assertEquals(DockState.PHONE, dockStateOf(state(mode = "Phone")))
+    }
+
+    /**
+     * Nothing in `MessageEngine` calls `Speaker.stop()`, so an arriving message can still be
+     * playing when the operator seizes the floor. The operator wins: they need to know
+     * whether their handset is listening far more than they need telling about audio they
+     * can already hear.
+     */
+    @Test
+    fun `seizing the floor while a message is being spoken shows the floor`() {
+        assertEquals(
+            DockState.SEIZED,
+            dockStateOf(state(transmitting = true, speakingFrom = "node 02")),
+        )
+        assertEquals(
+            DockState.LIVE,
+            dockStateOf(state(transmitting = true, listening = true, speakingFrom = "node 02")),
+        )
+    }
+
+    /**
+     * `listening` without `transmitting` is not a state the engine produces — the floor is
+     * taken before the microphone is opened. If it ever appears it means the floor was
+     * released while the recogniser was still running, and the dock must read idle rather
+     * than invite someone to speak into a microphone with no floor behind it.
+     */
+    @Test
+    fun `listening without the floor is not a transmitting state`() {
+        assertEquals(DockState.IDLE, dockStateOf(state(listening = true)))
+    }
+
+    /** Phone mode outranks everything: in full duplex there is no floor to hold. */
+    @Test
+    fun `phone mode outranks the press`() {
+        assertEquals(
+            DockState.PHONE,
+            dockStateOf(state(mode = "Phone", transmitting = true, listening = true)),
+        )
+    }
+
+    /** The engine writes "PTT"; a profile that ever writes "phone" must still be understood. */
+    @Test
+    fun `phone mode is recognised whatever its case`() {
+        assertEquals(DockState.PHONE, dockStateOf(state(mode = "phone")))
+        assertEquals(DockState.PHONE, dockStateOf(state(mode = "PHONE")))
+    }
+
+    /** Nothing is speaking until the engine says so, and the default says nothing is. */
+    @Test
+    fun `a fresh state is not speaking`() {
+        assertNull(state().speakingFrom)
+    }
 }

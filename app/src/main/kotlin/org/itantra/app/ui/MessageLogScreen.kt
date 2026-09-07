@@ -1,51 +1,44 @@
 package org.itantra.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 /**
- * The message log. Task **W7.18**, `docs/WIREFRAMES.md` section 12.
+ * Task **W5.16**, board 15. Everything sent and received in the last twenty-four hours.
  *
- * ## Why every row shows its frame size
+ * ## The same bubble as the operating screen
  *
- * The compression claim is the centre of this project, and a number on a slide is an
- * assertion. A number on every message in the log, next to the text it carried, is
- * evidence — and it is evidence the jury can generate themselves by sending a message.
+ * This screen and the thread on board 06 draw the identical component — `docs/REDESIGN.md`
+ * task 5.1. They used to be two layouts for one kind of thing: a row with a name column
+ * here, a card with an evidence line there, so a sentence changed shape depending on which
+ * screen an operator read it on. The only difference now is that the log turns the evidence
+ * up — a clock time instead of an age, and day dividers so a scroll has somewhere to land.
  *
- * A template row shows the language it was **sent** in as well as the one it was rendered
- * in, because that difference is the cross-language delivery working and is otherwise
- * invisible.
+ * ## What "replay" actually does
  *
- * ## Replay
- *
- * Every row has a replay control, sized like everything else at 64 dp. A name or a grid
- * reference is easy to mishear once, and asking a person to repeat themselves over a
- * half-duplex channel costs a full exchange.
+ * Captured audio is **never stored**. The replay control re-synthesises from the text, which
+ * is why a message can be replayed in a language the sender never spoke and why a twenty-four
+ * hour log costs kilobytes rather than megabytes. The footer says so, because a control
+ * labelled "replay" otherwise implies a recording exists somewhere on the handset.
  */
 @Composable
 fun MessageLogScreen(
@@ -53,95 +46,94 @@ fun MessageLogScreen(
     onReplay: (LoggedMessage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxSize().background(Paper).padding(16.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("MESSAGES", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
-            Text("last 24 h", fontSize = 14.sp, color = Muted)
+    val p = palette
+    Column(modifier.fillMaxSize().background(p.ground)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(p.paper)
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Messages", fontSize = Tokens.Title, fontWeight = FontWeight.Bold, color = p.ink)
+            Box(Modifier.weight(1f))
+            Text(
+                "${messages.size} · 24 h",
+                fontSize = Tokens.Instrument,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Medium,
+                color = p.muted,
+            )
         }
-        Spacer(Modifier.height(12.dp))
+        Box(Modifier.fillMaxWidth().height(Tokens.Hairline).background(p.hairline))
 
         if (messages.isEmpty()) {
-            Text("Nothing received yet.", fontSize = 16.sp, color = Muted)
-            return@Column
+            EmptyState(
+                icon = Icons.Replay,
+                title = "Nothing in the last 24 hours",
+                body =
+                    "Sent and received messages appear here. They are kept for a day and " +
+                        "then deleted.",
+                modifier = Modifier.weight(1f),
+            )
+        } else {
+            LazyColumn(
+                Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                // One divider per run of messages sharing a day, from the age string the
+                // engine already produces. Nothing is parsed back out of it — a message
+                // whose age names a day starts a new group, and that is the whole rule.
+                var lastDay: String? = null
+                items(messages) { message ->
+                    val day = dayOf(message)
+                    if (day != null && day != lastDay) {
+                        lastDay = day
+                        DayDivider(day.uppercase())
+                    }
+                    MessageBubble(
+                        message = message,
+                        stamp = message.age,
+                        onReplay = { onReplay(message) },
+                    )
+                }
+            }
         }
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(messages) { message -> MessageRow(message, onReplay) }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(p.paper)
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(Icons.Bin, contentDescription = null, tint = p.muted, modifier = Modifier.size(18.dp))
+            Text(
+                "Kept 24 hours, then deleted. Audio is never stored — replay re-speaks the text.",
+                fontSize = Tokens.Label,
+                lineHeight = Tokens.Label * 1.4f,
+                color = p.muted,
+            )
         }
     }
 }
 
 /**
- * One row of the log.
+ * Which day a message belongs to, or null when its age does not say.
  *
- * ## Two semantic regions, not one
- *
- * The described block and the replay control are siblings. [spokenAs] replaces the
- * semantics of everything beneath it, which is what makes the row one sentence rather than
- * five fragments — and which would make a control inside it unreachable. Task **W7.23**.
+ * The engine hands this screen a formatted age — `2 s`, `41 m`, `yesterday 23:41` — and not
+ * a timestamp. Rather than parse one back out, a message is taken to start a new day only
+ * when its age names one. A build whose ages are all relative simply gets no dividers, which
+ * is the correct amount of grouping to invent from data that does not carry it.
  */
-@Composable
-private fun MessageRow(
-    message: LoggedMessage,
-    onReplay: (LoggedMessage) -> Unit,
-) {
-    Column(Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().spokenAs(Spoken.messageRow(message))) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(
-                    if (message.isAlert) "⚠ ALERT  ${message.from}" else message.from,
-                    fontSize = 14.sp,
-                    fontWeight = if (message.isAlert) FontWeight.Bold else FontWeight.Normal,
-                    color = if (message.isAlert) Danger else Ink,
-                )
-                Text(message.age, fontSize = 13.sp, color = Muted)
-            }
-            Spacer(Modifier.height(4.dp))
-
-            Text(
-                message.text,
-                fontSize = 16.sp,
-                color = Ink,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, Muted, RoundedCornerShape(6.dp))
-                        .padding(12.dp),
-            )
-
-            Spacer(Modifier.height(4.dp))
-            Text(
-                // The evidence line. Frame size first, because that is the claim.
-                buildString {
-                    append("${message.frameBytes} B")
-                    if (message.wasTemplate) append(" template")
-                    append(" · ${message.deliveryMark()}")
-                    append(" · ${message.language}")
-                    message.sentInLanguage?.let { append(" · sent in $it") }
-                },
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                color = Muted,
-            )
-        }
-
-        Spacer(Modifier.height(4.dp))
-        Row(
-            Modifier
-                .fillMaxWidth()
-                // A minimum, never a fixed size: at 200 % text the glyph is twice as tall
-                // and a `size(64.dp)` box clips it. W7.23.
-                .heightIn(min = REPLAY_TARGET_DP.dp)
-                .clickable { onReplay(message) }
-                .semantics { contentDescription = "Replay message from ${message.from}" },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("⟲", fontSize = 22.sp, color = Ink)
-            Spacer(Modifier.width(8.dp))
-            Text("Replay", fontSize = 14.sp, color = Muted)
-        }
+private fun dayOf(message: LoggedMessage): String? =
+    when {
+        message.age.contains("yesterday", ignoreCase = true) -> "yesterday"
+        message.age.contains("today", ignoreCase = true) -> "today"
+        else -> null
     }
-}
 
 /**
  * One row.
@@ -191,9 +183,3 @@ data class LoggedMessage(
     /** Recognition confidence as filled dots — readable without reading. */
     private fun dots(level: Int): String = "●".repeat(level.coerceIn(0, 3)) + "○".repeat((3 - level).coerceIn(0, 3))
 }
-
-private const val REPLAY_TARGET_DP = 64
-private val Ink = Color(0xFF101010)
-private val Paper = Color(0xFFFFFFFF)
-private val Muted = Color(0xFF5F5F5F)
-private val Danger = Color(0xFFB3261E)
