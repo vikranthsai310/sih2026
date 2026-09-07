@@ -41,6 +41,9 @@ data class UnitInfo(
  * @param gpsMetres from both positions, when both are known
  * @param relativeBearingDeg where the target lies relative to the way this handset is
  *   pointing, clockwise, or null when either position or the compass is missing
+ * @param bearingDeg the target's true bearing from here, or null without both positions
+ * @param compassErrorDeg the platform's own estimate of the compass error, when it has one
+ * @param compassNeedsCalibration the magnetometer has said it is unreliable
  * @param lost no signal for a while
  */
 data class LocateState(
@@ -53,6 +56,9 @@ data class LocateState(
     val targetAccuracyMetres: Int?,
     val relativeBearingDeg: Float?,
     val headingDeg: Float?,
+    val bearingDeg: Float? = null,
+    val compassErrorDeg: Float? = null,
+    val compassNeedsCalibration: Boolean = false,
     val lost: Boolean,
     /** Whether the target has answered the request and is beaconing. */
     val beaconing: Boolean,

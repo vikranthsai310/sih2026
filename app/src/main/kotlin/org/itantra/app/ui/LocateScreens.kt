@@ -36,12 +36,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -50,8 +47,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import kotlin.math.cos
-import kotlin.math.sin
 
 // The locate feature: who is on the channel, and the walk to one of them. Plus the one
 // setting it depends on, the unit's own name.
@@ -182,7 +177,7 @@ private fun ago(millis: Long): String =
  *
  * Two instruments, because a phone can only measure two things about another radio: how
  * strongly it hears it, and -- with both positions -- which way it lies. The arrow turns
- * with the handset in real time; the ring behind it fills as the signal strengthens; the
+ * with the handset in real time; the bar beneath it fills as the signal strengthens; the
  * siren, heard rather than seen, does the same. When either instrument has nothing to say
  * the screen says why, in words, rather than pointing somewhere it does not know.
  */
@@ -222,7 +217,24 @@ fun LocateScreen(
                 color = if (state.lost) p.blush.deep else p.muted,
             )
 
-            Compass(state, p)
+            Arrow(state, p)
+
+            // The two headings in figures, so an operator with a map or a second compass
+            // can check the arrow rather than trust it.
+            Text(
+                buildString {
+                    append("heading ")
+                    append(state.headingDeg?.let { "${it.toInt()}°" } ?: "—")
+                    append(" · target ")
+                    append(state.bearingDeg?.let { "${it.toInt()}°" } ?: "—")
+                    state.compassErrorDeg?.let { if (it >= 1f) append(" · ±${it.toInt()}°") }
+                },
+                fontSize = Tokens.Instrument,
+                fontFamily = FontFamily.Monospace,
+                color = p.muted,
+            )
+
+            SignalBar(state, p)
 
             val distance =
                 when {
@@ -277,23 +289,31 @@ fun LocateScreen(
     }
 }
 
-/** The ring and the arrow. The ring fills with proximity; the arrow turns to the target. */
+/**
+ * The arrow, and nothing round it.
+ *
+ * It fills the width of the screen because it is the instrument, and it is drawn straight
+ * from the engine's reading: the compass fires some fifty times a second and the engine
+ * subtracts it from the bearing on each one, so the arrow turns with the hand that turns
+ * the phone. An animation here would chase a value that has already moved on, and would
+ * spin the long way round at north. Without a bearing the arrow is drawn faint and
+ * upright, so the screen still says what it would look like, and the note says why not.
+ */
 @Composable
-private fun Compass(
+private fun Arrow(
     state: LocateState,
     p: ItantraPalette,
 ) {
-    // The engine smooths the bearing along the shortest arc on every compass reading, some
-    // fifty times a second, so it is drawn as it comes. An animation here would chase a
-    // value that has already moved on, and would spin the long way round at north.
     val bearing = state.relativeBearingDeg
-    val eased = bearing ?: 0f
-    val fill by animateFloatAsState(targetValue = state.proximity, animationSpec = tween(300), label = "ring")
-    val ring = if (state.lost) p.hairlineStrong else p.periwinkle.core
-    val arrowColour = if (bearing == null) p.hairline else p.periwinkle.deep
+    val arrowColour =
+        when {
+            bearing == null -> p.hairline
+            state.compassNeedsCalibration -> p.butter.deep
+            else -> p.periwinkle.deep
+        }
     Box(
         Modifier
-            .size(240.dp)
+            .size(250.dp)
             .semantics {
                 contentDescription =
                     bearing?.let { "Arrow pointing ${clockFace(it)}" } ?: "No direction yet"
@@ -301,50 +321,54 @@ private fun Compass(
         contentAlignment = Alignment.Center,
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            val stroke = 14.dp.toPx()
-            val radius = size.minDimension / 2 - stroke
-            drawCircle(color = p.sunken, radius = radius, style = Stroke(stroke))
-            drawArc(
-                color = ring,
-                startAngle = -90f,
-                sweepAngle = 360f * fill,
-                useCenter = false,
-                topLeft = Offset(center.x - radius, center.y - radius),
-                size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
-                style = Stroke(stroke, cap = StrokeCap.Round),
-            )
-            // Tick marks at the quarters, so "straight ahead" is a mark, not a guess.
-            for (q in 0 until 4) {
-                val a = Math.toRadians(q * 90.0 - 90.0)
-                val inner = radius - stroke
-                val outer = radius - stroke / 2
-                drawLine(
-                    color = p.hairlineStrong,
-                    start = Offset(center.x + inner * cos(a).toFloat(), center.y + inner * sin(a).toFloat()),
-                    end = Offset(center.x + outer * cos(a).toFloat(), center.y + outer * sin(a).toFloat()),
-                    strokeWidth = 2.dp.toPx(),
-                )
-            }
-            rotate(if (bearing == null) 0f else eased, pivot = center) {
-                val length = radius * 0.62f
-                val head = radius * 0.22f
+            val half = size.minDimension / 2
+            rotate(bearing ?: 0f, pivot = center) {
+                // A single pointer: a broad head on a stout shaft, the whole height of
+                // the box, so at arm's length in sunlight it is one shape with one end.
+                val tip = center.y - half * 0.98f
+                val headBase = center.y - half * 0.30f
+                val headHalfWidth = half * 0.62f
+                val shaftHalfWidth = half * 0.20f
+                val tail = center.y + half * 0.92f
                 val path =
                     Path().apply {
-                        moveTo(center.x, center.y - length)
-                        lineTo(center.x - head * 0.6f, center.y - length + head)
-                        lineTo(center.x + head * 0.6f, center.y - length + head)
+                        moveTo(center.x, tip)
+                        lineTo(center.x + headHalfWidth, headBase)
+                        lineTo(center.x + shaftHalfWidth, headBase)
+                        lineTo(center.x + shaftHalfWidth, tail)
+                        lineTo(center.x - shaftHalfWidth, tail)
+                        lineTo(center.x - shaftHalfWidth, headBase)
+                        lineTo(center.x - headHalfWidth, headBase)
                         close()
                     }
                 drawPath(path, arrowColour)
-                drawLine(
-                    color = arrowColour,
-                    start = Offset(center.x, center.y - length + head * 0.7f),
-                    end = Offset(center.x, center.y + length * 0.45f),
-                    strokeWidth = 10.dp.toPx(),
-                    cap = StrokeCap.Round,
-                )
             }
         }
+    }
+}
+
+/** How strongly the target is heard, as a bar that fills as the operator closes in. */
+@Composable
+private fun SignalBar(
+    state: LocateState,
+    p: ItantraPalette,
+) {
+    val fill by animateFloatAsState(targetValue = state.proximity, animationSpec = tween(300), label = "signal")
+    val colour = if (state.lost) p.hairlineStrong else p.periwinkle.core
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(10.dp)
+            .background(p.sunken, RoundedCornerShape(Tokens.RadiusPill))
+            .semantics { contentDescription = "Signal ${Math.round(state.proximity * 100)} percent" },
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth(fill.coerceIn(0.02f, 1f))
+                .height(10.dp)
+                .background(colour, RoundedCornerShape(Tokens.RadiusPill)),
+        )
     }
 }
 
@@ -380,7 +404,7 @@ private fun Toggle(
 }
 
 /**
- * The unit's name, as the other units will see it.
+ * The device's name, as the other units will see it.
  *
  * Twenty-four bytes: a call sign, not a sentence. It is sent in every presence frame and
  * shown on every other handset's list, so it is the one setting that is really about the
@@ -404,7 +428,7 @@ fun UnitNameScreen(
             .background(p.ground)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        BackHeader("Unit name", onBack)
+        BackHeader("Device name", onBack)
         Column(
             Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -429,7 +453,7 @@ fun UnitNameScreen(
                     cursorBrush = SolidColor(p.periwinkle.core),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { if (!tooLong) onSave(draft) }),
-                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Unit name" },
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Device name" },
                 )
             }
             Text(
@@ -449,7 +473,7 @@ fun UnitNameScreen(
                     .background(if (tooLong) p.sunken else p.periwinkle.core, RoundedCornerShape(Tokens.RadiusControl))
                     .clickable(enabled = !tooLong) { onSave(draft) }
                     .padding(14.dp)
-                    .semantics { contentDescription = "Save the unit name" },
+                    .semantics { contentDescription = "Save the device name" },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {

@@ -547,6 +547,18 @@ from a dead one.
 >
 > Position is sent **only** while beaconing or locating, and only inside these sealed
 > frames. `core-proto/Presence.kt`, `SessionPresenceTest`.
+>
+> **The arrow, on the receiving side.** The locator draws the target's true bearing (from
+> the two positions) against the handset's own heading. The heading is the platform's
+> rotation vector — magnetometer, accelerometer and gyroscope fused — read as the direction
+> the phone is *pointing*: its top edge when flat, the back of the phone when held up,
+> blended by how far it is raised, so the arrow is right at every angle a phone is held at
+> and does not swing as it is lifted. Only the bearing, which jumps with each position fix,
+> is smoothed; the compass is followed on every reading, fifty a second. The magnetometer's
+> own accuracy flag is surfaced as a calibration note, and the two headings are printed in
+> degrees under the arrow so it can be checked against a map. `app/platform/Heading.kt`,
+> `HeadingTest`. Within the combined GPS error of the two fixes the arrow is meaningless and
+> the screen says so; the siren, from signal strength, takes over there.
 
 ---
 

@@ -56,7 +56,9 @@ class Locator(
     private var targetPositionAtMillis = 0L
     private var targetBeaconing = false
     private var sirenWanted = true
-    private var relative: Float? = null
+
+    /** The target's bearing from here, smoothed: positions arrive once a second and jump. */
+    private var bearing: Float? = null
 
     fun start(
         src: Int,
@@ -69,7 +71,7 @@ class Locator(
         lastSignalAtMillis = 0L
         targetPosition = null
         targetBeaconing = false
-        relative = null
+        bearing = null
         positions?.start()
         heading?.onChanged = { tick() }
         heading?.start()
@@ -152,6 +154,7 @@ class Locator(
         var relativeBearing: Float? = null
         var note: String? = null
         val compass = heading?.degrees
+        val needsCalibration = heading?.needsCalibration == true
         when {
             positions == null || !positions.isPermitted() -> note = "Location permission is off, so there is no arrow."
             theirs == null ->
@@ -163,12 +166,19 @@ class Locator(
                 val results = FloatArray(2)
                 Location.distanceBetween(ours.latitude, ours.longitude, theirs.latitude, theirs.longitude, results)
                 gps = results[0].toInt()
-                val bearing = Heading.normalise(results[1])
-                val raw = Heading.normalise(bearing - compass)
-                relative = Heading.smooth(relative, raw, ARROW_SMOOTHING)
-                relativeBearing = relative
+                // The bearing moves only when a position does, once a second and by a
+                // jump, so it is the one thing smoothed here. The compass is not smoothed
+                // again: it is already steady, and a second stage on top of it is what
+                // made the arrow trail the handset by a second when it was turned.
+                bearing = Heading.smooth(bearing, Heading.normalise(results[1]), BEARING_SMOOTHING)
+                relativeBearing = Heading.normalise(bearing!! - compass)
                 val error = ours.accuracy.toInt() + theirs.accuracyMetres
-                if (gps < error) note = "Within $error m — follow the sound."
+                note =
+                    when {
+                        gps < error -> "Within $error m — the positions are too close to point. Follow the sound."
+                        needsCalibration -> "Compass unsure: move the handset in a figure of eight."
+                        else -> null
+                    }
             }
         }
 
@@ -182,6 +192,9 @@ class Locator(
             targetAccuracyMetres = theirs?.accuracyMetres,
             relativeBearingDeg = relativeBearing,
             headingDeg = compass,
+            bearingDeg = bearing,
+            compassErrorDeg = heading?.errorDegrees,
+            compassNeedsCalibration = needsCalibration,
             lost = lost,
             beaconing = targetBeaconing,
             arrowNote = note,
@@ -204,7 +217,9 @@ class Locator(
 
         const val MEDIAN_WINDOW = 5
         const val SMOOTHING = 0.35
-        const val ARROW_SMOOTHING = 0.2f
+
+        /** Half of each new bearing: two position fixes to settle, and a bad one is halved. */
+        const val BEARING_SMOOTHING = 0.5f
 
         /** Beacons come every second; five missed is a unit that has moved out of range. */
         const val LOST_AFTER_MILLIS = 6_000L

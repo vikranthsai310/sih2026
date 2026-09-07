@@ -86,7 +86,7 @@ fun ControlRoomScreen(
                 .padding(horizontal = 12.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            UnitHeroCard(operating)
+            UnitHeroCard(operating, phone = state.defaultUnitName) { onOpen(Destination.UNIT_NAME) }
 
             Column(
                 Modifier
@@ -170,9 +170,10 @@ private fun controlRoomRows(
             Destination.UNIT_NAME,
             Icons.Transmit,
             p.mint.core,
-            "Unit name",
+            "Device name",
             operating.unitName,
             mono = false,
+            valueInk = p.mint.deep,
         ),
         ControlRow(
             Destination.TEXT_SIZE,
@@ -238,9 +239,19 @@ private fun DestinationRow(
  * on the screen rather than in a slide, and the paired count because "how many can hear me"
  * is the question the operating screen's pill answers in one glance and this screen should
  * answer in words.
+ *
+ * The name is the device name the other units see, and tapping it edits it. The phone's
+ * own model is shown beneath when the name has been changed from it, so a table of
+ * handsets can still be matched to the units on the channel.
+ *
+ * @param phone the handset's model name, which is also the name a unit falls back to
  */
 @Composable
-private fun UnitHeroCard(operating: OperatingState) {
+private fun UnitHeroCard(
+    operating: OperatingState,
+    phone: String,
+    onEditName: () -> Unit,
+) {
     val p = palette
     Column(
         Modifier
@@ -250,6 +261,12 @@ private fun UnitHeroCard(operating: OperatingState) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onEditName)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "Device name ${operating.unitName}. Tap to change it."
+                },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -268,14 +285,25 @@ private fun UnitHeroCard(operating: OperatingState) {
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                 )
+                val renamed = phone.isNotBlank() && !operating.unitName.equals(phone, ignoreCase = true)
                 Text(
-                    "node ${"%02d".format(operating.nodeId)} · $CIPHER",
+                    (if (renamed) "$phone · " else "") + "node ${"%02d".format(operating.nodeId)} · $CIPHER",
                     fontSize = Tokens.Instrument,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Medium,
                     color = Color.White.copy(alpha = 0.75f),
                 )
             }
+            Text(
+                "EDIT",
+                fontSize = Tokens.Label,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier =
+                    Modifier
+                        .background(Color.White.copy(alpha = 0.16f), RoundedCornerShape(Tokens.RadiusPill))
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             // Pairing is task W6.11 and does not exist: every unit holds the same fixed

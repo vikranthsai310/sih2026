@@ -30,6 +30,20 @@ import org.itantra.proto.Language
  * metadata). [transcribe] keeps them: they are how [UtteranceDecoder] decides which of two
  * overlapping decodes owns a word on a forced cut, rather than guessing from the text.
  *
+ * ## What the decoder can be told, and what it ignores
+ *
+ * Read from the library's source (`offline-recognizer-ctc-impl.h`,
+ * `offline-ctc-greedy-search-decoder.cc`) rather than its configuration class, which
+ * accepts everything and applies some of it: for an offline CTC model sherpa-onnx runs
+ * **greedy search only**. `hotwordsFile`, `hotwordsScore` and `blankPenalty` are read by
+ * the transducer path and never reach the CTC decoder; `modified_beam_search` is refused
+ * at construction. The one other decoder the CTC path has is an FST (HLG) decoder, which
+ * needs a graph compiled with k2 from a lexicon and a language model for each language's
+ * token set, and no such graph exists for IndicConformer. So accuracy is decided by the
+ * model and by the audio it is given, which is why the work is in [UtteranceDecoder]:
+ * where the clause is cut, what quiet is kept round it, what is silenced before it, and
+ * the high-pass on the way in.
+ *
  * ## Threads
  *
  * Four while decoding a window and two at idle, per `docs/ASR.md` section 3.5: cores are
@@ -68,8 +82,8 @@ class SherpaRecogniser(
                         modelType = "nemo_ctc",
                     ),
                 decodingMethod = "greedy_search",
-                // Contextual biasing: the highest-yield accuracy work available, and it
-                // needs no retraining. docs/ASR.md section 3.4, tasks W4.13-W4.15.
+                // Kept for the day a transducer export of these models exists; the CTC
+                // path in the library does not read them. See the class comment.
                 hotwordsFile = hotwordsFile,
                 hotwordsScore = hotwordsScore,
             ),
@@ -113,7 +127,8 @@ class SherpaRecogniser(
      * arrives and call `onEndpoint()` when the speaker lets go, so only the last clause
      * is decoded after they stop.
      */
-    fun utteranceDecoder(): UtteranceDecoder = UtteranceDecoder(sampleRate = SAMPLE_RATE, decode = ::transcribe)
+    fun utteranceDecoder(): UtteranceDecoder =
+        UtteranceDecoder(sampleRate = SAMPLE_RATE, decode = ::transcribe, highPassHz = UtteranceDecoder.HIGH_PASS_HZ)
 
     override fun close() = recogniser.release()
 

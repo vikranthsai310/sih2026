@@ -184,6 +184,7 @@ class SherpaSpeech(
         decoder =
             UtteranceDecoder(
                 sampleRate = SherpaRecogniser.SAMPLE_RATE,
+                highPassHz = UtteranceDecoder.HIGH_PASS_HZ,
                 decode = { pcm ->
                     val began = System.nanoTime()
                     try {

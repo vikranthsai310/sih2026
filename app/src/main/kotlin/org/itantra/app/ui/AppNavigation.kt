@@ -68,7 +68,7 @@ enum class Destination(val title: String) {
     STORAGE("STORAGE"),
 
     /** What this unit calls itself, as every other unit sees it. */
-    UNIT_NAME("UNIT NAME"),
+    UNIT_NAME("DEVICE NAME"),
 
     /** Who is on the channel, to pick one to walk to. Reached from the operating screen. */
     LOCATE("LOCATE"),

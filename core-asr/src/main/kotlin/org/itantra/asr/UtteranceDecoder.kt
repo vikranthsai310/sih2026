@@ -1,6 +1,8 @@
 package org.itantra.asr
 
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.log10
 import kotlin.math.max
 import kotlin.math.min
@@ -74,6 +76,22 @@ class UtteranceDecoder(
     private val provisionalEveryMillis: Int = PROVISIONAL_EVERY_MILLIS,
     private val provisionalMaxMillis: Int = PROVISIONAL_MAX_MILLIS,
     private val settleMillis: Int = SETTLE_MILLIS,
+    /**
+     * Corner of the high-pass applied to audio as it arrives, or 0 for none.
+     *
+     * A handset microphone in a hand carries what a studio one does not: a DC offset from
+     * the converter, rumble from the grip, wind, and the thump of the control going down,
+     * all below the lowest voice. The model's front end takes mel bins from 0 Hz and
+     * normalises each over the buffer, so that energy lands in the bottom bins and skews
+     * their statistics; and the energy floor here, which decides where speech begins and
+     * ends, hears a rumble as a quiet word. A first-order high-pass a little under the
+     * lowest fundamental removes both without touching the voice: at 60 Hz it is 3 dB
+     * down, and at the 85 Hz of the deepest speaker it is under 2 dB, less than the
+     * difference between one microphone and another. Off by default because the scripted
+     * tests recognise audio by its exact samples; [SherpaRecogniser.utteranceDecoder]
+     * turns it on for the real model.
+     */
+    private val highPassHz: Int = 0,
 ) {
     init {
         require(contextMillis * 2 < maxSegmentMillis) { "a forced cut needs room for its context" }
@@ -81,6 +99,32 @@ class UtteranceDecoder(
     }
 
     private val frameSamples = sampleRate * FRAME_MILLIS / 1000
+
+    // ── the high-pass ────────────────────────────────────────────────────────
+
+    /** `y[n] = x[n] − x[n−1] + a·y[n−1]`, with `a` set by the corner frequency. */
+    private val highPassCoefficient: Double =
+        if (highPassHz > 0) exp(-2.0 * PI * highPassHz / sampleRate) else 0.0
+    private var highPassIn = 0.0
+    private var highPassOut = 0.0
+
+    private fun highPass(samples: ShortArray): ShortArray {
+        if (highPassHz <= 0) return samples
+        val out = ShortArray(samples.size)
+        var xPrev = highPassIn
+        var yPrev = highPassOut
+        val a = highPassCoefficient
+        for (i in samples.indices) {
+            val x = samples[i].toDouble()
+            val y = x - xPrev + a * yPrev
+            xPrev = x
+            yPrev = y
+            out[i] = y.coerceIn(-32768.0, 32767.0).toInt().toShort()
+        }
+        highPassIn = xPrev
+        highPassOut = yPrev
+        return out
+    }
 
     // ── the open segment ─────────────────────────────────────────────────────
 
@@ -158,7 +202,7 @@ class UtteranceDecoder(
         samples: ShortArray,
         allowProvisional: Boolean = true,
     ): Boolean {
-        append(samples)
+        append(highPass(samples))
         analyse()
         var changed = false
         while (true) {
@@ -257,6 +301,8 @@ class UtteranceDecoder(
         boundary = null
         segmentsDecoded = 0
         provisionalDecodes = 0
+        highPassIn = 0.0
+        highPassOut = 0.0
     }
 
     // ── segmentation ─────────────────────────────────────────────────────────
@@ -622,6 +668,9 @@ class UtteranceDecoder(
 
         /** The same word timed this close on both sides of a forced cut is one word. */
         const val DEDUPE_MILLIS = 250
+
+        /** Corner of the input high-pass when one is wanted: under the deepest voice, over the rumble. */
+        const val HIGH_PASS_HZ = 60
 
         const val SPEECH_ABOVE_FLOOR_DB = 8.0
 

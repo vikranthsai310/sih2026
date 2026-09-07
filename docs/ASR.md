@@ -119,6 +119,22 @@ tokens are joined into text.
 | Threads | 2 | 4 threads is faster cold and slower after thermal soak — see risk T-03 |
 | Provider | `cpu` (XNNPACK) | NNAPI is inconsistent across entry-tier vendors; evaluated and rejected |
 
+> **Amended 2026-09-07 — what the library actually does with a CTC model.** The table
+> above was written before the binding existed. Read from sherpa-onnx's source
+> (`offline-recognizer-ctc-impl.h`, `offline-ctc-greedy-search-decoder.cc`, verified
+> against the 1.13 line), the offline CTC path runs **greedy search only**:
+> `modified_beam_search` is refused at construction, and `blankPenalty`, `hotwordsFile`
+> and `hotwordsScore` are accepted by the configuration class and never reach the CTC
+> decoder — they belong to the transducer path. The only other decoder the CTC path
+> offers is an FST (HLG) decoder, which needs a graph compiled with k2 from a lexicon and
+> a language model against each language's token table; no such graph exists for
+> IndicConformer, and building ten is a project of its own. There is also no float
+> export of these models to trade size for accuracy: the published files are the int8
+> ones. So, with this model and this library, accuracy is decided by **the audio the
+> model is handed** — where a clause is cut, what quiet is kept round it, what is
+> silenced before it, and what is filtered on the way in. That is the work in
+> `UtteranceDecoder` (§3.5 and §5), and it is the whole of the lever.
+
 ### 3.4 Contextual biasing — the highest-yield accuracy work
 
 Decoding scores are boosted for a supplied phrase list. In a distress context the critical
@@ -137,6 +153,10 @@ the words whose misrecognition would be most costly, and requires **no retrainin
 
 Hotword score 1.5 by default; the value is a per-language tunable recorded in the pack
 manifest.
+
+> **2026-09-07.** Not applied: the CTC path in sherpa-onnx ignores hotwords (see the
+> note above §3.4). The lexicon, gazetteer and roster work stands ready for a transducer
+> export of these models or an HLG graph, either of which would read it.
 
 Negation terms are in the list because of risk S-03: a recognition error that turns "do
 not evacuate" into "now evacuate" inverts meaning and is the most dangerous single failure
@@ -275,10 +295,20 @@ Word error rate collapsing in real acoustic noise is the highest-severity techni
 
 | Stage | Mechanism | Cost |
 | --- | --- | --- |
-| High-pass | 80 Hz single-pole | Negligible |
+| High-pass | 60 Hz single-pole, in `UtteranceDecoder` on every hop before the energy floor sees it | Negligible |
 | Platform suppression | `NoiseSuppressor` / `AcousticEchoCanceler` when the device reports availability | Free, vendor-dependent |
 | Adaptive gain | Target −18 dBFS, 3 s attack | Negligible |
 | Neural suppression | RNNoise, ~200 KB | ~0.5 ms per 20 ms frame |
+
+The high-pass is the one stage that ships (2026-09-07). It removes the converter's DC
+offset, grip rumble, wind and the thump of the control going down — all below the lowest
+voice, all of which the energy floor otherwise hears as a quiet word and the model's
+per-feature normalisation folds into its bottom mel bins. At 60 Hz the corner is under the
+deepest fundamental: 3 dB down at 60 Hz, under 2 dB at 85 Hz, nothing at 200 Hz. The
+platform's own suppression is not requested on the push-to-talk path, deliberately —
+`VOICE_RECOGNITION` asks for the raw signal, because vendor suppressors distort the
+spectrum the model was trained on. `HighPassTest` measures the filter on a tone over an
+offset and a rumble.
 
 Neural suppression is applied **only to the recognition path**, never to any audio the
 user hears, and is a per-language toggle because it is not uniformly beneficial. The
