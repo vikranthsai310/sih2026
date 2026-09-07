@@ -132,7 +132,16 @@ class MessageEngine(
             epochs = EpochCounter(epochStore, clock = System::currentTimeMillis),
             templates = templates,
             language = Language.HINDI,
-        )
+        ).apply {
+            // The operator's hop count and road switch, as they were when the handset
+            // was last used. Applied here rather than in start(), which is idempotent
+            // and re-entered on every return to the application.
+            ttl = preferences?.ttl ?: Session.DEFAULT_TTL
+        }
+
+    init {
+        mesh.roads = preferences?.roads
+    }
 
     // Declared before the state, because the state is built from them. Kotlin initialises
     // properties in declaration order, and the first version declared these two below the
@@ -428,7 +437,9 @@ class MessageEngine(
         for (relay in session.takeRelays()) {
             scope.launch {
                 delay(relay.delayMillis)
-                mesh.send(relay.frame.encode())
+                // A relayed alert is still an alert: it goes down every road that is up,
+                // whatever this unit's operator switched off for their own traffic.
+                mesh.send(relay.frame.encode(), urgent = relay.frame.type == MessageType.ALERT)
             }
         }
     }
@@ -997,6 +1008,32 @@ class MessageEngine(
         scope.launch { sendPresence() }
     }
 
+    /**
+     * Which roads routine traffic takes. Alerts are unaffected — see [Link.send].
+     *
+     * Applied to the mesh at once and stored for next time. The stored set is the
+     * sanitised one, so the screen, the mesh and the disk never disagree about which
+     * roads are on.
+     */
+    fun setRoads(selected: Collection<String>) {
+        val clean = Road.sanitise(selected)
+        preferences?.setRoads(clean)
+        mesh.roads = clean
+        refresh()
+    }
+
+    /** The roads routine traffic takes now. */
+    val roads: Set<String> get() = mesh.roads ?: Road.ALL
+
+    /** How many relay hops a message from this unit may travel. Clamped by the session. */
+    fun setTtl(hops: Int) {
+        session.ttl = hops
+        preferences?.setTtl(session.ttl)
+        refresh()
+    }
+
+    val ttl: Int get() = session.ttl
+
     /** Push-to-talk or the open line. Persisted, and applied at once. */
     fun setMode(next: String) {
         val clean = if (next == UnitPreferences.MODE_PHONE) UnitPreferences.MODE_PHONE else UnitPreferences.MODE_PTT
@@ -1251,11 +1288,13 @@ class MessageEngine(
     /**
      * What each road is doing right now, for the settings screen.
      *
-     * All three run at once and always have: [MeshLink] sends every frame down every peer
-     * and the replay window discards the duplicate, so there is nothing here to choose
-     * between. The screen used to present these as a *choice* with one entry and an empty
-     * click handler — it named RFCOMM, omitted the two channels that need no pairing, and
-     * did nothing when pressed. On demonstration day the two it omitted are the ones that
+     * All three run at once: [MeshLink] sends every frame down every road that is on and
+     * the replay window discards the duplicate. What the operator chooses is which roads
+     * routine traffic takes — [setRoads] — and that is a switch on sending only. Every
+     * road stays up and stays heard, and an alert goes down all of them regardless. The
+     * screen used to present these as a *choice* with one entry and an empty click
+     * handler — it named RFCOMM, omitted the two channels that need no pairing, and did
+     * nothing when pressed. On demonstration day the two it omitted are the ones that
      * work, which is the reason `docs/TRANSPORT.md` section 8 gives for building them.
      *
      * RFCOMM is reported as a count rather than a state because it is one peer per bonded
@@ -1264,6 +1303,7 @@ class MessageEngine(
      */
     fun channels(): List<ChannelStatus> {
         val states = mesh.peerStates
+        val on = roads
         val bonded = states.keys.filter { it != BROADCAST_PEER && it != WIFI_PEER }
         val bondedUp = bonded.count { states[it] == LinkState.CONNECTED }
         return listOf(
@@ -1272,15 +1312,18 @@ class MessageEngine(
                 name = "Bluetooth LE broadcast",
                 detail = "No pairing. Every unit with the app open is on it",
                 state = states[BROADCAST_PEER],
+                enabled = BROADCAST_PEER in on,
             ),
             ChannelStatus(
                 id = WIFI_PEER,
                 name = "Wi-Fi broadcast",
                 detail = "One handset's hotspot is enough. No data plan, no router",
                 state = states[WIFI_PEER],
+                enabled = WIFI_PEER in on,
             ),
             ChannelStatus(
                 id = RFCOMM_CHANNEL,
+                enabled = RFCOMM_CHANNEL in on,
                 name = "Bluetooth Classic (RFCOMM)",
                 detail =
                     if (bonded.isEmpty()) {
@@ -1310,6 +1353,8 @@ class MessageEngine(
         val name: String,
         val detail: String,
         val state: LinkState?,
+        /** Whether routine traffic goes down this road. Alerts always do. */
+        val enabled: Boolean = true,
     )
 
     companion object {
