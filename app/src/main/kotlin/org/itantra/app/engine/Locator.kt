@@ -10,6 +10,7 @@ import org.itantra.app.platform.LocateSiren
 import org.itantra.app.platform.PositionSource
 import org.itantra.app.ui.ArrowMode
 import org.itantra.app.ui.LocateState
+import org.itantra.app.ui.Trend
 import org.itantra.link.Signal
 import org.itantra.proto.Presence
 import kotlin.math.abs
@@ -77,6 +78,25 @@ import kotlin.math.pow
  *
  * The width of the arrow's own uncertainty, from the combined error over the distance, is
  * given to the screen to draw behind it.
+ *
+ * ## The distance is calibrated on the way in
+ *
+ * Far out, where the arrow points, the distance between the two positions is known, and
+ * every signal reading taken there is a calibration point: a straight line through
+ * (log distance, signal) has this pair's one-metre strength as its intercept and its loss
+ * rate as its slope. [PathLossFit] fits that line as the operator walks in, so by the time
+ * the positions overlap and the siren has taken over, the metres on the screen are the
+ * metres this phone measured against that phone, in this field, and not a figure assumed
+ * for every handset ever made.
+ *
+ * ## Walking is a direction too
+ *
+ * Inside the positions' error the phone still knows which way it is being carried and
+ * whether the signal is rising. Walk one way and it rises: the target is that way. Walk
+ * another and it falls: not that way. [WalkGradient] sums those stretches as vectors and
+ * gives the arrow a direction where GPS has none, coarse, and only while walking. The
+ * same rise and fall over the last few seconds is shown plainly as *closing* or
+ * *further*, because the siren says it to the ear and a word says it to the eye.
  *
  * ## Indoors: the sweep
  *
@@ -148,6 +168,24 @@ class Locator(
 
     private val samples = ArrayDeque<Sample>()
 
+    /** The signal-to-distance model, fitted to this pair while the distance is known. */
+    private val pathLoss = PathLossFit()
+
+    /** Which fixes the model has already learned from, so one pair teaches it once. */
+    private var learnedOursAt = 0L
+    private var learnedTheirsAt = 0L
+
+    /** A direction from the way the signal has changed as the operator walked. */
+    private val walk = WalkGradient()
+
+    /** The last own fix that counted as walking, for the stretch to the next one. */
+    private var walkFixAtMillis = 0L
+
+    /** The smoothed signal over the last few seconds, for closing / further. */
+    private class Trail(val atMillis: Long, val rssi: Double)
+
+    private val trail = ArrayDeque<Trail>()
+
     fun start(
         src: Int,
         name: String,
@@ -172,6 +210,12 @@ class Locator(
         lastBearingAtMillis = 0L
         declinationAtMillis = 0L
         samples.clear()
+        pathLoss.clear()
+        learnedOursAt = 0L
+        learnedTheirsAt = 0L
+        walk.clear()
+        walkFixAtMillis = 0L
+        trail.clear()
         positions?.start()
         heading?.onChanged = { tick() }
         heading?.start()
@@ -221,6 +265,10 @@ class Locator(
                 previous + (median - previous) * alpha
             }
         lastSignalAtMillis = signal.atMillis
+        smoothedRssi?.let { trail.addLast(Trail(signal.atMillis, it)) }
+        while (trail.isNotEmpty() && signal.atMillis - trail.first().atMillis > TREND_WINDOW_MILLIS + 1_000L) {
+            trail.removeFirst()
+        }
         heading?.degrees?.let { compass ->
             val now = SystemClock.elapsedRealtime()
             samples.addLast(Sample(Heading.normalise(compass + courseCorrection(now)), signal.rssi, now))
@@ -263,17 +311,24 @@ class Locator(
         now: Long,
     ): LocateState {
         val lost = lastSignalAtMillis == 0L || now - lastSignalAtMillis > LOST_AFTER_MILLIS
+        if (lost) walk.interrupt()
         val rssi = smoothedRssi
-        val reference = referenceFor(targetTxPower)
-        val estimated = rssi?.let { metresFor(it, reference) }
-        val centimetres = rssi?.let { centimetresFor(it, reference) }
+        // The fitted model first, the sender's stated power second, the assumption last.
+        val reference = pathLoss.referenceDbm ?: referenceFor(targetTxPower)
+        val exponent = pathLoss.exponent ?: PATH_LOSS_EXPONENT
+        val fitted = pathLoss.exponent != null
+        val estimated = rssi?.let { metresFor(it, reference, exponent, fitted) }
+        val centimetres = rssi?.let { centimetresFor(it, reference, exponent, fitted) }
         val spread =
             if (recent.size >= 3) {
-                centimetresFor(recent.max().toDouble(), reference)..centimetresFor(recent.min().toDouble(), reference)
+                val nearest = centimetresFor(recent.max().toDouble(), reference, exponent, fitted)
+                val furthest = centimetresFor(recent.min().toDouble(), reference, exponent, fitted)
+                nearest..furthest
             } else {
                 null
             }
         val proximity = if (lost || rssi == null) 0f else proximityFor(rssi)
+        val trend = if (lost) null else trendOf(now)
 
         val fix: Location? = positions?.latest
         fix?.let { absorbOwnFix(it, now) }
@@ -311,6 +366,14 @@ class Locator(
                     relativeBearing = Heading.normalise(bearing - compass)
                     spreadDeg = bearingSpread(error, metres, compassErrorDeg(heading))
                 }
+                // One lesson per new pair of fixes, while the signal is live. The fit
+                // refuses a distance inside its own error itself.
+                val newPair = here.fixAtMillis != learnedOursAt || there.fixAtMillis != learnedTheirsAt
+                if (rssi != null && !lost && newPair) {
+                    learnedOursAt = here.fixAtMillis
+                    learnedTheirsAt = there.fixAtMillis
+                    pathLoss.learn(metres, error.toDouble(), rssi, now)
+                }
                 note =
                     when {
                         !pointing ->
@@ -331,45 +394,48 @@ class Locator(
         while (samples.isNotEmpty() && now - samples.first().atMillis > SWEEP_WINDOW_MILLIS) samples.removeFirst()
         val sweep = if (lost) null else sweepOf(samples.map { it.headingDeg }, samples.map { it.rssi })
         val swept = coverageOf(samples.map { it.headingDeg })
+        val walked = if (lost) null else walk.estimate(now)
         val remembered = lastBearing?.takeIf { now - lastBearingAtMillis <= REMEMBER_BEARING_MILLIS }
         val mode =
             when {
                 compass == null -> ArrowMode.NONE
                 relativeBearing != null -> ArrowMode.TARGET
                 sweep != null -> ArrowMode.SWEEP
+                walked != null -> ArrowMode.WALK
                 remembered != null -> ArrowMode.LAST_KNOWN
                 else -> ArrowMode.NORTH
             }
-        // Two independent bearings -- positions and the sweep -- are combined weighted by
-        // the inverse square of their spreads, the way two instruments of known error
-        // are: the sharper one leads, the other pulls it a little its way.
-        if (mode == ArrowMode.TARGET && sweep != null && spreadDeg != null && compass != null) {
-            val wGps = 1.0 / (spreadDeg!! * spreadDeg!!)
-            val wSweep = 1.0 / (sweep.spreadDeg * sweep.spreadDeg)
-            val gpsBearing = lastBearing!!
-            val fused =
-                Heading.normalise(
-                    gpsBearing + arc(sweep.bearingDeg - gpsBearing) * (wSweep / (wGps + wSweep)).toFloat(),
-                )
-            relativeBearing = Heading.normalise(fused - compass)
-            spreadDeg = (1.0 / kotlin.math.sqrt(wGps + wSweep)).toFloat()
+        // The independent bearings -- positions, the sweep, the walk -- are combined
+        // weighted by the inverse square of their spreads, the way instruments of known
+        // error are: the sharpest leads and the others pull it a little their way. The
+        // mode is the best source's, because that is what the caption has to say.
+        val sources = ArrayList<Sweep>(3)
+        if (relativeBearing != null && spreadDeg != null) sources.add(Sweep(lastBearing!!, spreadDeg!!))
+        if (sweep != null) sources.add(sweep)
+        if (walked != null) sources.add(walked)
+        var trueBearing: Float? = null
+        if (sources.isNotEmpty()) {
+            val fused = fuse(sources)
+            trueBearing = fused.bearingDeg
+            spreadDeg = fused.spreadDeg
+            if (compass != null) relativeBearing = Heading.normalise(fused.bearingDeg - compass)
         }
         val arrow =
             when (mode) {
                 ArrowMode.NONE -> null
-                ArrowMode.TARGET -> relativeBearing
-                ArrowMode.SWEEP -> Heading.normalise(sweep!!.bearingDeg - compass!!)
+                ArrowMode.TARGET, ArrowMode.SWEEP, ArrowMode.WALK -> relativeBearing
                 ArrowMode.LAST_KNOWN -> Heading.normalise(remembered!! - compass!!)
                 ArrowMode.NORTH -> Heading.normalise(-compass!!)
             }
-        if (mode == ArrowMode.SWEEP) spreadDeg = sweep!!.spreadDeg
         if (mode != ArrowMode.TARGET && !lost) {
             val guide =
-                if (mode == ArrowMode.SWEEP) {
-                    "Signal peaks this way. Walk on, then turn a circle again to check."
-                } else {
-                    "Hold the phone in front of you and turn a slow full circle: " +
-                        "the signal is strongest when you face $name."
+                when (mode) {
+                    ArrowMode.SWEEP -> "Signal peaks this way. Walk on, then turn a circle again to check."
+                    ArrowMode.WALK ->
+                        "The signal has risen this way as you walked. Keep going, or turn a circle to check."
+                    else ->
+                        "Hold the phone in front of you and turn a slow full circle: " +
+                            "the signal is strongest when you face $name."
                 }
             note = (note?.let { "$it " } ?: "") + guide
         }
@@ -394,10 +460,11 @@ class Locator(
             sweptDeg = swept,
             bearingDeg =
                 when (mode) {
-                    ArrowMode.TARGET -> lastBearing
-                    ArrowMode.SWEEP -> sweep?.bearingDeg
+                    ArrowMode.TARGET, ArrowMode.SWEEP, ArrowMode.WALK -> trueBearing
                     else -> remembered
                 },
+            trend = trend,
+            distanceCalibrated = pathLoss.isFitted,
             compassErrorDeg = heading?.errorDegrees,
             compassNeedsCalibration = needsCalibration,
             compassDisturbed = disturbed,
@@ -419,6 +486,20 @@ class Locator(
         if (now - declinationAtMillis > DECLINATION_EVERY_MILLIS) {
             heading?.calibrate(fix)
             declinationAtMillis = now
+        }
+
+        // The walk: a stretch ends at every moving fix, and standing still ends the walk.
+        if (fixAt != walkFixAtMillis) {
+            val moving = fix.hasSpeed() && fix.speed >= WALKING_SPEED && fix.hasBearing()
+            val signal = smoothedRssi
+            if (moving && signal != null) {
+                val dt = if (walkFixAtMillis == 0L) 0.0 else (fixAt - walkFixAtMillis) / 1000.0
+                walk.walked(fix.bearing, fix.speed * dt.coerceIn(0.0, MAX_STRETCH_SECONDS), signal, now)
+                walkFixAtMillis = fixAt
+            } else {
+                walk.interrupt()
+                walkFixAtMillis = 0L
+            }
         }
 
         // One lesson per fix, and only from a fix that knows it is walking somewhere.
@@ -446,6 +527,24 @@ class Locator(
         if (courseLessons < COURSE_LESSONS_NEEDED) return
         courseOffset = courseCandidate.coerceIn(-COURSE_OFFSET_CAP_DEG, COURSE_OFFSET_CAP_DEG)
         courseAtMillis = now
+    }
+
+    /**
+     * Closing, further, or neither, from the smoothed signal now against a few seconds ago.
+     *
+     * The threshold is above the signal's own flicker standing still, so "steady" is what
+     * an operator standing still sees, and "closing" means they have moved towards it.
+     */
+    private fun trendOf(now: Long): Trend? {
+        val latest = trail.lastOrNull() ?: return null
+        val earlier = trail.firstOrNull { now - it.atMillis <= TREND_WINDOW_MILLIS } ?: return null
+        if (latest.atMillis - earlier.atMillis < TREND_WINDOW_MILLIS / 2) return null
+        val delta = latest.rssi - earlier.rssi
+        return when {
+            delta >= TREND_DB -> Trend.CLOSING
+            delta <= -TREND_DB -> Trend.FURTHER
+            else -> Trend.STEADY
+        }
     }
 
     /** The compass correction in force now: whole while walking, let go of after standing still. */
@@ -502,6 +601,13 @@ class Locator(
 
         /** Once pointing, keep pointing until the fixes are this fraction of their error apart. */
         const val STOP_POINTING_FRACTION = 0.6
+
+        /** Over this long, a change of this much: closing or further. */
+        const val TREND_WINDOW_MILLIS = 3_000L
+        const val TREND_DB = 2.5
+
+        /** A gap between fixes longer than this is a pause, not a stretch of walking. */
+        const val MAX_STRETCH_SECONDS = 4.0
 
         /** How long a direction is kept after the fixes fall within their error. */
         const val REMEMBER_BEARING_MILLIS = 90_000L
@@ -598,22 +704,59 @@ class Locator(
         fun distanceFor(
             rssi: Double,
             reference: Double = RSSI_AT_ONE_METRE,
+            /** The exponent the loss climbs to when assumed, or the exponent throughout when fitted. */
+            exponent: Double = PATH_LOSS_EXPONENT,
+            /**
+             * Whether [exponent] was measured for this pair by [PathLossFit]. The ramp from
+             * free space is a prior about the last few metres; a measurement replaces a
+             * prior, so a fitted exponent is used flat.
+             */
+            fitted: Boolean = false,
         ): Double {
             val loss = reference - rssi
-            val n = 2.0 + (PATH_LOSS_EXPONENT - 2.0) * (loss / 30.0).coerceIn(0.0, 1.0)
+            val n =
+                if (fitted) {
+                    exponent
+                } else {
+                    2.0 + (exponent.coerceAtLeast(2.0) - 2.0) * (loss / 30.0).coerceIn(0.0, 1.0)
+                }
             return 10.0.pow(loss / (10 * n))
         }
 
         fun metresFor(
             rssi: Double,
             reference: Double = RSSI_AT_ONE_METRE,
-        ): Int = distanceFor(rssi, reference).toInt().coerceIn(0, 999)
+            exponent: Double = PATH_LOSS_EXPONENT,
+            fitted: Boolean = false,
+        ): Int = distanceFor(rssi, reference, exponent, fitted).toInt().coerceIn(0, 999)
 
         /** The same model at the resolution the last few metres want. Capped at 999 m. */
         fun centimetresFor(
             rssi: Double,
             reference: Double = RSSI_AT_ONE_METRE,
-        ): Int = (100.0 * distanceFor(rssi, reference)).toInt().coerceIn(0, 99_900)
+            exponent: Double = PATH_LOSS_EXPONENT,
+            fitted: Boolean = false,
+        ): Int = (100.0 * distanceFor(rssi, reference, exponent, fitted)).toInt().coerceIn(0, 99_900)
+
+        /**
+         * Several bearings of known spread, as one: inverse-variance weighted, around the
+         * first so the arithmetic never crosses the seam at north.
+         */
+        fun fuse(sources: List<Sweep>): Sweep {
+            require(sources.isNotEmpty())
+            val anchor = sources.first().bearingDeg
+            var weight = 0.0
+            var offset = 0.0
+            for (s in sources) {
+                val w = 1.0 / (s.spreadDeg.toDouble() * s.spreadDeg.toDouble())
+                weight += w
+                offset += w * arc(s.bearingDeg - anchor)
+            }
+            return Sweep(
+                Heading.normalise(anchor + (offset / weight).toFloat()),
+                (1.0 / kotlin.math.sqrt(weight)).toFloat(),
+            )
+        }
 
         /** 0 at [FAR_RSSI], 1 at [NEAR_RSSI], on the signal's own logarithmic scale. */
         fun proximityFor(rssi: Double): Float = ((rssi - FAR_RSSI) / (NEAR_RSSI - FAR_RSSI)).toFloat().coerceIn(0f, 1f)

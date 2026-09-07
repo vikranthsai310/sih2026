@@ -206,16 +206,27 @@ fun LocateScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            // The trend is on the same line as the label, in the family the siren means:
+            // mint closing, blush further. The ear has it from the beep rate; the eye has
+            // it here, and a colleague looking over a shoulder has it too.
             Text(
                 when {
                     state.lost && !state.beaconing -> "WAITING FOR ${state.name.uppercase()}"
                     state.lost -> "SIGNAL LOST · KEEP MOVING"
+                    state.trend == Trend.CLOSING -> "SIGNAL · CLOSING"
+                    state.trend == Trend.FURTHER -> "SIGNAL · FURTHER"
                     else -> "SIGNAL"
                 },
                 fontSize = Tokens.Instrument,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Medium,
-                color = if (state.lost) p.blush.deep else p.muted,
+                color =
+                    when {
+                        state.lost -> p.blush.deep
+                        state.trend == Trend.CLOSING -> p.mint.deep
+                        state.trend == Trend.FURTHER -> p.blush.deep
+                        else -> p.muted
+                    },
             )
 
             // What the arrow means right now, said above it so the meaning cannot be
@@ -225,6 +236,7 @@ fun LocateScreen(
                     ArrowMode.NONE -> "NO COMPASS"
                     ArrowMode.TARGET -> "TO ${state.name.uppercase()}"
                     ArrowMode.SWEEP -> "SIGNAL STRONGEST THIS WAY"
+                    ArrowMode.WALK -> "SIGNAL RISING THIS WAY"
                     ArrowMode.LAST_KNOWN -> "NEAR · LAST KNOWN DIRECTION"
                     ArrowMode.NORTH ->
                         if (state.sweptDeg > 0) {
@@ -238,7 +250,7 @@ fun LocateScreen(
                 fontWeight = FontWeight.Medium,
                 color =
                     when (state.arrowMode) {
-                        ArrowMode.TARGET, ArrowMode.SWEEP -> p.periwinkle.deep
+                        ArrowMode.TARGET, ArrowMode.SWEEP, ArrowMode.WALK -> p.periwinkle.deep
                         else -> p.muted
                     },
             )
@@ -278,6 +290,9 @@ fun LocateScreen(
                 buildString {
                     state.rssi?.let { append("signal $it dBm") } ?: append("no signal yet")
                     state.spreadCentimetres?.let { append(" · ${span(it)}") }
+                    // "calibrated" is the one word that changes what the big figure means:
+                    // measured against this phone, not assumed for every phone.
+                    if (state.distanceCalibrated) append(" · calibrated")
                     if (state.gpsMetres != null) {
                         append(" · gps ${state.gpsMetres} m apart")
                         append(" · ±${state.ownAccuracyMetres ?: 0} here ±${state.targetAccuracyMetres ?: 0} there")
@@ -347,6 +362,7 @@ private fun Arrow(
             state.compassNeedsCalibration || state.compassDisturbed -> p.butter.deep
             state.arrowMode == ArrowMode.TARGET -> p.periwinkle.deep
             state.arrowMode == ArrowMode.SWEEP -> p.periwinkle.deep
+            state.arrowMode == ArrowMode.WALK -> p.periwinkle.deep
             state.arrowMode == ArrowMode.LAST_KNOWN -> p.periwinkle.mid
             else -> p.hairlineStrong
         }
@@ -361,6 +377,8 @@ private fun Arrow(
                         state.arrowMode == ArrowMode.TARGET -> "Arrow to ${state.name} pointing ${clockFace(bearing)}"
                         state.arrowMode == ArrowMode.SWEEP ->
                             "Signal strongest towards ${clockFace(bearing)}"
+                        state.arrowMode == ArrowMode.WALK ->
+                            "Signal has risen towards ${clockFace(bearing)} as you walked"
                         state.arrowMode == ArrowMode.LAST_KNOWN ->
                             "Arrow to where ${state.name} last was, ${clockFace(bearing)}"
                         else -> "Arrow pointing north, ${clockFace(bearing)}"

@@ -137,3 +137,26 @@ class LocatorSweepTest {
         assertEquals(0, Locator.coverageOf(emptyList()))
     }
 }
+
+/** Several bearings of known spread, as one. */
+class LocatorFuseTest {
+    @Test
+    fun `the sharper source leads`() {
+        val fused = Locator.fuse(listOf(Locator.Companion.Sweep(10f, 5f), Locator.Companion.Sweep(70f, 60f)))
+        // Weights 1/25 and 1/3600: the second moves the first by well under a degree.
+        assertTrue("${fused.bearingDeg}", fused.bearingDeg in 10f..11f)
+        assertTrue("${fused.spreadDeg}", fused.spreadDeg < 5f)
+    }
+
+    @Test
+    fun `equal sources meet in the middle, across north`() {
+        val fused = Locator.fuse(listOf(Locator.Companion.Sweep(350f, 20f), Locator.Companion.Sweep(10f, 20f)))
+        assertEquals(0f, fused.bearingDeg, 0.01f)
+    }
+
+    @Test
+    fun `combining narrows the spread`() {
+        val fused = Locator.fuse(listOf(Locator.Companion.Sweep(0f, 20f), Locator.Companion.Sweep(0f, 20f)))
+        assertEquals(20f / kotlin.math.sqrt(2f), fused.spreadDeg, 0.01f)
+    }
+}

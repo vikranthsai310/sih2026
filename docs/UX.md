@@ -205,8 +205,21 @@ things:
 | --- | --- | --- |
 | `TO <unit>` | The bearing between the two GPS positions, against the compass | Both positions known and further apart than their combined error |
 | `SIGNAL STRONGEST THIS WAY` | The direction the signal peaked in as the operator turned a circle | Indoors, or nearer than GPS can tell apart, after most of a circle |
+| `SIGNAL RISING THIS WAY` | The direction the signal has risen in as the operator walked -- warmer and colder, as a vector sum over the last half minute | Inside the GPS error, while walking, once the signal has actually changed and the stretches agree |
 | `NEAR · LAST KNOWN DIRECTION` | The bearing from when the positions were last far enough apart | Inside the GPS error, for ninety seconds |
 | `NORTH · …` | North, so the compass can be seen to be alive | Nothing else is known yet |
+
+When more than one of these is available at once they are combined weighted by the
+inverse square of their spreads, the way instruments of known error are, and the caption
+names the best of them.
+
+**How close** is calibrated on the way in. While the positions are far enough apart to
+vouch for the distance, every signal reading is a calibration point, and a line fitted
+through them gives this pair of handsets' own one-metre strength and loss rate. By the
+time GPS can no longer tell the two apart, the metres on the screen are measured against
+that phone rather than assumed for every phone; the figures line says `calibrated` when
+that is so. The signal's rise or fall over the last three seconds is shown beside the
+`SIGNAL` label as `CLOSING` or `FURTHER` -- what the siren says to the ear, said to the eye.
 
 The compass behind it is the gyroscope, anchored to the magnetometer only while the
 magnetic field here has the strength and dip the geomagnetic model expects (`Heading`,

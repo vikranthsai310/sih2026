@@ -87,9 +87,19 @@ data class LocateState(
     /** What is missing for the arrow: permission, our fix, their fix, the compass. */
     val arrowNote: String?,
     val sirenOn: Boolean,
+    /** Whether the signal has risen or fallen over the last few seconds. Null when lost. */
+    val trend: Trend? = null,
+    /**
+     * Whether the distance figure is on a model fitted to this pair of handsets while the
+     * positions could vouch for the distance, rather than on the assumed one.
+     */
+    val distanceCalibrated: Boolean = false,
 ) {
     val arrowAtTarget: Boolean get() = arrowMode == ArrowMode.TARGET
 }
+
+/** The signal over the last few seconds, as a word: what the siren says to the ear. */
+enum class Trend { CLOSING, STEADY, FURTHER }
 
 /** What the arrow on the locate screen is pointing at. */
 enum class ArrowMode {
@@ -101,6 +111,9 @@ enum class ArrowMode {
 
     /** The direction the signal was strongest in, from a turn on the spot. */
     SWEEP,
+
+    /** The direction the signal has risen in as the operator walked. Coarse. */
+    WALK,
 
     /** The direction the target was in when the fixes were last far enough apart to say. */
     LAST_KNOWN,
