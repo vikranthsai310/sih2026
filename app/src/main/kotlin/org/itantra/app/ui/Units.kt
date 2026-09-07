@@ -44,8 +44,13 @@ data class UnitInfo(
  * @param gpsMetres from both positions, when both are known
  * @param arrowDeg the angle the arrow is drawn at, clockwise from the top of the screen,
  *   or null when there is no compass. It turns with the handset whatever it points at.
- * @param arrowAtTarget whether the arrow points at the target; otherwise it points north,
- *   because the target's position is unknown or too close to this one to resolve
+ * @param arrowMode what the arrow means: the target, the last direction it had, or north
+ * @param arrowSpreadDeg half the width of the arrow's own uncertainty, from the combined
+ *   GPS error over the distance, when it points at the target
+ * @param ownAccuracyMetres this handset's own fix error, averaged
+ * @param headingCorrectionDeg what the walk has taught about the compass, when in force
+ * @param sweptDeg how much of a full circle the signal has been sampled over, for the
+ *   sweep; the screen shows it as progress while the operator turns
  * @param relativeBearingDeg where the target lies relative to the way this handset is
  *   pointing, clockwise, or null when either position or the compass is missing
  * @param bearingDeg the target's true bearing from here, or null without both positions
@@ -63,8 +68,12 @@ data class LocateState(
     val spreadCentimetres: IntRange? = null,
     val gpsMetres: Int?,
     val arrowDeg: Float? = null,
-    val arrowAtTarget: Boolean = false,
+    val arrowMode: ArrowMode = ArrowMode.NONE,
+    val arrowSpreadDeg: Float? = null,
     val targetAccuracyMetres: Int?,
+    val ownAccuracyMetres: Int? = null,
+    val headingCorrectionDeg: Float? = null,
+    val sweptDeg: Int = 0,
     val relativeBearingDeg: Float?,
     val headingDeg: Float?,
     val bearingDeg: Float? = null,
@@ -76,4 +85,24 @@ data class LocateState(
     /** What is missing for the arrow: permission, our fix, their fix, the compass. */
     val arrowNote: String?,
     val sirenOn: Boolean,
-)
+) {
+    val arrowAtTarget: Boolean get() = arrowMode == ArrowMode.TARGET
+}
+
+/** What the arrow on the locate screen is pointing at. */
+enum class ArrowMode {
+    /** No compass reading yet: nothing can be drawn. */
+    NONE,
+
+    /** The target, from the two positions. */
+    TARGET,
+
+    /** The direction the signal was strongest in, from a turn on the spot. */
+    SWEEP,
+
+    /** The direction the target was in when the fixes were last far enough apart to say. */
+    LAST_KNOWN,
+
+    /** North: no direction has ever been known on this walk. */
+    NORTH,
+}

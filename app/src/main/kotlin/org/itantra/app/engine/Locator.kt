@@ -8,9 +8,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.itantra.app.platform.Heading
 import org.itantra.app.platform.LocateSiren
 import org.itantra.app.platform.PositionSource
+import org.itantra.app.ui.ArrowMode
 import org.itantra.app.ui.LocateState
 import org.itantra.link.Signal
 import org.itantra.proto.Presence
+import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.pow
 
 /**
@@ -43,15 +46,51 @@ import kotlin.math.pow
  * figure without its width is a false precision: "60 cm" from a reading that has ranged
  * over 40 to 110 is "40 to 110 cm".
  *
- * ## The arrow always turns
+ * ## Making the bearing worth drawing
  *
- * The arrow is drawn against the compass on every reading, whether or not there is
- * anything to point at. With a usable target position it points at the target. Without
- * one -- indoors, before a fix, or when the two fixes are closer than their own error --
- * it points north and the screen says so. An arrow that froze whenever it had no target
- * looked broken, and an operator turning on the spot could not tell a dead compass from a
- * missing position. North is a true thing to show; a bearing between two fixes ten metres
- * apart with twenty metres of error is not.
+ * A bearing between two GPS fixes is only as good as the fixes, and a handset's fix
+ * wanders several metres from second to second even standing still. Three things are done
+ * about that, each of which was a wrong arrow in the field before it was done.
+ *
+ * **Positions are averaged, weighted by their own stated accuracy.** Each side's fix is
+ * folded into a running estimate; a fix better than the estimate moves it more, a worse
+ * one less, and a fix that lands further from the estimate than both their errors is
+ * treated as real movement and taken whole. The wander is averaged out; a walk is not.
+ *
+ * **The compass is checked against the walk.** While the operator is walking -- a metre a
+ * second or more, with the receiver sure of the direction of travel -- the GPS course is
+ * the direction the phone is being carried in, and a phone held out to follow an arrow is
+ * carried pointing forward. The difference between that course and the compass is the
+ * compass's error at that spot: iron in a vehicle, a steel frame, a magnet in the case.
+ * That error is learned while walking and subtracted, then let go of over half a minute
+ * standing still, because a magnetic disturbance belongs to a place. A difference beyond
+ * sixty degrees is not learned: that is a phone held sideways, not a compass that is out.
+ *
+ * **The arrow does not flap.** Whether the two fixes are far enough apart to give a
+ * direction is decided with hysteresis, so a distance hovering at the edge does not swap
+ * the arrow between "the target" and "nothing" every second. Inside that edge the arrow
+ * keeps the last direction it had, marked as such, for a minute and a half; the operator
+ * was walking that way and the target has not moved far in that time. Only with no
+ * direction ever known does it point north -- and it always turns with the compass, so an
+ * operator turning on the spot can see that the compass is alive whatever the arrow means.
+ *
+ * The width of the arrow's own uncertainty, from the combined error over the distance, is
+ * given to the screen to draw behind it.
+ *
+ * ## Indoors: the sweep
+ *
+ * Indoors there is no fix on either side and the positions say nothing. There is still one
+ * thing about direction a phone can measure, and it is the operator's own body. At
+ * Bluetooth's wavelength a human torso takes ten to twenty decibels out of a signal that
+ * has to pass through it, which is more than the difference between one metre and five.
+ * So an operator who holds the phone in front of them and turns a full circle hears the
+ * target loudest when facing it. Every signal reading is tagged with the compass heading
+ * it arrived at; once the readings cover most of a circle, the direction of strongest
+ * signal -- the power-weighted circular mean of the headings -- is the arrow, and how
+ * sharply the signal peaked is its width. The readings age out over forty seconds, so the
+ * sweep follows the operator as they walk and turn again. It is coarse, a quadrant rather
+ * than a degree, and it is the only direction there is indoors; the screen guides the turn
+ * and shows how much of the circle has been covered.
  */
 class Locator(
     private val positions: PositionSource?,
@@ -72,8 +111,34 @@ class Locator(
     private var targetBeaconing = false
     private var sirenWanted = true
 
-    /** The target's bearing from here, smoothed: positions arrive once a second and jump. */
-    private var bearing: Float? = null
+    /** A position averaged over its recent fixes. */
+    private class Estimate(
+        var latitude: Double,
+        var longitude: Double,
+        var accuracy: Float,
+        /** The clock of the last fix folded in, so one fix is folded in once. */
+        var fixAtMillis: Long,
+    )
+
+    private var ours: Estimate? = null
+    private var theirs: Estimate? = null
+
+    /** What the walk has taught about the compass: degrees to add, and when it last taught. */
+    private var courseOffset = 0f
+    private var courseAtMillis = 0L
+    private var courseFixAtMillis = 0L
+
+    /** Whether the fixes are far enough apart for a direction, with hysteresis. */
+    private var pointing = false
+    private var lastBearing: Float? = null
+    private var lastBearingAtMillis = 0L
+
+    private var declinationAtMillis = 0L
+
+    /** A signal reading and which way the phone was pointing when it arrived. */
+    private class Sample(val headingDeg: Float, val rssi: Int, val atMillis: Long)
+
+    private val samples = ArrayDeque<Sample>()
 
     fun start(
         src: Int,
@@ -86,7 +151,16 @@ class Locator(
         lastSignalAtMillis = 0L
         targetPosition = null
         targetBeaconing = false
-        bearing = null
+        ours = null
+        theirs = null
+        courseOffset = 0f
+        courseAtMillis = 0L
+        courseFixAtMillis = 0L
+        pointing = false
+        lastBearing = null
+        lastBearingAtMillis = 0L
+        declinationAtMillis = 0L
+        samples.clear()
         positions?.start()
         heading?.onChanged = { tick() }
         heading?.start()
@@ -122,6 +196,11 @@ class Locator(
         val median = recent.sorted()[recent.size / 2].toDouble()
         smoothedRssi = smoothedRssi?.let { it + (median - it) * SMOOTHING } ?: median
         lastSignalAtMillis = signal.atMillis
+        heading?.degrees?.let { compass ->
+            val now = SystemClock.elapsedRealtime()
+            samples.addLast(Sample(Heading.normalise(compass + courseCorrection(now)), signal.rssi, now))
+            while (samples.size > SWEEP_MAX_SAMPLES) samples.removeFirst()
+        }
         tick()
     }
 
@@ -138,6 +217,7 @@ class Locator(
         presence.position?.let {
             targetPosition = it
             targetPositionAtMillis = nowMillis - it.ageSeconds * 1000L
+            theirs = fold(theirs, it.latitude, it.longitude, it.accuracyMetres.toFloat(), targetPositionAtMillis)
         }
         tick()
     }
@@ -169,38 +249,45 @@ class Locator(
             }
         val proximity = if (lost || rssi == null) 0f else proximityFor(rssi)
 
-        val ours: Location? = positions?.latest
-        ours?.let { heading?.calibrate(it) }
-        val theirs = targetPosition
+        val fix: Location? = positions?.latest
+        fix?.let { absorbOwnFix(it, now) }
+        val compassRaw = heading?.degrees
+        val needsCalibration = heading?.needsCalibration == true
+        val correction = courseCorrection(now)
+        val compass = compassRaw?.let { Heading.normalise(it + correction) }
+        val theirPosition = targetPosition
+        val here = ours
+        val there = theirs
+
         var gps: Int? = null
+        var spreadDeg: Float? = null
         var relativeBearing: Float? = null
         var note: String? = null
-        val compass = heading?.degrees
-        val needsCalibration = heading?.needsCalibration == true
         when {
             positions == null || !positions.isPermitted() ->
                 note = "Location permission is off: the arrow can only show north."
-            theirs == null ->
+            theirPosition == null || there == null ->
                 note = if (targetBeaconing) "Waiting for $name's position…" else "Waiting for $name to answer…"
             now - targetPositionAtMillis > POSITION_STALE_MILLIS -> note = "$name's last position is old."
-            ours == null -> note = "Waiting for this handset's own position…"
+            here == null -> note = "Waiting for this handset's own position…"
             compass == null -> note = "Waiting for the compass…"
             else -> {
                 val results = FloatArray(2)
-                Location.distanceBetween(ours.latitude, ours.longitude, theirs.latitude, theirs.longitude, results)
+                Location.distanceBetween(here.latitude, here.longitude, there.latitude, there.longitude, results)
                 gps = results[0].toInt()
-                // The bearing moves only when a position does, once a second and by a
-                // jump, so it is the one thing smoothed here. The compass is not smoothed
-                // again: it is already steady, and a second stage on top of it is what
-                // made the arrow trail the handset by a second when it was turned.
-                bearing = Heading.smooth(bearing, Heading.normalise(results[1]), BEARING_SMOOTHING)
-                val error = ours.accuracy.toInt() + theirs.accuracyMetres
-                if (gps >= error) {
-                    relativeBearing = Heading.normalise(bearing!! - compass)
+                val bearing = Heading.normalise(results[1])
+                val error = (here.accuracy + there.accuracy).toInt().coerceAtLeast(1)
+                // Hysteresis: in at one error, out at well under it.
+                pointing = if (pointing) gps >= error * STOP_POINTING_FRACTION else gps >= error
+                if (pointing) {
+                    lastBearing = bearing
+                    lastBearingAtMillis = now
+                    relativeBearing = Heading.normalise(bearing - compass)
+                    spreadDeg = Math.toDegrees(atan2(error.toDouble(), gps.toDouble())).toFloat()
                 }
                 note =
                     when {
-                        gps < error ->
+                        !pointing ->
                             "Within $error m of each other: closer than GPS can tell apart. Follow the sound."
                         needsCalibration -> "Compass unsure: move the handset in a figure of eight."
                         else -> null
@@ -210,9 +297,39 @@ class Locator(
         if (relativeBearing == null && compass != null && needsCalibration) {
             note = (note?.let { "$it " } ?: "") + "Compass unsure: move the handset in a figure of eight."
         }
-        // What the arrow draws: the target when it can, north when it cannot, and it
-        // turns with the compass either way.
-        val arrow = relativeBearing ?: compass?.let { Heading.normalise(-it) }
+
+        // What the arrow draws, and what it means.
+        while (samples.isNotEmpty() && now - samples.first().atMillis > SWEEP_WINDOW_MILLIS) samples.removeFirst()
+        val sweep = if (lost) null else sweepOf(samples.map { it.headingDeg }, samples.map { it.rssi })
+        val swept = coverageOf(samples.map { it.headingDeg })
+        val remembered = lastBearing?.takeIf { now - lastBearingAtMillis <= REMEMBER_BEARING_MILLIS }
+        val mode =
+            when {
+                compass == null -> ArrowMode.NONE
+                relativeBearing != null -> ArrowMode.TARGET
+                sweep != null -> ArrowMode.SWEEP
+                remembered != null -> ArrowMode.LAST_KNOWN
+                else -> ArrowMode.NORTH
+            }
+        val arrow =
+            when (mode) {
+                ArrowMode.NONE -> null
+                ArrowMode.TARGET -> relativeBearing
+                ArrowMode.SWEEP -> Heading.normalise(sweep!!.bearingDeg - compass!!)
+                ArrowMode.LAST_KNOWN -> Heading.normalise(remembered!! - compass!!)
+                ArrowMode.NORTH -> Heading.normalise(-compass!!)
+            }
+        if (mode == ArrowMode.SWEEP) spreadDeg = sweep!!.spreadDeg
+        if (mode != ArrowMode.TARGET && !lost) {
+            val guide =
+                if (mode == ArrowMode.SWEEP) {
+                    "Signal peaks this way. Walk on, then turn a circle again to check."
+                } else {
+                    "Hold the phone in front of you and turn a slow full circle: " +
+                        "the signal is strongest when you face $name."
+                }
+            note = (note?.let { "$it " } ?: "") + guide
+        }
 
         return LocateState(
             target = src,
@@ -224,11 +341,20 @@ class Locator(
             spreadCentimetres = if (lost) null else spread,
             gpsMetres = gps,
             arrowDeg = arrow,
-            arrowAtTarget = relativeBearing != null,
-            targetAccuracyMetres = theirs?.accuracyMetres,
+            arrowMode = mode,
+            arrowSpreadDeg = spreadDeg,
+            targetAccuracyMetres = there?.accuracy?.toInt() ?: theirPosition?.accuracyMetres,
+            ownAccuracyMetres = here?.accuracy?.toInt(),
             relativeBearingDeg = relativeBearing,
             headingDeg = compass,
-            bearingDeg = bearing,
+            headingCorrectionDeg = if (correction != 0f) correction else null,
+            sweptDeg = swept,
+            bearingDeg =
+                when (mode) {
+                    ArrowMode.TARGET -> lastBearing
+                    ArrowMode.SWEEP -> sweep?.bearingDeg
+                    else -> remembered
+                },
             compassErrorDeg = heading?.errorDegrees,
             compassNeedsCalibration = needsCalibration,
             lost = lost,
@@ -236,6 +362,44 @@ class Locator(
             arrowNote = note,
             sirenOn = sirenWanted,
         )
+    }
+
+    /** Folds our own latest fix into the estimate, the declination, and the course lesson. */
+    private fun absorbOwnFix(
+        fix: Location,
+        now: Long,
+    ) {
+        val fixAt = fix.elapsedRealtimeNanos / 1_000_000
+        ours = fold(ours, fix.latitude, fix.longitude, fix.accuracy, fixAt)
+
+        if (now - declinationAtMillis > DECLINATION_EVERY_MILLIS) {
+            heading?.calibrate(fix)
+            declinationAtMillis = now
+        }
+
+        // One lesson per fix, and only from a fix that knows it is walking somewhere.
+        if (fixAt == courseFixAtMillis) return
+        val compassRaw = heading?.degrees ?: return
+        if (!fix.hasSpeed() || fix.speed < WALKING_SPEED || !fix.hasBearing()) return
+        if (fix.hasBearingAccuracy() && fix.bearingAccuracyDegrees > COURSE_ACCURACY_LIMIT_DEG) return
+        courseFixAtMillis = fixAt
+        val sample = arc(fix.bearing - compassRaw)
+        if (abs(sample) > COURSE_OFFSET_LIMIT_DEG) return
+        courseOffset = if (courseAtMillis == 0L) sample else courseOffset + (sample - courseOffset) * COURSE_SMOOTHING
+        courseAtMillis = now
+    }
+
+    /** The compass correction in force now: whole while walking, let go of after standing still. */
+    private fun courseCorrection(now: Long): Float {
+        if (courseAtMillis == 0L) return 0f
+        val since = now - courseAtMillis
+        val keep =
+            when {
+                since <= COURSE_HOLD_MILLIS -> 1f
+                since >= COURSE_HOLD_MILLIS + COURSE_FADE_MILLIS -> 0f
+                else -> 1f - (since - COURSE_HOLD_MILLIS).toFloat() / COURSE_FADE_MILLIS
+            }
+        return courseOffset * keep
     }
 
     companion object {
@@ -254,13 +418,46 @@ class Locator(
         const val MEDIAN_WINDOW = 5
         const val SMOOTHING = 0.35
 
-        /** Half of each new bearing: two position fixes to settle, and a bad one is halved. */
-        const val BEARING_SMOOTHING = 0.5f
-
         /** Beacons come every second; five missed is a unit that has moved out of range. */
         const val LOST_AFTER_MILLIS = 6_000L
 
         const val POSITION_STALE_MILLIS = 30_000L
+
+        /** How much of a new fix of the same quality as the estimate moves the estimate. */
+        const val POSITION_SMOOTHING = 0.45f
+
+        /** Once pointing, keep pointing until the fixes are this fraction of their error apart. */
+        const val STOP_POINTING_FRACTION = 0.6
+
+        /** How long a direction is kept after the fixes fall within their error. */
+        const val REMEMBER_BEARING_MILLIS = 90_000L
+
+        /** A fix slower than this is standing still; its course is which way it drifted. */
+        const val WALKING_SPEED = 1.0f
+
+        const val COURSE_ACCURACY_LIMIT_DEG = 30f
+
+        /** Beyond this the phone is not being carried forward, and the course says nothing about the compass. */
+        const val COURSE_OFFSET_LIMIT_DEG = 60f
+
+        const val COURSE_SMOOTHING = 0.3f
+
+        /** The correction is kept whole this long after the last walking fix, then faded out. */
+        const val COURSE_HOLD_MILLIS = 15_000L
+        const val COURSE_FADE_MILLIS = 30_000L
+
+        const val DECLINATION_EVERY_MILLIS = 60_000L
+
+        /** Readings older than this no longer describe where the operator is standing. */
+        const val SWEEP_WINDOW_MILLIS = 40_000L
+        const val SWEEP_MAX_SAMPLES = 400
+
+        /** A sweep needs most of a circle: fewer than this many degrees and one side is unsampled. */
+        const val SWEEP_MIN_COVERAGE_DEG = 240
+        const val SWEEP_MIN_SAMPLES = 8
+
+        /** How peaked the signal must be round the circle for the mean to mean anything. */
+        const val SWEEP_MIN_RESULTANT = 0.2
 
         fun metresFor(rssi: Double): Int =
             10.0.pow(
@@ -278,5 +475,91 @@ class Locator(
 
         /** 0 at [FAR_RSSI], 1 at [NEAR_RSSI], on the signal's own logarithmic scale. */
         fun proximityFor(rssi: Double): Float = ((rssi - FAR_RSSI) / (NEAR_RSSI - FAR_RSSI)).toFloat().coerceIn(0f, 1f)
+
+        /** A direction from a turn on the spot, and how sharply the signal peaked there. */
+        class Sweep(val bearingDeg: Float, val spreadDeg: Float)
+
+        /** How many degrees of the circle [headings] touch, in 30° bins. */
+        fun coverageOf(headings: List<Float>): Int {
+            if (headings.isEmpty()) return 0
+            val bins = BooleanArray(12)
+            for (h in headings) bins[((Heading.normalise(h) / 30f).toInt()).coerceIn(0, 11)] = true
+            return bins.count { it } * 30
+        }
+
+        /**
+         * The direction of strongest signal round the circle.
+         *
+         * Each reading is weighted by its power relative to the strongest few -- a reading
+         * ten decibels down counts a tenth -- and the weighted circular mean of the
+         * headings is the answer. The resultant length says how peaked the signal was: a
+         * signal the same all round gives a resultant near zero and no answer, which is
+         * right, because then the body is not between the phones in any direction and
+         * there is nothing to say. Null until the circle is mostly covered.
+         */
+        fun sweepOf(
+            headings: List<Float>,
+            rssis: List<Int>,
+        ): Sweep? {
+            if (headings.size < SWEEP_MIN_SAMPLES || coverageOf(headings) < SWEEP_MIN_COVERAGE_DEG) return null
+            val top = rssis.sortedDescending().take(3)
+            val reference = top.average()
+            var x = 0.0
+            var y = 0.0
+            var total = 0.0
+            for (i in headings.indices) {
+                val w = 10.0.pow((rssis[i] - reference) / 10.0)
+                val rad = Math.toRadians(headings[i].toDouble())
+                x += w * kotlin.math.cos(rad)
+                y += w * kotlin.math.sin(rad)
+                total += w
+            }
+            if (total <= 0.0) return null
+            val resultant = kotlin.math.hypot(x, y) / total
+            if (resultant < SWEEP_MIN_RESULTANT) return null
+            val bearing = Heading.normalise(Math.toDegrees(atan2(y, x)).toFloat())
+            // A resultant of 1 is every reading in one direction; of 0.2, a broad hump.
+            val spread = ((1.0 - resultant) * 90.0).toFloat().coerceIn(10f, 80f)
+            return Sweep(bearing, spread)
+        }
+
+        /** Degrees into −180..180. */
+        fun arc(deg: Float): Float {
+            var d = deg % 360f
+            if (d > 180f) d -= 360f
+            if (d < -180f) d += 360f
+            return d
+        }
+
+        /**
+         * Folds one fix into a running position estimate.
+         *
+         * The weight is [POSITION_SMOOTHING] scaled by how the fix's accuracy compares with
+         * the estimate's: a fix twice as good takes nearly all of the estimate, one twice as
+         * bad a fraction. A fix that lands further from the estimate than both their errors
+         * put together is a move, not noise, and replaces the estimate outright. The same
+         * fix is never folded twice.
+         */
+        private fun fold(
+            estimate: Estimate?,
+            latitude: Double,
+            longitude: Double,
+            accuracy: Float,
+            fixAtMillis: Long,
+        ): Estimate {
+            val acc = accuracy.coerceAtLeast(1f)
+            if (estimate == null) return Estimate(latitude, longitude, acc, fixAtMillis)
+            if (fixAtMillis == estimate.fixAtMillis) return estimate
+            val results = FloatArray(1)
+            Location.distanceBetween(estimate.latitude, estimate.longitude, latitude, longitude, results)
+            val moved = results[0] > estimate.accuracy + acc
+            val w =
+                if (moved) 1f else (POSITION_SMOOTHING * (estimate.accuracy / acc)).coerceIn(0.1f, 1f)
+            estimate.latitude += (latitude - estimate.latitude) * w
+            estimate.longitude += (longitude - estimate.longitude) * w
+            estimate.accuracy += (acc - estimate.accuracy) * w
+            estimate.fixAtMillis = fixAtMillis
+            return estimate
+        }
     }
 }

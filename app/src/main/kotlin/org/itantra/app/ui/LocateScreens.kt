@@ -220,15 +220,26 @@ fun LocateScreen(
             // What the arrow means right now, said above it so the meaning cannot be
             // missed: the target, or north while the target's position is unknown.
             Text(
-                when {
-                    state.arrowDeg == null -> "NO COMPASS"
-                    state.arrowAtTarget -> "TO ${state.name.uppercase()}"
-                    else -> "NORTH · NO POSITION TO POINT AT"
+                when (state.arrowMode) {
+                    ArrowMode.NONE -> "NO COMPASS"
+                    ArrowMode.TARGET -> "TO ${state.name.uppercase()}"
+                    ArrowMode.SWEEP -> "SIGNAL STRONGEST THIS WAY"
+                    ArrowMode.LAST_KNOWN -> "NEAR · LAST KNOWN DIRECTION"
+                    ArrowMode.NORTH ->
+                        if (state.sweptDeg > 0) {
+                            "NORTH · TURNED ${state.sweptDeg}° OF 360°"
+                        } else {
+                            "NORTH · TURN A CIRCLE TO FIND THE SIGNAL"
+                        }
                 },
                 fontSize = Tokens.Instrument,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Medium,
-                color = if (state.arrowAtTarget) p.periwinkle.deep else p.muted,
+                color =
+                    when (state.arrowMode) {
+                        ArrowMode.TARGET, ArrowMode.SWEEP -> p.periwinkle.deep
+                        else -> p.muted
+                    },
             )
 
             Arrow(state, p)
@@ -242,6 +253,7 @@ fun LocateScreen(
                     append(" · target ")
                     append(state.bearingDeg?.let { "${it.toInt()}°" } ?: "—")
                     state.compassErrorDeg?.let { if (it >= 1f) append(" · ±${it.toInt()}°") }
+                    state.headingCorrectionDeg?.let { append(" · walk ${if (it >= 0) "+" else ""}${it.toInt()}°") }
                 },
                 fontSize = Tokens.Instrument,
                 fontFamily = FontFamily.Monospace,
@@ -264,12 +276,9 @@ fun LocateScreen(
                 buildString {
                     state.rssi?.let { append("signal $it dBm") } ?: append("no signal yet")
                     state.spreadCentimetres?.let { append(" · ${span(it)}") }
-                    if (state.arrowAtTarget) {
-                        state.gpsMetres?.let {
-                            append(
-                                " · gps ±${state.targetAccuracyMetres ?: 0} m",
-                            )
-                        }
+                    if (state.gpsMetres != null) {
+                        append(" · gps ${state.gpsMetres} m apart")
+                        append(" · ±${state.ownAccuracyMetres ?: 0} here ±${state.targetAccuracyMetres ?: 0} there")
                     }
                 },
                 fontSize = Tokens.Instrument,
@@ -334,9 +343,12 @@ private fun Arrow(
         when {
             bearing == null -> p.hairline
             state.compassNeedsCalibration -> p.butter.deep
-            state.arrowAtTarget -> p.periwinkle.deep
+            state.arrowMode == ArrowMode.TARGET -> p.periwinkle.deep
+            state.arrowMode == ArrowMode.SWEEP -> p.periwinkle.deep
+            state.arrowMode == ArrowMode.LAST_KNOWN -> p.periwinkle.mid
             else -> p.hairlineStrong
         }
+    val spread = state.arrowSpreadDeg?.coerceIn(2f, 90f)
     Box(
         Modifier
             .size(250.dp)
@@ -344,7 +356,11 @@ private fun Arrow(
                 contentDescription =
                     when {
                         bearing == null -> "No compass yet"
-                        state.arrowAtTarget -> "Arrow to ${state.name} pointing ${clockFace(bearing)}"
+                        state.arrowMode == ArrowMode.TARGET -> "Arrow to ${state.name} pointing ${clockFace(bearing)}"
+                        state.arrowMode == ArrowMode.SWEEP ->
+                            "Signal strongest towards ${clockFace(bearing)}"
+                        state.arrowMode == ArrowMode.LAST_KNOWN ->
+                            "Arrow to where ${state.name} last was, ${clockFace(bearing)}"
                         else -> "Arrow pointing north, ${clockFace(bearing)}"
                     }
             },
@@ -353,6 +369,18 @@ private fun Arrow(
         Canvas(Modifier.fillMaxSize()) {
             val half = size.minDimension / 2
             rotate(bearing ?: 0f, pivot = center) {
+                // The arrow's own doubt, as a faint fan behind it: the combined GPS error
+                // over the distance. Wide when the units are close, a sliver when far.
+                if (spread != null) {
+                    drawArc(
+                        color = p.periwinkle.tint,
+                        startAngle = -90f - spread,
+                        sweepAngle = spread * 2,
+                        useCenter = true,
+                        topLeft = androidx.compose.ui.geometry.Offset(center.x - half, center.y - half),
+                        size = androidx.compose.ui.geometry.Size(half * 2, half * 2),
+                    )
+                }
                 // A single pointer: a broad head on a stout shaft, the whole height of
                 // the box, so at arm's length in sunlight it is one shape with one end.
                 val tip = center.y - half * 0.98f

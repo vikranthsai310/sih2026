@@ -561,7 +561,14 @@ from a dead one.
 > target: at the unit when both fixes are fresh and further apart than their combined
 > error, at north otherwise, with the caption saying which. Within that error the siren,
 > from signal strength, takes over, and the figure is given in centimetres under three
-> metres with the spread of the recent readings beside it.
+> metres with the spread of the recent readings beside it. Indoors, with no fix on either
+> side, there is one more direction source: the operator's own body, which takes ten to
+> twenty decibels out of a Bluetooth signal it stands in the way of. Every reading is
+> tagged with the compass heading it arrived at, and once a turn on the spot has covered
+> most of the circle the power-weighted circular mean of those headings is the arrow
+> ("SIGNAL STRONGEST THIS WAY"), with its width from how sharply the signal peaked. The
+> screen shows the degrees covered while the operator turns. `Locator.sweepOf`,
+> `LocatorSweepTest`.
 
 ---
 

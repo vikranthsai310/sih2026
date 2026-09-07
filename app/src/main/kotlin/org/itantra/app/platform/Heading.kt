@@ -133,9 +133,23 @@ class Heading(context: Context) {
         publish()
     }
 
+    private var readings = 0
+    private var reportedAtMillis = 0L
+
     private fun publish() {
         val azimuth = forwardAzimuth(rotation) + declination
         degrees = smooth(degrees, normalise(azimuth))
+        readings++
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - reportedAtMillis >= 1_000L) {
+            android.util.Log.d(
+                "Heading",
+                "$readings readings/s, forward ${degrees?.toInt()}°, raw ${normalise(azimuth).toInt()}°, " +
+                    "top-up ${"%.2f".format(rotation[7])}, err ${errorDegrees?.toInt()}, cal ${!needsCalibration}",
+            )
+            readings = 0
+            reportedAtMillis = now
+        }
         onChanged?.invoke()
     }
 
