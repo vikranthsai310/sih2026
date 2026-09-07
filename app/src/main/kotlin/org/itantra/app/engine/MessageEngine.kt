@@ -17,12 +17,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import org.itantra.app.platform.Heading
 import org.itantra.app.platform.NodeIdentity
+import org.itantra.app.platform.PositionSource
 import org.itantra.app.platform.Recogniser
 import org.itantra.app.platform.SherpaSpeech
 import org.itantra.app.platform.Speaker
+import org.itantra.app.platform.UnitPreferences
 import org.itantra.app.ui.BandFMetrics
 import org.itantra.app.ui.LanguageOption
+import org.itantra.app.ui.LocateState
 import org.itantra.app.ui.LoggedMessage
 import org.itantra.app.ui.OperatingState
 import org.itantra.asr.BiasingLexicon
@@ -35,10 +39,13 @@ import org.itantra.link.BluetoothNet
 import org.itantra.link.LinkState
 import org.itantra.link.MeshLink
 import org.itantra.link.Session
+import org.itantra.link.Signal
 import org.itantra.link.WifiBroadcastLink
 import org.itantra.proto.EpochCounter
 import org.itantra.proto.Language
+import org.itantra.proto.Locate
 import org.itantra.proto.MessageType
+import org.itantra.proto.Presence
 import org.itantra.proto.TemplateTable
 
 /**
@@ -96,6 +103,12 @@ class MessageEngine(
     private val wifiContext: android.content.Context? = null,
     /** Null on a handset with no voice installed; arrivals are then shown but not spoken. */
     private val speaker: Speaker? = null,
+    /** The operator's name for this unit, its mode and its text size. Null in a test. */
+    private val preferences: UnitPreferences? = null,
+    /** Where this handset is, for beaconing and for the arrow. Null without a receiver. */
+    private val positions: PositionSource? = null,
+    /** Which way this handset points, for the arrow. Null without the sensor. */
+    private val heading: Heading? = null,
 ) {
     private val mesh = MeshLink(scope)
 
@@ -118,6 +131,18 @@ class MessageEngine(
             templates = templates,
             language = Language.HINDI,
         )
+
+    // Declared before the state, because the state is built from them. Kotlin initialises
+    // properties in declaration order, and the first version declared these two below the
+    // state: initialState() read them as null, and the screen died on its first frame.
+
+    /** What this unit calls itself, as the operator set it. */
+    private var unitName: String = preferences?.unitName ?: identity.displayName
+
+    /** [UnitPreferences.MODE_PTT] or [UnitPreferences.MODE_PHONE]. */
+    private var mode: String = preferences?.mode ?: UnitPreferences.MODE_PTT
+
+    private var openLinePaused = false
 
     private val _state = MutableStateFlow(initialState())
     val state: StateFlow<OperatingState> = _state.asStateFlow()
@@ -152,6 +177,27 @@ class MessageEngine(
      */
     private val heardFrom = LinkedHashMap<Int, Long>()
 
+    /** Who is on the channel, by name and signal. */
+    private val roster = Roster()
+
+    private val locator = Locator(positions, heading)
+
+    /** The locate screen's state: null when nobody is being looked for. */
+    val locate: StateFlow<LocateState?> get() = locator.state
+
+    /** Until when this unit beacons its position, because another asked. Zero when it does not. */
+    private var beaconingUntilMillis = 0L
+
+    /** What the speaker is saying, or said within the last few seconds, for the echo filter. */
+    @Volatile
+    private var speakingText: String? = null
+
+    @Volatile
+    private var lastSpokenText: String? = null
+
+    @Volatile
+    private var lastSpokenUntilMillis = 0L
+
     /** Process CPU and wall clock at the press, so the utterance's share can be differenced. */
     private var cpuAtPressMillis = 0L
     private var wallAtPressMillis = 0L
@@ -169,12 +215,12 @@ class MessageEngine(
 
     private fun initialState() =
         OperatingState(
-            unitName = identity.displayName,
+            unitName = unitName,
             nodeId = identity.src,
             peerCount = 0,
             linkUp = false,
             transportName = "bluetooth",
-            mode = "PTT",
+            mode = mode,
             audience = "ALL UNITS",
             language = displayNameFor(Language.HINDI),
             languageCode = Language.HINDI.code,
@@ -196,6 +242,8 @@ class MessageEngine(
             started = true
             loops += scope.launch { receiveLoop() }
             loops += startRefreshTicker()
+            loops += scope.launch { mesh.signals.collect { onSignal(it) } }
+            if (mode == UnitPreferences.MODE_PHONE) startOpenLine()
             // On first run this is what downloads the model for the starting language,
             // rather than waiting for the operator to discover its absence by pressing
             // transmit and getting a template.
@@ -269,7 +317,8 @@ class MessageEngine(
             while (true) {
                 delay(REFRESH_MILLIS)
                 refresh()
-                if (++tick % RECOVERY_EVERY_TICKS != 0L) continue
+                runCatching { everySecond(++tick) }.onFailure { Log.w(TAG, "presence tick failed", it) }
+                if (tick % RECOVERY_EVERY_TICKS != 0L) continue
                 // The slow work of keeping the net alive, every few seconds: a radio that
                 // was off when the engine started, a road that has gone down, and a
                 // message written while nothing was reachable. None of these announce
@@ -354,6 +403,10 @@ class MessageEngine(
                 onDropped(received)
             }
 
+            is Session.Received.Presence -> onPresence(received)
+
+            is Session.Received.Locate -> onLocate(received)
+
             else -> Unit
         }
 
@@ -369,13 +422,15 @@ class MessageEngine(
     }
 
     private fun onMessage(message: Session.Received.Message) {
-        synchronized(heardFrom) { heardFrom[message.from] = SystemClock.elapsedRealtime() }
+        val now = SystemClock.elapsedRealtime()
+        synchronized(heardFrom) { heardFrom[message.from] = now }
+        roster.heard(message.from, now)
         // A template is rendered in this unit's language; free text arrives in the
         // sender's, whatever this unit is set to, and is read and spoken as such.
         val writtenIn = if (message.wasTemplate) language else message.frame.language
         val entry =
             LoggedMessage(
-                from = "node ${message.from}",
+                from = roster.nameOf(message.from),
                 text = message.text,
                 age = "now",
                 frameBytes = message.wireBytes,
@@ -422,6 +477,9 @@ class MessageEngine(
         // voice, where this handset has it, does. Where it does not, this unit's own
         // voice is tried, which is at least the honest failure the screen already shows.
         val voice = if (writtenIn != language && speaker.canSpeak(writtenIn.code)) writtenIn else language
+        // For the open line's echo filter: what the microphone may be about to hear.
+        speakingText = text
+        lastSpokenText = text
         speaker.speak(
             languageCode = voice.code,
             text = text,
@@ -443,6 +501,8 @@ class MessageEngine(
             // happened -- finished, barged in by a newer message, or failed mid-sentence --
             // which is exactly the guarantee this needs to not stick on.
             onFinished = {
+                speakingText = null
+                lastSpokenUntilMillis = SystemClock.elapsedRealtime() + ECHO_GRACE_MILLIS
                 _state.value = _state.value.copy(speakingFrom = null)
             },
         )
@@ -531,6 +591,12 @@ class MessageEngine(
      * where the sentence ends.
      */
     fun onTransmit(held: Boolean) {
+        if (mode == UnitPreferences.MODE_PHONE) {
+            // On the open line the control is HOLD: a press pauses the microphone, the
+            // next press resumes it. Nothing is sent by pressing; the pause sends.
+            if (held) toggleOpenLineHold()
+            return
+        }
         if (held) beginUtterance() else endUtterance()
     }
 
@@ -846,6 +912,7 @@ class MessageEngine(
         // sentence missed every template and went as raw UTF-8 in a frame marked Hindi.
         session.language = language
         ensurePackFor(language)
+        if (mode == UnitPreferences.MODE_PHONE) startOpenLine()
         refresh()
     }
 
@@ -908,6 +975,218 @@ class MessageEngine(
      */
     private var sticky: EngineState.Degraded.Reason? = null
 
+    // ── the unit's own name, mode and presence ────────────────────────────────
+
+    /** The operator renamed this unit. Everyone in range hears the new name at once. */
+    fun setUnitName(name: String) {
+        preferences?.setUnitName(name)
+        unitName = preferences?.unitName ?: name.trim().ifEmpty { identity.displayName }
+        refresh()
+        scope.launch { sendPresence() }
+    }
+
+    /** Push-to-talk or the open line. Persisted, and applied at once. */
+    fun setMode(next: String) {
+        val clean = if (next == UnitPreferences.MODE_PHONE) UnitPreferences.MODE_PHONE else UnitPreferences.MODE_PTT
+        if (clean == mode) return
+        preferences?.setMode(clean)
+        mode = clean
+        if (clean == UnitPreferences.MODE_PHONE) startOpenLine() else stopOpenLine()
+        refresh()
+        scope.launch { sendPresence() }
+    }
+
+    private fun onSignal(signal: Signal) {
+        roster.signal(signal)
+        locator.onSignal(signal)
+    }
+
+    private fun onPresence(received: Session.Received.Presence) {
+        val now = SystemClock.elapsedRealtime()
+        synchronized(heardFrom) { heardFrom[received.from] = now }
+        roster.presence(received.from, received.presence, now)
+        locator.onTargetPresence(received.from, received.presence, now)
+        refresh()
+    }
+
+    /**
+     * Another unit wants to find this one, or has stopped looking.
+     *
+     * Answered without asking anybody: the request came sealed under the net's key from a
+     * unit on this net, and a colleague trying to reach an operator in a flood is not a
+     * moment for a consent dialog. Beaconing stops by itself after [BEACON_MILLIS].
+     */
+    private fun onLocate(received: Session.Received.Locate) {
+        val now = SystemClock.elapsedRealtime()
+        synchronized(heardFrom) { heardFrom[received.from] = now }
+        roster.heard(received.from, now)
+        if (received.locate.target != identity.src) return
+        if (received.locate.start) {
+            beaconingUntilMillis = now + BEACON_MILLIS
+            positions?.start()
+            scope.launch { sendPresence() }
+        } else {
+            beaconingUntilMillis = 0L
+            if (!locator.isActive) positions?.stop()
+        }
+    }
+
+    private suspend fun sendPresence() {
+        val now = SystemClock.elapsedRealtime()
+        val beaconing = now < beaconingUntilMillis
+        val position = if (beaconing || locator.isActive) positions?.current() else null
+        session.sendPresence(
+            Presence(
+                name = unitName,
+                position = position,
+                beaconing = beaconing,
+                openLine = mode == UnitPreferences.MODE_PHONE,
+                batteryPercent = batteryPercent(),
+            ),
+        )
+    }
+
+    private fun batteryPercent(): Int =
+        runCatching {
+            (wifiContext?.getSystemService(android.content.Context.BATTERY_SERVICE) as? android.os.BatteryManager)
+                ?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        }.getOrNull()?.takeIf { it in 0..100 } ?: Presence.BATTERY_UNKNOWN
+
+    /** The once-a-second work: presence, beacons, and the locate screen's clock. */
+    private suspend fun everySecond(tick: Long) {
+        val now = SystemClock.elapsedRealtime()
+        // The clock on the locate screen runs whether or not there is a link: "signal
+        // lost" is the one thing it must be able to say when the link is gone.
+        if (locator.isActive) locator.tick()
+        if (mesh.state.value != LinkState.CONNECTED) return
+        val beaconing = now < beaconingUntilMillis
+        if (!beaconing && beaconingUntilMillis != 0L) {
+            beaconingUntilMillis = 0L
+            if (!locator.isActive) positions?.stop()
+        }
+        // Every second while somebody is walking towards this unit, every ten otherwise.
+        if (beaconing || locator.isActive || tick % PRESENCE_EVERY_TICKS == 0L) sendPresence()
+        if (locator.isActive && tick % LOCATE_RENEW_TICKS == 0L) {
+            // Kept asking, so a target that missed the first request, or whose beacon
+            // timer ran out, is still beaconing for as long as somebody is looking.
+            locator.target?.let {
+                session.sendLocate(Locate(it, true), System.currentTimeMillis())
+            }
+        }
+    }
+
+    // ── locating a unit ──────────────────────────────────────────────────────
+
+    /** Everyone this run has heard of, for the locate list, nearest first. */
+    fun unitsEverHeard(): List<org.itantra.app.ui.UnitInfo> = roster.everyone(SystemClock.elapsedRealtime())
+
+    fun startLocating(src: Int) {
+        locator.start(src, roster.nameOf(src))
+        positions?.start()
+        scope.launch {
+            // Three times over two seconds: the request is one advertisement, and the
+            // first one is the easiest to miss.
+            repeat(3) {
+                session.sendLocate(Locate(src, true), System.currentTimeMillis())
+                delay(LOCATE_REPEAT_MILLIS)
+            }
+        }
+    }
+
+    fun stopLocating() {
+        val src = locator.target
+        locator.stop()
+        if (beaconingUntilMillis == 0L) positions?.stop()
+        if (src != null) scope.launch { session.sendLocate(Locate(src, false), System.currentTimeMillis()) }
+    }
+
+    fun setLocateSiren(on: Boolean) = locator.setSiren(on)
+
+    // ── the open line ────────────────────────────────────────────────────────
+
+    private fun startOpenLine() {
+        val sherpa = speech as? SherpaSpeech
+        if (sherpa == null) {
+            _state.value = _state.value.copy(speechNote = "No recogniser on this handset; the open line cannot listen.")
+            return
+        }
+        openLinePaused = false
+        val started =
+            sherpa.startOpenLine(
+                language.code,
+                object : SherpaSpeech.OpenLineListener {
+                    override fun onLevel(level: Float) {
+                        _state.value = _state.value.copy(level = level)
+                    }
+
+                    override fun onPartial(text: String) {
+                        _state.value = _state.value.copy(partial = text)
+                    }
+
+                    override fun onUtterance(result: Recogniser.Result) {
+                        scope.launch { onOpenLineUtterance(result) }
+                    }
+
+                    override fun onProblem(reason: String) {
+                        _state.value =
+                            _state.value.copy(
+                                listening = false,
+                                speechNote = reason.replaceFirstChar(Char::uppercase) + ".",
+                            )
+                    }
+                },
+            )
+        _state.value =
+            _state.value.copy(
+                transmitting = false,
+                listening = started,
+                partial = null,
+                speechNote =
+                    if (started) {
+                        null
+                    } else {
+                        "No ${displayNameFor(language)} speech model on this handset. The open line cannot listen."
+                    },
+            )
+    }
+
+    private fun stopOpenLine() {
+        (speech as? SherpaSpeech)?.stopOpenLine()
+        openLinePaused = false
+        _state.value = _state.value.copy(listening = false, transmitting = false, partial = null, level = 0f)
+    }
+
+    private fun toggleOpenLineHold() {
+        val sherpa = speech as? SherpaSpeech ?: return
+        openLinePaused = !openLinePaused
+        sherpa.setOpenLineMuted(openLinePaused)
+        _state.value =
+            _state.value.copy(
+                openLinePaused = openLinePaused,
+                listening = !openLinePaused,
+                partial = null,
+                level = 0f,
+            )
+    }
+
+    /**
+     * A sentence the open line heard. Sent, unless it is the handset's own voice.
+     *
+     * The echo canceller catches most of what the speaker says; what gets through is
+     * caught here by content. Anything that reads like the message being spoken, or one
+     * spoken a moment ago, is the room hearing this handset, not the operator.
+     */
+    private suspend fun onOpenLineUtterance(result: Recogniser.Result) {
+        val echo = speakingText ?: lastSpokenText?.takeIf { SystemClock.elapsedRealtime() < lastSpokenUntilMillis }
+        if (echo != null && similarity(result.text, echo) >= ECHO_SIMILARITY) {
+            Log.i(TAG, "open line heard the handset's own voice; dropped")
+            _state.value = _state.value.copy(partial = null)
+            return
+        }
+        _state.value = _state.value.copy(partial = null)
+        send(result, null, MessageType.TEXT)
+    }
+
     private fun degrade(reason: EngineState.Degraded.Reason) {
         sticky = reason
         _state.value = _state.value.copy(degraded = reason)
@@ -923,9 +1202,15 @@ class MessageEngine(
     }
 
     private fun refresh() {
+        val now = SystemClock.elapsedRealtime()
         _state.value =
             _state.value.copy(
-                peerCount = maxOf(unitsOnChannel(), mesh.connectedCount - 1),
+                // Units heard inside the presence window: what "here now" means.
+                peerCount = roster.presentCount(now),
+                units = roster.present(now),
+                unitName = unitName,
+                mode = mode,
+                openLinePaused = openLinePaused,
                 linkUp = mesh.state.value == LinkState.CONNECTED,
                 language = displayNameFor(language),
                 languageCode = language.code,
@@ -1029,6 +1314,39 @@ class MessageEngine(
 
         /** The same refusal is shown again only after this long. */
         const val DROP_NOTE_REPEAT_MILLIS = 10_000L
+
+        /** Presence every ten seconds when nobody is looking for anybody. */
+        const val PRESENCE_EVERY_TICKS = 10L
+
+        /** How long a unit beacons its position after one request. Renewed while somebody looks. */
+        const val BEACON_MILLIS = 10 * 60_000L
+
+        const val LOCATE_RENEW_TICKS = 60L
+        const val LOCATE_REPEAT_MILLIS = 700L
+
+        /** After the speaker finishes, how long its words still count as echo. */
+        const val ECHO_GRACE_MILLIS = 3_000L
+
+        /** Token overlap above which an open-line sentence is the handset's own voice. */
+        const val ECHO_SIMILARITY = 0.5
+
+        /** Overlap of the words in two sentences, 0..1, ignoring case and punctuation. */
+        fun similarity(
+            a: String,
+            b: String,
+        ): Double {
+            fun tokens(s: String) =
+                s.lowercase().split(Regex("\\s+")).map {
+                    it.trim {
+                            c ->
+                        !c.isLetterOrDigit()
+                    }
+                }.filter { it.isNotEmpty() }.toSet()
+            val x = tokens(a)
+            val y = tokens(b)
+            if (x.isEmpty() || y.isEmpty()) return 0.0
+            return x.intersect(y).size.toDouble() / x.union(y).size
+        }
 
         /** Long enough for the broadcast roads to open before the first hello goes out. */
         const val HELLO_AFTER_CONNECT_MILLIS = 750L

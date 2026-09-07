@@ -63,6 +63,13 @@ class AudioCapture(
         onHop: (ShortArray, Int) -> Unit,
         onError: (EngineState.Degraded.Reason) -> Unit = {},
         onStarted: () -> Unit = {},
+        /**
+         * `VOICE_RECOGNITION` for push-to-talk, where nothing plays while the microphone is
+         * open. `VOICE_COMMUNICATION` for the open line, where the handset's own speaker may
+         * be talking at the same time: that source carries the platform's echo canceller,
+         * which is what stops the phone re-transmitting what it has just played.
+         */
+        source: Int = MediaRecorder.AudioSource.VOICE_RECOGNITION,
     ): Boolean {
         if (running) return true
 
@@ -80,7 +87,7 @@ class AudioCapture(
         val recorder =
             try {
                 AudioRecord(
-                    MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                    source,
                     sampleRate,
                     AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT,

@@ -167,11 +167,11 @@ private fun controlRoomRows(
             if (storedBytes > 0) megabytes(storedBytes) else "—",
         ),
         ControlRow(
-            Destination.TEST_ALERT,
-            Icons.Alert,
-            p.blush.core,
-            "Test alert",
-            "this handset",
+            Destination.UNIT_NAME,
+            Icons.Transmit,
+            p.mint.core,
+            "Unit name",
+            operating.unitName,
             mono = false,
         ),
         ControlRow(
@@ -284,9 +284,12 @@ private fun UnitHeroCard(operating: OperatingState) {
             // control that offered a code which pairs nothing would be the most convincing
             // lie in the application.
             HeroTile(Icons.Qr, "ADD A UNIT", enabled = false, modifier = Modifier.weight(1f))
+            // Units heard on the channel in the last half minute -- the same figure as band
+            // A on the operating screen, from the same roster. "Paired" was never the
+            // right word: nothing on a broadcast channel is paired.
             HeroTile(
                 Icons.Bluetooth,
-                "${operating.peerCount} PAIRED",
+                "${operating.peerCount} ${if (operating.peerCount == 1) "UNIT" else "UNITS"} HERE",
                 enabled = true,
                 modifier = Modifier.weight(1f),
             )
@@ -386,13 +389,16 @@ private fun megabytes(bytes: Long): String = String.format(Locale.ROOT, "%.0f MB
 @Composable
 fun TextSizeScreen(
     onBack: () -> Unit,
+    /** The application's own factor over the system size, 0.85 to 2.0. */
+    scale: Float = 1f,
+    onScale: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val p = palette
-    val scale = LocalDensity.current.fontScale
-    val percent = Math.round(scale * 100)
-    // 100 % sits at the left end and 200 % at the right, which is the range rule 9 names.
-    val fraction = ((scale - 1f) / 1f).coerceIn(0f, 1f)
+    // What the operator sees: the system's size times this application's own factor.
+    val percent = Math.round(LocalDensity.current.fontScale * 100)
+    // 85 % sits at the left end and 200 % at the right, which is the range rule 9 names.
+    val fraction = ((scale - MIN_SCALE) / (MAX_SCALE - MIN_SCALE)).coerceIn(0f, 1f)
 
     Column(
         modifier
@@ -441,14 +447,33 @@ fun TextSizeScreen(
                     Text("A", fontSize = Tokens.Headline, color = p.ink)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Instrument("100 %", p.muted)
+                    Instrument("85 %", p.muted)
                     Instrument("$percent %", p.periwinkle.deep)
                     Instrument("200 %", p.muted)
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ScaleButton(
+                        "A−",
+                        "Smaller text",
+                        enabled = scale > MIN_SCALE + 0.01f,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        onScale((scale - STEP).coerceAtLeast(MIN_SCALE))
+                    }
+                    ScaleButton(
+                        "A+",
+                        "Larger text",
+                        enabled = scale < MAX_SCALE - 0.01f,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        onScale((scale + STEP).coerceAtMost(MAX_SCALE))
+                    }
                 }
             }
 
             Text(
-                "Follows the system setting. Every screen holds its layout to 200 % without truncating.",
+                "On top of the system setting, and kept across restarts. " +
+                    "Every screen holds its layout to 200 % without truncating.",
                 fontSize = Tokens.Label,
                 lineHeight = Tokens.Label * 1.5f,
                 color = p.muted,
@@ -526,6 +551,43 @@ private fun RampRow(
         Instrument(role, p.muted)
     }
 }
+
+/** Smaller or larger, in steps; a slider is not a control for a gloved thumb. */
+@Composable
+private fun ScaleButton(
+    label: String,
+    description: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val p = palette
+    Column(
+        modifier
+            .heightIn(min = Tokens.TouchTarget)
+            .background(if (enabled) p.periwinkle.tint else p.sunken, RoundedCornerShape(Tokens.RadiusControl))
+            .border(
+                Tokens.Hairline,
+                if (enabled) p.periwinkle.mid else p.hairline,
+                RoundedCornerShape(Tokens.RadiusControl),
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            .semantics { contentDescription = description },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            label,
+            fontSize = Tokens.Title,
+            fontWeight = FontWeight.Bold,
+            color = if (enabled) p.periwinkle.deep else p.muted,
+        )
+    }
+}
+
+private const val MIN_SCALE = 0.85f
+private const val MAX_SCALE = 2.0f
+private const val STEP = 0.15f
 
 @Composable
 private fun SectionLabel(text: String) {

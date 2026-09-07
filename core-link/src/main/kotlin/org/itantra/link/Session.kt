@@ -7,7 +7,9 @@ import org.itantra.proto.EpochCounter
 import org.itantra.proto.Flags
 import org.itantra.proto.Frame
 import org.itantra.proto.Language
+import org.itantra.proto.Locate
 import org.itantra.proto.MessageType
+import org.itantra.proto.Presence
 import org.itantra.proto.RejectReason
 import org.itantra.proto.ReplayWindow
 import org.itantra.proto.ScriptPacker
@@ -218,6 +220,40 @@ class Session(
         }
     }
 
+    /**
+     * Says who this unit is, and where, to everyone in range. Not queued: a presence held
+     * until the link comes back would be stale when it arrived, and the next one is seconds
+     * away.
+     *
+     * @return whether a frame left
+     */
+    suspend fun sendPresence(presence: Presence): Boolean =
+        sendControl(MessageType.HEARTBEAT, presence.encode(), queue = false)
+
+    /** Asks [Locate.target] to beacon for this unit, or to stop. Queued if the link is down. */
+    suspend fun sendLocate(
+        locate: Locate,
+        nowMillis: Long = 0,
+    ): Boolean = sendControl(MessageType.POSITION, locate.encode(), queue = true, nowMillis = nowMillis)
+
+    private suspend fun sendControl(
+        type: MessageType,
+        payload: ByteArray,
+        queue: Boolean,
+        nowMillis: Long = 0,
+    ): Boolean {
+        val frame = nextFrame(type, Flags.FINAL or Flags.ENCRYPTED, payload, language)
+        val wire = seal(frame).encode()
+        relay.remember(localSrc, epoch, frame.seq)
+        return if (link.state.value == LinkState.CONNECTED) {
+            link.send(wire)
+            true
+        } else {
+            if (queue) outbox.offer(wire, nowMillis)
+            false
+        }
+    }
+
     /** Flushes anything held while the link was down, in the order it was queued. */
     suspend fun flushOutbox(nowMillis: Long = 0): Int {
         if (link.state.value != LinkState.CONNECTED) return 0
@@ -332,6 +368,12 @@ class Session(
 
         /** A unit announcing the epoch it is on. Unauthenticated, and used only as a hint. */
         data class Hello(val from: Int, val epoch: Long) : Received
+
+        /** A unit saying who it is and, while it is being looked for, where. Authenticated. */
+        data class Presence(val from: Int, val presence: org.itantra.proto.Presence) : Received
+
+        /** A unit asking [Locate.target] to beacon, or to stop. Authenticated, and relayed. */
+        data class Locate(val from: Int, val locate: org.itantra.proto.Locate) : Received
     }
 
     enum class Reason {
@@ -369,7 +411,11 @@ class Session(
         // 3. our own frame heard back from a relaying peer -- or, if this unit never sent
         //    it, another unit that drew the same node id, which is worth saying.
         if (frame.src == localSrc) {
-            val ours = relay.hasSeen(localSrc, epoch, frame.seq)
+            // A hello or a presence is not remembered by the relay -- neither is relayed --
+            // and a Wi-Fi router echoes every broadcast back to its sender, so this unit's
+            // own hello arrives here every five seconds. Only a message this unit never
+            // sent is evidence of another unit on the same node id.
+            val ours = frame.type == MessageType.HEARTBEAT || relay.hasSeen(localSrc, epoch, frame.seq)
             return Received.Dropped(
                 Reason.NOT_FOR_US,
                 if (ours) "own transmission" else "another unit is using this node id",
@@ -426,6 +472,22 @@ class Session(
         //    replaying a sequence number the real sender has not reached.
         if (!replay.admit(frame.src, senderEpoch, frame.seq)) {
             return Received.Dropped(Reason.REPLAYED, "src ${frame.src} seq ${frame.seq}")
+        }
+
+        // 6a. presence and locate requests. Authenticated and fresh by now, and neither is
+        //     text: they leave the path here. Presence is never relayed (a signal reading
+        //     is only meaningful from a direct neighbour); a locate request is, so it
+        //     reaches a unit three hops away.
+        when (opened.type) {
+            MessageType.HEARTBEAT ->
+                return Presence.decode(opened.payload)?.let { Received.Presence(opened.src, it) }
+                    ?: Received.Dropped(Reason.MALFORMED, "presence")
+            MessageType.POSITION -> {
+                forward(relay.consider(sealed, senderEpoch, nowMillis))
+                return Locate.decode(opened.payload)?.let { Received.Locate(opened.src, it) }
+                    ?: Received.Dropped(Reason.MALFORMED, "locate")
+            }
+            else -> Unit
         }
 
         // 7. relay: the frame **as it arrived**, sealed, so the next hop can verify it. A

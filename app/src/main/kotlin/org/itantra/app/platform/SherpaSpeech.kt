@@ -1,5 +1,6 @@
 package org.itantra.app.platform
 
+import android.media.MediaRecorder
 import org.itantra.asr.SherpaRecogniser
 import org.itantra.asr.UtteranceDecoder
 import org.itantra.audio.AudioCapture
@@ -84,6 +85,30 @@ class SherpaSpeech(
 
     /** True from a release until its task has closed the microphone (or ceded it). */
     private val stopPending = AtomicBoolean(false)
+
+    /**
+     * The open line: words for a listener that never presses anything.
+     *
+     * A sentence ends when the speaker has been quiet for [OPEN_LINE_ENDPOINT_MILLIS] --
+     * longer than the pause between clauses, shorter than the gap before a reply. Each
+     * sentence is handed over as it ends and the microphone stays open for the next.
+     */
+    interface OpenLineListener {
+        fun onLevel(level: Float)
+
+        fun onPartial(text: String)
+
+        fun onUtterance(result: Recogniser.Result)
+
+        fun onProblem(reason: String)
+    }
+
+    @Volatile
+    private var openLine: OpenLineListener? = null
+
+    /** HOLD on the open line: the microphone stays open, its audio is dropped. */
+    @Volatile
+    private var openLineMuted = false
 
     /** Appended on the capture thread, drained on the worker. */
     private val pending = ArrayList<Short>(SAMPLE_RATE * 2)
@@ -202,6 +227,7 @@ class SherpaSpeech(
         listener: Recogniser.Listener,
     ): Boolean {
         if (!isReady(languageCode)) return false
+        stopOpenLine()
         // A press inside the previous release's grace period. That utterance is over; it is
         // told so now, rather than left for the engine's timeout to give up on.
         settle { it.onNothingHeard("interrupted by the next press") }
@@ -262,9 +288,11 @@ class SherpaSpeech(
         samples: ShortArray,
         count: Int,
     ) {
-        synchronized(pending) {
-            val room = MAX_SAMPLES - pending.size
-            for (i in 0 until min(count, room)) pending.add(samples[i])
+        if (!openLineMuted) {
+            synchronized(pending) {
+                val room = MAX_SAMPLES - pending.size
+                for (i in 0 until min(count, room)) pending.add(samples[i])
+            }
         }
 
         var sum = 0.0
@@ -275,9 +303,10 @@ class SherpaSpeech(
         // Root mean square, mapped so ordinary speech fills most of the meter. Not decibels:
         // the meter is read at arm's length by someone mid-sentence, not measured.
         val rms = sqrt(sum / count.coerceAtLeast(1))
-        listener?.onLevel((rms * METER_GAIN).coerceIn(0.0, 1.0).toFloat())
+        val level = (rms * METER_GAIN).coerceIn(0.0, 1.0).toFloat()
+        openLine?.onLevel(level) ?: listener?.onLevel(level)
 
-        scheduleDrain()
+        if (!openLineMuted) scheduleDrain()
     }
 
     /**
@@ -307,11 +336,99 @@ class SherpaSpeech(
         if (block.isEmpty()) return
         decodedSamples += block.size
         val changed = runCatching { decoder.onAudio(block, allowProvisional) }.getOrDefault(false)
+        val line = openLine
+        if (line != null) {
+            if (changed) decoder.runningText().takeIf { it.isNotEmpty() }?.let(line::onPartial)
+            // The pause is the key. Long enough that a clause boundary does not end the
+            // sentence, short enough that the reply is not kept waiting.
+            if (decoder.hasSpeechNow && decoder.trailingQuietMillis >= OPEN_LINE_ENDPOINT_MILLIS) {
+                val text = runCatching { decoder.onEndpoint() }.getOrNull()
+                val decodeMillis = decodeNanos / 1_000_000
+                val audioMillis = decodedSamples * 1_000 / SAMPLE_RATE
+                decodeNanos = 0L
+                decodedSamples = 0L
+                if (!text.isNullOrBlank()) {
+                    line.onUtterance(
+                        Recogniser.Result(
+                            text,
+                            confidence = null,
+                            decodeMillis = decodeMillis,
+                            audioMillis = audioMillis,
+                        ),
+                    )
+                }
+            }
+            return
+        }
         if (!changed) return
         // Running text while the operator is still speaking: rule 6, and their only chance
         // to notice a misrecognition before it goes out.
         val soFar = decoder.runningText()
         if (soFar.isNotEmpty()) listener?.onPartial(soFar)
+    }
+
+    // ── the open line ────────────────────────────────────────────────────────
+
+    /**
+     * Opens the microphone and keeps it open, handing over a sentence at every pause.
+     *
+     * The capture source is the platform's communication path, which carries its echo
+     * canceller: the handset's own speaker may be reading out an arriving message while
+     * this listens, and without cancellation the microphone hears it and the sentence goes
+     * straight back out. The engine drops anything that still matches what was just spoken.
+     *
+     * @return false when there is no model for the language or the microphone would not open
+     */
+    fun startOpenLine(
+        languageCode: String,
+        listener: OpenLineListener,
+    ): Boolean {
+        if (!isReady(languageCode)) return false
+        stopOpenLine()
+        // Any press in flight is over; the open line takes the microphone.
+        settle { it.onNothingHeard("the open line took the microphone") }
+        val press = generation.incrementAndGet()
+        openLine = listener
+        openLineMuted = false
+        synchronized(pending) { pending.clear() }
+        decodeNanos = 0L
+        decodedSamples = 0L
+        worker.execute {
+            load(languageCode)
+            decoder?.reset()
+        }
+        val started =
+            capture.start(
+                onHop = ::onHop,
+                onError = { if (generation.get() == press) listener.onProblem("the microphone is not available") },
+                source = MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+            )
+        if (!started) {
+            openLine = null
+            listener.onProblem("the microphone is not available")
+            return false
+        }
+        return true
+    }
+
+    fun stopOpenLine() {
+        if (openLine == null) return
+        openLine = null
+        openLineMuted = false
+        generation.incrementAndGet()
+        capture.stop()
+        worker.execute { decoder?.reset() }
+    }
+
+    val isOpenLine: Boolean get() = openLine != null
+
+    /** HOLD. Muted, the microphone stays open and nothing it hears is kept. */
+    fun setOpenLineMuted(muted: Boolean) {
+        openLineMuted = muted
+        if (muted) {
+            synchronized(pending) { pending.clear() }
+            worker.execute { decoder?.reset() }
+        }
     }
 
     private fun takePending(): ShortArray =
@@ -426,6 +543,12 @@ class SherpaSpeech(
 
         /** A Unicode script block is 128 code points, which is how Language.blockBase is defined. */
         const val SCRIPT_BLOCK = 0x80
+
+        /**
+         * Quiet that ends a sentence on the open line. A clause pause is 280 ms; this is
+         * two and a half of those, and shorter than the second a person takes to answer.
+         */
+        const val OPEN_LINE_ENDPOINT_MILLIS = 700
 
         /** Speech sits near 0.1 RMS, so this puts an ordinary voice around two thirds. */
         const val METER_GAIN = 6.0

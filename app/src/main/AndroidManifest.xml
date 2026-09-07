@@ -2,8 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Constraint C2, restated because it changed and the reason matters.
-         There is deliberately NO location permission here, and no background reporting
-         of any kind.
+         There is no background reporting of any kind. The location permission below was
+         added on 2026-09-07 for one feature, finding a unit: a handset's position leaves
+         it only inside a sealed frame on the channel, only while another unit has asked to
+         find it, and never over a network: there is still no HTTP client in this
+         application. It is a runtime permission and the arrow is drawn without it.
 
          INTERNET is present, and it is not for the internet. Android requires it to open
          any socket at all, including one that only ever addresses a broadcast address on
@@ -49,6 +52,12 @@
          Wi-Fi roads carry the traffic. -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
+    <!-- Finding a unit (LOCATE): both handsets share their position inside sealed frames
+         on the channel so the locator can draw an arrow. Nothing is reported anywhere else.
+         Also, on Android 11 and below, what BLE scanning requires. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN"

@@ -30,16 +30,19 @@ import kotlinx.coroutines.withContext
 import org.itantra.app.engine.MessageEngine
 import org.itantra.app.platform.DataStoreEpochStore
 import org.itantra.app.platform.EspeakData
+import org.itantra.app.platform.Heading
 import org.itantra.app.platform.InstallIndex
 import org.itantra.app.platform.ModelStore
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.PackInstaller
 import org.itantra.app.platform.PiperVoiceMetadata
+import org.itantra.app.platform.PositionSource
 import org.itantra.app.platform.PushToTalkKey
 import org.itantra.app.platform.ReportExport
 import org.itantra.app.platform.SherpaSpeech
 import org.itantra.app.platform.SmallArtefacts
 import org.itantra.app.platform.Speaker
+import org.itantra.app.platform.UnitPreferences
 import org.itantra.app.ui.AppActions
 import org.itantra.app.ui.AppState
 import org.itantra.app.ui.Download
@@ -145,7 +148,17 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-    private val identity by lazy { NodeIdentity.of(installationId(), unitName()) }
+    /** The operator's name for this unit, its mode and its text size, kept across restarts. */
+    private val preferences by lazy { UnitPreferences(applicationContext, unitName()) }
+
+    private val identity by lazy { NodeIdentity.of(installationId(), preferences.unitName) }
+
+    /** Position and compass, for finding a unit. Both idle until somebody is looking. */
+    private val positions by lazy { PositionSource(applicationContext) }
+    private val heading by lazy { Heading(applicationContext) }
+
+    /** The text size factor, mirrored into Compose state so a change redraws at once. */
+    private var textScale by mutableStateOf(1f)
 
     private val transmitKey =
         PushToTalkKey(
@@ -188,6 +201,8 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        textScale = preferences.textScale
+
         if (!startEngine()) permissions.launch(requiredPermissions())
 
         setContent {
@@ -219,6 +234,10 @@ class MainActivity : ComponentActivity() {
                                 distributionNotice = DISTRIBUTION_NOTICE,
                                 packStatus = packStatus,
                                 downloads = onDisk.second,
+                                textScale = textScale,
+                                locate = running?.locate?.collectAsState()?.value,
+                                unitsHeard = running?.unitsEverHeard().orEmpty(),
+                                defaultUnitName = unitName(),
                             ),
                         actions =
                             AppActions(
@@ -232,6 +251,15 @@ class MainActivity : ComponentActivity() {
                                 onDeletePack = ::deletePack,
                                 onExportCsv = ::exportReport,
                                 readLicence = ::readLicence,
+                                onModeChange = { running?.setMode(it) ?: preferences.setMode(it) },
+                                onUnitName = { running?.setUnitName(it) ?: preferences.setUnitName(it) },
+                                onStartLocating = { running?.startLocating(it) },
+                                onStopLocating = { running?.stopLocating() },
+                                onLocateSiren = { running?.setLocateSiren(it) },
+                                onTextScale = {
+                                    preferences.setTextScale(it)
+                                    textScale = preferences.textScale
+                                },
                             ),
                     )
                 }
@@ -460,6 +488,9 @@ class MainActivity : ComponentActivity() {
                 lexicons = ::lexiconFor,
                 wifiContext = applicationContext,
                 speaker = Speaker(ModelStore(applicationContext), applicationContext),
+                preferences = preferences,
+                positions = positions,
+                heading = heading,
             ).also { it.start() }
         // The soak clock starts with the workload, not with the process.
         engineStartedAt = SystemClock.elapsedRealtime()
@@ -624,6 +655,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        engine?.stopLocating()
         engine?.stop()
     }
 
@@ -638,9 +670,18 @@ class MainActivity : ComponentActivity() {
                 // It is a runtime permission from Android 12 like the other two, and on a
                 // broadcast channel it is the one that actually transmits.
                 Manifest.permission.BLUETOOTH_ADVERTISE,
+                // For finding a unit: this handset's position goes to a colleague who asks,
+                // sealed, on the channel, and theirs comes back the same way. Asked for up
+                // front so that being found never needs a dialog answered mid-incident.
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
             )
         } else {
-            arrayOf(Manifest.permission.RECORD_AUDIO)
+            arrayOf(
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+            )
         }
 
     /**

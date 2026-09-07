@@ -119,6 +119,10 @@ fun OperatingScreen(
     onLanguageSelected: (String) -> Unit,
     onMenu: () -> Unit,
     onReplay: (String) -> Unit = {},
+    /** Push-to-talk or the open line, from the segments in band A. */
+    onModeChange: (String) -> Unit = {},
+    /** The LOCATE flank: who is on the channel, and the walk to one of them. */
+    onLocate: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val p = palette
@@ -131,7 +135,7 @@ fun OperatingScreen(
             // must not paint its own — it insets under it instead.
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        ChromeHeader(state, onMenu, onLanguageSelected)
+        ChromeHeader(state, onMenu, onLanguageSelected, onModeChange)
 
         // A banner pushes the thread down rather than covering the dock the operator is
         // already reaching for.
@@ -142,7 +146,7 @@ fun OperatingScreen(
         if (state.transmitting || state.partial != null) PartialStrip(state)
         state.speechNote?.let { SpeechNote(it) }
 
-        Dock(state, onTransmitChange, onAlert, onReplay)
+        Dock(state, onTransmitChange, onAlert, onReplay, onLocate)
         InstrumentStrip(state)
     }
 }
@@ -202,6 +206,10 @@ data class OperatingState(
      * `docs/REDESIGN.md` gap G2.
      */
     val speakingFrom: String? = null,
+    /** Every unit heard lately, nearest first: the count in band A and the locate list. */
+    val units: List<UnitInfo> = emptyList(),
+    /** On the open line, whether the operator has paused the microphone with HOLD. */
+    val openLinePaused: Boolean = false,
 )
 
 /**
@@ -275,6 +283,7 @@ private fun ChromeHeader(
     state: OperatingState,
     onMenu: () -> Unit,
     onLanguageSelected: (String) -> Unit,
+    onModeChange: (String) -> Unit,
 ) {
     val p = palette
     Column(
@@ -322,7 +331,7 @@ private fun ChromeHeader(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ModeSegments(state.mode)
+            ModeSegments(state.mode, onModeChange)
             Spacer(Modifier.weight(1f))
             LanguageChip(state, onLanguageSelected)
         }
@@ -391,24 +400,24 @@ private fun LinkPill(state: OperatingState) {
 }
 
 /**
- * Which mode the radio is in, as a two-segment indicator.
+ * Which mode the radio is in, as a two-segment switch.
  *
- * **Read-only, deliberately.** It shows `OperatingState.mode`, and there is no engine call
- * behind it: `MessageEngine` sets mode to the literal `"PTT"` in both places it is set and
- * `DuplexPolicy` has no caller, so a switch here would be a control that appears to work and
- * does not. Board 19 owns changing it. Recorded as a gap rather than invented.
+ * A switch now, not an indicator: the open line exists (`MessageEngine.setMode`), so the
+ * segment that used to be drawn for a mode that did not work changes the mode. Board 19's
+ * cards change the same setting; this is the one-tap version for the operating screen.
  */
 @Composable
-private fun ModeSegments(mode: String) {
+private fun ModeSegments(
+    mode: String,
+    onModeChange: (String) -> Unit,
+) {
     val p = palette
     val phone = mode.equals("Phone", ignoreCase = true)
     Row(
         Modifier
             .background(p.sunken, RoundedCornerShape(Tokens.RadiusPill))
             .padding(3.dp)
-            .semantics(mergeDescendants = true) {
-                contentDescription = if (phone) "Open line mode" else "Push to talk mode"
-            },
+            .semantics { contentDescription = if (phone) "Open line mode" else "Push to talk mode" },
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         listOf("PTT" to !phone, "Phone" to phone).forEach { (label, selected) ->
@@ -426,7 +435,12 @@ private fun ModeSegments(mode: String) {
                                 Modifier
                             },
                         )
-                        .padding(horizontal = 13.dp, vertical = 8.dp),
+                        .clickable(enabled = !selected) { onModeChange(label) }
+                        .padding(horizontal = 13.dp, vertical = 8.dp)
+                        .semantics {
+                            contentDescription =
+                                if (label == "PTT") "Switch to push to talk" else "Switch to the open line"
+                        },
             )
         }
     }
@@ -650,6 +664,7 @@ private fun Dock(
     onTransmitChange: (Boolean) -> Unit,
     onAlert: () -> Unit,
     onReplay: (String) -> Unit,
+    onLocate: () -> Unit,
 ) {
     val p = palette
     val dock = dockStateOf(state)
@@ -676,19 +691,29 @@ private fun Dock(
             // Board 10 swaps the left flank for HOLD. Everywhere else it is ALERT, and
             // ALERT is never dimmed — alert frames pre-empt the transmit queue.
             if (dock == DockState.PHONE) {
-                FlankButton(Icons.Pause, "HOLD", p.butter, enabled = true, onClick = { onTransmitChange(false) })
+                // HOLD pauses the microphone; the next press resumes it. The engine reads a
+                // press on the open line as that toggle.
+                FlankButton(
+                    if (state.openLinePaused) Icons.Play else Icons.Pause,
+                    if (state.openLinePaused) "RESUME" else "HOLD",
+                    p.butter,
+                    enabled = true,
+                    onClick = { onTransmitChange(true) },
+                )
             } else {
                 FlankButton(Icons.Alert, "ALERT", p.blush, enabled = true, strong = true, onClick = onAlert)
             }
 
             TransmitCircle(state, dock, onTransmitChange)
 
+            // LOCATE: who is on the channel, and the walk to one of them. It replaced LAST,
+            // which replayed the last message; that lives on in the message log.
             FlankButton(
-                icon = Icons.Replay,
-                label = "LAST",
+                icon = Icons.Globe,
+                label = "LOCATE",
                 family = p.aqua,
-                enabled = lastReceived != null && !busySpeaking,
-                onClick = { lastReceived?.let { onReplay(it.text) } },
+                enabled = true,
+                onClick = onLocate,
             )
         }
     }
@@ -728,7 +753,7 @@ private fun DockHint(
             )
         DockState.PHONE ->
             Text(
-                "LINE IS OPEN · BOTH SIDES AT ONCE",
+                if (state.openLinePaused) "LINE ON HOLD · TAP TO RESUME" else "LINE IS OPEN · SPEAK ANY TIME",
                 fontSize = Tokens.Instrument,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Medium,
@@ -842,11 +867,10 @@ private fun TransmitCircle(
                     },
                 )
                 .then(
-                    // Phone mode is a state panel, not a button: the line is always open, so
-                    // there is nothing to hold. It keeps its position and loses its
-                    // affordance rather than moving or disappearing.
+                    // On the open line the circle is HOLD: a tap pauses the microphone and
+                    // the next tap resumes it. Nothing is sent by pressing; the pause sends.
                     if (dock == DockState.PHONE) {
-                        Modifier
+                        Modifier.clickable { onTransmitChange(true) }
                     } else {
                         Modifier.pointerInput(Unit) {
                             detectTapGestures(
@@ -870,7 +894,12 @@ private fun TransmitCircle(
                             DockState.SEIZED -> "Opening the microphone. Wait."
                             DockState.LIVE -> "Listening. Speak now, release to send."
                             DockState.BUSY -> "Channel busy. ${state.speakingFrom} is speaking."
-                            DockState.PHONE -> "Open line. Both units can speak."
+                            DockState.PHONE ->
+                                if (state.openLinePaused) {
+                                    "Open line on hold. Tap to resume."
+                                } else {
+                                    "Open line. Tap to hold."
+                                }
                         }
                     // A press-and-hold gesture is unreachable through a screen reader, so
                     // the same message goes out on a double tap. Rule 7, task W7.23.
@@ -904,9 +933,9 @@ private fun TransmitCircle(
                     Equaliser(bars = Tokens.EQ_BARS, height = 20.dp, colour = p.onAccent.copy(alpha = 0.92f))
                 }
                 if (dock == DockState.PHONE) {
-                    Equaliser(bars = 5, height = 14.dp, colour = p.periwinkle.core)
+                    if (!state.openLinePaused) Equaliser(bars = 5, height = 14.dp, colour = p.periwinkle.core)
                     Text(
-                        "OPEN LINE",
+                        if (state.openLinePaused) "ON HOLD" else "OPEN LINE",
                         fontSize = Tokens.Instrument,
                         fontWeight = FontWeight.SemiBold,
                         color = p.periwinkle.deep,

@@ -56,18 +56,26 @@ import kotlinx.coroutines.launch
 class MeshLink(
     private val scope: CoroutineScope,
     override val name: String = "mesh",
-) : Link {
-    /** A peer, and the two collectors reading it. Both are cancelled together. */
+) : Link, SignalSource {
+    /** A peer, and the collectors reading it. All are cancelled together. */
     private class Peer(
         val link: Link,
         val pump: Job,
         val watch: Job,
+        val listen: Job?,
     ) {
         fun stop() {
             pump.cancel()
             watch.cancel()
+            listen?.cancel()
         }
     }
+
+    private val _signals =
+        MutableSharedFlow<Signal>(replay = 0, extraBufferCapacity = 64)
+
+    /** Signal readings from every radio on the mesh. See [Signal]. */
+    override val signals: Flow<Signal> get() = _signals.asSharedFlow()
 
     private val peers = LinkedHashMap<String, Peer>()
 
@@ -147,7 +155,13 @@ class MeshLink(
             scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 link.state.collect { recomputeState() }
             }
-        synchronized(peers) { peers[id] = Peer(link, pump, watch) }
+        val listen =
+            (link as? SignalSource)?.let { source ->
+                scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    source.signals.collect { _signals.emit(it) }
+                }
+            }
+        synchronized(peers) { peers[id] = Peer(link, pump, watch, listen) }
         recomputeState()
     }
 

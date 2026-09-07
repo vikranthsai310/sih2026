@@ -72,7 +72,19 @@ class BleBroadcastLink(
     private val adapter: BluetoothAdapter,
     private val scope: CoroutineScope,
     override val name: String = "ble-broadcast",
-) : Link {
+) : Link, SignalSource {
+    /**
+     * Every advertisement heard, with its strength -- repeats included, because each one
+     * is a measurement. See [Signal].
+     */
+    private val _signals =
+        MutableSharedFlow<Signal>(
+            replay = 0,
+            extraBufferCapacity = 64,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        )
+    override val signals: Flow<Signal> get() = _signals.asSharedFlow()
+
     private val _incoming =
         MutableSharedFlow<ByteArray>(
             replay = 0,
@@ -192,6 +204,18 @@ class BleBroadcastLink(
                 val payload =
                     result?.scanRecord?.getServiceData(ParcelUuid(SERVICE_UUID)) ?: return
                 if (payload.isEmpty()) return
+                // Before the repeat check: a frame is delivered once, but every hearing of
+                // it is a reading of the sender's distance.
+                if (payload.size >= Frame.HEADER_SIZE) {
+                    _signals.tryEmit(
+                        Signal(
+                            src = payload[SRC_OFFSET].toInt() and 0xFF,
+                            keyId = payload[KEYID_OFFSET].toInt() and 0xFF,
+                            rssi = result.rssi,
+                            atMillis = android.os.SystemClock.elapsedRealtime(),
+                        ),
+                    )
+                }
                 if (!isNew(payload)) return
                 Log.i(TAG, "heard ${payload.size} B, rssi ${result.rssi}")
 
@@ -501,6 +525,10 @@ class BleBroadcastLink(
 
         /** `MessageType.HEARTBEAT`, as it sits in the high nibble of header byte 1. */
         const val HEARTBEAT_TYPE = 0x5
+
+        /** Header bytes 7 and 8, per `docs/PROTOCOL.md` section 1. */
+        const val SRC_OFFSET = 7
+        const val KEYID_OFFSET = 8
 
         /** After the air time, before the next frame's data is set: the controller's own turnaround. */
         const val SETTLE_MILLIS = 50L

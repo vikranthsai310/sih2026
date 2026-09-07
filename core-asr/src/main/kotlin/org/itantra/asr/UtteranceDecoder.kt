@@ -519,6 +519,15 @@ class UtteranceDecoder(
 
     private fun trailingQuietFrames(): Int = analysedFrames - 1 - lastSpeechFrame()
 
+    /**
+     * Quiet since the last speech frame, for a caller deciding that a sentence has ended
+     * without anybody letting go of a key -- the open line, where the pause *is* the key.
+     */
+    val trailingQuietMillis: Int get() = trailingQuietFrames() * FRAME_MILLIS
+
+    /** Whether there is anything worth an endpoint: words already fixed, or speech in the open segment. */
+    val hasSpeechNow: Boolean get() = fixed.isNotEmpty() || hasSpeech()
+
     /** Whether anything in the segment is louder than a quiet room, floor or no floor. */
     private fun isAudible(end: Int): Boolean {
         for (f in 0 until end) if (levels[f] > AUDIBLE_DB) return true

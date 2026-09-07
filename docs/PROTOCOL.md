@@ -531,6 +531,23 @@ from a dead one.
 > it carries no presence, battery or state — a unit is "heard from" only by an
 > authenticated frame.
 
+> **Amended 2026-09-07 — presence and locate.** Two sealed control frames now exist:
+>
+> - **Presence**: type `HEARTBEAT` with `ENCRYPTED` set (the flag is what tells it from
+>   the hello). Payload: version, flags, the unit's **name** (UTF-8, at most 24 bytes),
+>   optionally its **position** (latitude and longitude as signed 32-bit micro-degrees,
+>   accuracy in metres, age in seconds), and battery. Sent every 10 s, and every second
+>   while the unit is beaconing for a locator. Never relayed. A receiver counts a unit as
+>   present for 35 s after its last authenticated frame, which is what the "N units"
+>   figure means.
+> - **Locate**: type `POSITION`, sealed, relayed. Payload: version, command (start or
+>   stop), target node id. The target answers by beaconing its presence with position every
+>   second for ten minutes, renewed while the locator keeps asking. No consent dialog: the
+>   request is authenticated under the net's key.
+>
+> Position is sent **only** while beaconing or locating, and only inside these sealed
+> frames. `core-proto/Presence.kt`, `SessionPresenceTest`.
+
 ---
 
 ## 10. Position payload

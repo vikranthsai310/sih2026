@@ -17,14 +17,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.itantra.bench.UtteranceTrace
@@ -64,14 +67,14 @@ enum class Destination(val title: String) {
     MODE("MODE & TRANSPORT"),
     STORAGE("STORAGE"),
 
-    /**
-     * The alert path, run against this handset only. Board 22.
-     *
-     * Its own destination rather than a control inside settings, because it is six measured
-     * steps and a verdict — a screen's worth of answer to "did the alert actually sound on
-     * *this* model of phone", which vendor audio policy makes a real question.
-     */
-    TEST_ALERT("TEST ALERT"),
+    /** What this unit calls itself, as every other unit sees it. */
+    UNIT_NAME("UNIT NAME"),
+
+    /** Who is on the channel, to pick one to walk to. Reached from the operating screen. */
+    LOCATE("LOCATE"),
+
+    /** The walk itself: the arrow, the distance, the siren. */
+    LOCATE_UNIT("LOCATE"),
 
     /**
      * Text size. Board 23, and gap **G4** resolved.
@@ -129,6 +132,14 @@ data class AppState(
     val loadingLabel: String? = null,
     /** 0..1, or null when the loader cannot say. */
     val loadingProgress: Float? = null,
+    /** The application's own text size factor over the system's, 0.85 to 2.0. */
+    val textScale: Float = 1f,
+    /** The walk in progress, or null. */
+    val locate: LocateState? = null,
+    /** Every unit heard this run, nearest first, for the locate list. */
+    val unitsHeard: List<UnitInfo> = emptyList(),
+    /** The name a unit falls back to when the operator clears theirs. */
+    val defaultUnitName: String = "",
 )
 
 /** What the shell can ask the engine to do. */
@@ -153,10 +164,35 @@ data class AppActions(
      * existed with an empty lambda behind it too.
      */
     val onExportCsv: () -> Unit,
+    /** "PTT" or "Phone". */
+    val onModeChange: (String) -> Unit = {},
+    /** The operator renamed this unit. */
+    val onUnitName: (String) -> Unit = {},
+    /** Start walking towards the unit with this node id. */
+    val onStartLocating: (Int) -> Unit = {},
+    val onStopLocating: () -> Unit = {},
+    val onLocateSiren: (Boolean) -> Unit = {},
+    /** The text size factor, 0.85 to 2.0. */
+    val onTextScale: (Float) -> Unit = {},
 )
 
 @Composable
 fun ItantraApp(
+    state: AppState,
+    actions: AppActions,
+    modifier: Modifier = Modifier,
+) {
+    // The application's own text size, on top of the system's, put in force for the whole
+    // tree here. Every `sp` below this line is scaled by it, which is why the text size
+    // screen can show the operator the real effect of the control they are pressing.
+    val base = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(base.density, base.fontScale * state.textScale)) {
+        Routed(state, actions, modifier)
+    }
+}
+
+@Composable
+private fun Routed(
     state: AppState,
     actions: AppActions,
     modifier: Modifier = Modifier,
@@ -166,7 +202,10 @@ fun ItantraApp(
 
     // The system gesture and the control on screen must do the same thing. An operator who
     // swipes back and lands outside the application has left the net.
-    BackHandler(enabled = where != Destination.OPERATING) { where = back(where) }
+    BackHandler(enabled = where != Destination.OPERATING) {
+        if (where == Destination.LOCATE_UNIT) actions.onStopLocating()
+        where = back(where)
+    }
 
     // Risk T-11: the transmit control must never be live over an unloaded recogniser.
     // The splash is that interval made visible, and it is the only screen that outranks
@@ -188,6 +227,8 @@ fun ItantraApp(
             onLanguageSelected = actions.onLanguageChosen,
             onMenu = { where = Destination.MENU },
             onReplay = actions.onReplay,
+            onModeChange = actions.onModeChange,
+            onLocate = { where = Destination.LOCATE },
             modifier = modifier,
         )
         return
@@ -206,22 +247,58 @@ fun ItantraApp(
                     modifier = modifier,
                 )
 
-            Destination.TEST_ALERT ->
-                AlertSelfTestScreen(
-                    steps = emptyList(),
-                    lastRun = null,
-                    verdict = null,
-                    device = null,
-                    // Nothing reaches AndroidAlertAudio from here yet, and this branch does
-                    // not add engine code. A null draws the control unavailable instead of
-                    // shipping a button that silently does nothing.
-                    onRun = null,
+            Destination.UNIT_NAME ->
+                UnitNameScreen(
+                    current = state.operating.unitName,
+                    defaultName = state.defaultUnitName,
+                    onSave = {
+                        actions.onUnitName(it)
+                        where = back(where)
+                    },
                     onBack = { where = back(where) },
                     modifier = modifier,
                 )
 
+            Destination.LOCATE ->
+                LocateListScreen(
+                    units = state.unitsHeard,
+                    onSelect = {
+                        actions.onStartLocating(it.src)
+                        where = Destination.LOCATE_UNIT
+                    },
+                    onBack = { where = back(where) },
+                    modifier = modifier,
+                )
+
+            Destination.LOCATE_UNIT -> {
+                val walk = state.locate
+                if (walk != null) {
+                    LocateScreen(
+                        state = walk,
+                        onStop = {
+                            actions.onStopLocating()
+                            where = Destination.LOCATE
+                        },
+                        onSiren = actions.onLocateSiren,
+                        modifier = modifier,
+                    )
+                } else {
+                    LocateListScreen(
+                        units = state.unitsHeard,
+                        onSelect = { actions.onStartLocating(it.src) },
+                        onBack = { where = back(where) },
+                        modifier = modifier,
+                    )
+                }
+            }
+
             Destination.TEXT_SIZE ->
-                TextSizeScreen(onBack = { where = back(where) }, modifier = modifier)
+                TextSizeScreen(
+                    onBack = { where = back(where) },
+                    scale = state.textScale,
+                    onScale = actions.onTextScale,
+                    modifier = modifier,
+                )
 
             else -> Unit
         }
@@ -251,7 +328,11 @@ fun ItantraApp(
                 )
 
             Destination.MODE ->
-                ModeAndTransportScreen(transports = state.transports)
+                ModeAndTransportScreen(
+                    transports = state.transports,
+                    mode = state.operating.mode,
+                    onModeChange = actions.onModeChange,
+                )
 
             Destination.STORAGE ->
                 StorageScreen(
@@ -287,19 +368,26 @@ fun ItantraApp(
                     )
                 }
 
-            Destination.OPERATING, Destination.MENU, Destination.TEST_ALERT, Destination.TEXT_SIZE -> Unit
+            Destination.OPERATING,
+            Destination.MENU,
+            Destination.UNIT_NAME,
+            Destination.LOCATE,
+            Destination.LOCATE_UNIT,
+            Destination.TEXT_SIZE,
+            -> Unit
         }
     }
 }
 
 /** Destinations whose board draws its own back header. */
 private val OwnHeader =
-    setOf(Destination.MENU, Destination.TEST_ALERT, Destination.TEXT_SIZE)
+    setOf(Destination.MENU, Destination.UNIT_NAME, Destination.LOCATE, Destination.LOCATE_UNIT, Destination.TEXT_SIZE)
 
 /** One step towards the operating screen, wherever we are. */
 private fun back(from: Destination): Destination =
     when (from) {
-        Destination.OPERATING, Destination.MENU -> Destination.OPERATING
+        Destination.OPERATING, Destination.MENU, Destination.LOCATE -> Destination.OPERATING
+        Destination.LOCATE_UNIT -> Destination.LOCATE
         Destination.LICENCE_TEXT -> Destination.LICENCES
         else -> Destination.MENU
     }

@@ -72,9 +72,13 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun ModeAndTransportScreen(
     transports: List<TransportOption>,
+    /** "PTT" or "Phone", as the engine reports it. */
+    mode: String = "PTT",
+    onModeChange: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val p = palette
+    val phone = mode.equals("Phone", ignoreCase = true)
     Column(
         modifier
             .fillMaxSize()
@@ -95,16 +99,20 @@ fun ModeAndTransportScreen(
         ModeCard(
             name = "Push to talk",
             icon = Icons.Transmit,
-            selected = true,
+            selected = !phone,
             costs = listOf("half duplex", "800–1200 ms", "lowest power"),
-            note = null,
+            note = "Hold the circle or the volume key to speak. Release sends.",
+            onSelect = { onModeChange("PTT") },
         )
         ModeCard(
             name = "Phone",
             icon = Icons.OpenLine,
-            selected = false,
+            selected = phone,
             costs = listOf("full duplex", "1050–1500 ms", "higher power"),
-            note = "Open conversation — both sides at once — is not in this build.",
+            note =
+                "Open conversation. The microphone stays on; every pause sends a sentence. " +
+                    "Uses more battery, and HOLD on the operating screen pauses it.",
+            onSelect = { onModeChange("Phone") },
         )
 
         SettingsLabel("TRANSPORT", top = 8.dp)
@@ -148,6 +156,7 @@ private fun ModeCard(
     selected: Boolean,
     costs: List<String>,
     note: String?,
+    onSelect: () -> Unit,
 ) {
     val p = palette
     val shape = RoundedCornerShape(Tokens.RadiusTile)
@@ -160,10 +169,11 @@ private fun ModeCard(
                 if (selected) p.periwinkle.core else p.hairline,
                 shape,
             )
+            .clickable(enabled = !selected, onClick = onSelect)
             .padding(16.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription =
-                    name + (if (selected) ", in use" else ", not in this build") +
+                    name + (if (selected) ", in use" else ", tap to switch") +
                     ". " + costs.joinToString(", ")
             },
         verticalArrangement = Arrangement.spacedBy(12.dp),
