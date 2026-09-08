@@ -187,6 +187,33 @@ class OnAirTest {
         assertEquals("never in the past", 7_000L, air.nextChangeMillis(7_000))
     }
 
+    /**
+     * A hello or presence relayed for a unit two hops away must not take this unit's own
+     * pin: pinned, it would replace this unit's announcement on the air and this unit
+     * would vanish from every roster in range while the far one appeared.
+     */
+    @Test
+    fun `another unit's hello and presence queue as messages and leave this unit's pins alone`() {
+        val air = OnAir(softBudget = 200, hardBudget = 1_600, localSrc = 7)
+        air.offer(hello(), 0)
+        air.offer(presence(1), 0)
+        val farHello = frame(MessageType.HEARTBEAT, 0, 4, encrypted = false, src = 9)
+        val farPresence = frame(MessageType.HEARTBEAT, 5, 30, src = 9)
+        air.offer(farHello, 0)
+        air.offer(farPresence, 0)
+
+        val contents = air.contents(0)
+        assertEquals("both pins and both relayed frames are on the air", 4, contents.size)
+        assertEquals("this unit's pins lead", listOf(7, 7, 9, 9), contents.map { it[7].toInt() })
+
+        // A newer own hello replaces the own pin only; the relayed ones stay where they were.
+        air.offer(hello(epoch = 2), 100)
+        val again = air.contents(100)
+        assertEquals(4, again.size)
+        assertEquals(listOf(7, 7, 9, 9), again.map { it[7].toInt() })
+        assertEquals("the pin is the newer hello", 2, again[0][10].toInt())
+    }
+
     @Test
     fun `a blob round-trips several frames and names the advertiser`() {
         val frames = listOf(hello(), presence(3), message(4, 70))

@@ -98,12 +98,34 @@ class Relay(
         nowMillis: Long = 0,
         fragment: Int = WHOLE,
     ): Decision {
-        if (frame.src == localSrc) return Decision.Drop(Reason.OWN_FRAME)
         if (!frame.type.relayable) return Decision.Drop(Reason.NOT_RELAYABLE)
+        return decide(frame, key(frame.src, epochForSrc, frame.seq, fragment))
+    }
+
+    /**
+     * A hello or a presence, which the type table says is never relayed and which
+     * [Session] relays anyway when it is *news* -- see there for the rule and the reason.
+     *
+     * The type check is the only thing skipped. The key lives in its own [slot], so a
+     * hello -- always `SEQ` 0 -- can never be mistaken for the first message of an epoch,
+     * and the loop suppression is the same seen-set as for everything else: one relay per
+     * unit per `(SRC, EPOCH, SEQ)`, however many roads bring it back.
+     */
+    fun considerControl(
+        frame: Frame,
+        epochForSrc: Long,
+        nowMillis: Long = 0,
+        slot: Int,
+    ): Decision = decide(frame, key(frame.src, epochForSrc, frame.seq, slot))
+
+    private fun decide(
+        frame: Frame,
+        key: Long,
+    ): Decision {
+        if (frame.src == localSrc) return Decision.Drop(Reason.OWN_FRAME)
 
         // Recorded before the TTL check, so a frame that arrives again by a shorter path
         // is still suppressed rather than forwarded on its second appearance.
-        val key = key(frame.src, epochForSrc, frame.seq, fragment)
         if (!remember(key)) return Decision.Drop(Reason.ALREADY_SEEN)
 
         if (frame.ttl <= 0) return Decision.Drop(Reason.TTL_EXHAUSTED)
@@ -157,6 +179,12 @@ class Relay(
 
         /** The fragment index of a frame that is not a fragment. */
         const val WHOLE = 0xFF
+
+        /** The key slot of a relayed hello. Fragments count from zero, so neither collides. */
+        const val HELLO_SLOT = 0xFE
+
+        /** The key slot of a relayed presence. */
+        const val PRESENCE_SLOT = 0xFD
 
         /** fragment (8 bits) ‖ `SRC` (8) ‖ `EPOCH` (32) ‖ `SEQ` (16) packed into one `Long`. */
         private fun key(

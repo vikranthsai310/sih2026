@@ -86,7 +86,10 @@ decision.
 | `0x8` | `AUDIO_FB` | Opus fallback when recogniser confidence is below threshold. Wi-Fi transport only; MUST be refused on BLE and serial transports. |
 | `0x0`, `0x9`–`0xF` | — | Reserved. A frame with a reserved type MUST be discarded silently. |
 
-`ACK` and `HEARTBEAT` MUST NOT be relayed. `ALERT` MUST be relayed if `TTL` permits.
+`ACK` MUST NOT be relayed. `ALERT` MUST be relayed if `TTL` permits. `HEARTBEAT` was never
+relayed until 2026-09-08; the hello and the presence are now relayed **when they are
+news**, under the rule in §9, so that a unit two hops away can open the sender's frames
+and put a name to them.
 
 ### 2.1 Type carries handling; flags carry encoding
 
@@ -524,12 +527,33 @@ from a dead one.
 > **Amended 2026-09-06 — the hello.** A heartbeat sealed with the sender's epoch cannot
 > tell a receiver what that epoch is, which is the one thing the receiver cannot otherwise
 > know; that circularity is why the 12-byte payload above was never sent. What is sent
-> instead is a **hello**: type `HEARTBEAT`, `ENCRYPTED` clear, `TTL` 0, payload the 4-byte
-> `EPOCH` alone, every 5 s and once on start. It is not authenticated and is not trusted:
-> a receiver uses it only as the first candidate when verifying that sender's next frame
-> (§6.2). A forged hello costs the receiver one wasted tag check. It is never relayed, and
-> it carries no presence, battery or state — a unit is "heard from" only by an
-> authenticated frame.
+> instead is a **hello**: type `HEARTBEAT`, `ENCRYPTED` clear, `TTL` the operator's hop
+> count (it was 0 until 2026-09-08), payload the 4-byte `EPOCH` alone, every 5 s and once
+> on start. It is not authenticated and is not trusted: a receiver uses it only as the
+> first candidate when verifying that sender's next frame (§6.2). A forged hello costs the
+> receiver one wasted tag check. It carries no presence, battery or state — a unit is
+> "heard from" only by an authenticated frame.
+
+> **Amended 2026-09-08 — the hello and the presence travel.** A unit two hops away never
+> hears the sender, so it never hears the sender's hello, and the epoch search (§6.2)
+> reaches about three days either side of the receiver's own epoch and no further. Two
+> handsets set up in different weeks, out of each other's range, could not read each
+> other however many units stood between them: the relayed frames arrived, opened under
+> nothing, and were counted as an attack. So a relay now forwards
+>
+> - a **hello** the first time it hears a given `(SRC, EPOCH)` — its `SEQ` is always 0, so
+>   the relay seen-set keys it once per epoch — and never more than one per sender per 5 s,
+>   the hello's own cadence, so a forger announcing a fresh epoch with every frame is not
+>   amplified;
+> - a **presence** when its payload differs from the last one relayed for that sender, or
+>   the same one again after 25 s, and never more than one per sender per 2 s. The far
+>   unit thereby learns the name, keeps the unit on its roster (present for 35 s after a
+>   frame), and sees a beaconing unit's position move.
+>
+> Both decrement `TTL` like any other relayed frame and are forwarded **as received**. A
+> unit's own hello or presence coming back from a relay is dropped as its own. On the BLE
+> road a relayed hello or presence queues like a message; only the advertiser's own are
+> pinned, or the far unit's announcement would replace this unit's on the air.
 
 > **Amended 2026-09-07 — presence and locate.** Two sealed control frames now exist:
 >
@@ -537,9 +561,9 @@ from a dead one.
 >   the hello). Payload: version, flags, the unit's **name** (UTF-8, at most 24 bytes),
 >   optionally its **position** (latitude and longitude as signed 32-bit micro-degrees,
 >   accuracy in metres, age in seconds), and battery. Sent every 10 s, and every second
->   while the unit is beaconing for a locator. Never relayed. A receiver counts a unit as
->   present for 35 s after its last authenticated frame, which is what the "N units"
->   figure means.
+>   while the unit is beaconing for a locator. Relayed when it is news, since 2026-09-08;
+>   see the amendment above. A receiver counts a unit as present for 35 s after its last
+>   authenticated frame, which is what the "N units" figure means.
 > - **Locate**: type `POSITION`, sealed, relayed. Payload: version, command (start or
 >   stop), target node id, and since 2026-09-08 an optional fourth byte of flags whose bit
 >   0 is **sound** -- the searcher asks the target to chirp so it can be found by ear. A

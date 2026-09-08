@@ -427,6 +427,29 @@ has no say in that. The ceiling is protection against a slip of the finger, not 
 limit: the byte allows 255, and on a channel with a loop in it that is a storm bounded only
 by the seen-set.
 
+### Two hops, in practice
+
+A at one end, C at the other, B in range of both and the ends out of each other's range:
+A's message reaches C by B rebroadcasting it. Every unit does this, within the hop count,
+whether or not relay mode is on. What has to be true for it to work, and what each
+handset shows:
+
+- **B's application has to be alive.** Relay mode on B keeps it so with the screen off;
+  without it, B relays only while its screen is on. That is the one thing the operator in
+  the middle has to do.
+- **A's hop count is at least 1** (the default is 3). Zero means direct range only.
+- **C can open A's frames although it has never heard A.** The hello that carries A's
+  epoch is relayed by B, once per epoch; without that, C could read A only if the two
+  handsets had been set up within about three days of each other (PROTOCOL.md §9,
+  amended 2026-09-08). B also relays A's presence when it is news, so C shows A by name
+  and counts it among the units present.
+- **A hears its own message come back from B and ignores it**; C's relay of it on the
+  third hop reaches nobody new and B discards it as already seen.
+
+On C, `adb logcat -s itantra-net` shows `accepted N B from node <A>` for a message that
+arrived by relay exactly as for one that arrived directly; the transport does not say
+which, and that is the point. `docs/TESTING.md` M14 is the bench procedure.
+
 **Pairing is the most common cause of demonstration failure.** Devices are paired before
 the session, QR provisioning is the fallback, and a third pre-configured handset is kept
 ready (risk P-03). See [DEMO.md](DEMO.md).

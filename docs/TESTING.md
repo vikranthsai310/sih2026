@@ -99,6 +99,7 @@ recorded with date, build and device.
 | M11 | Noisy environment (crowd recording at ~10 dB SNR) | Critical terms survive; template fallback engages where confidence drops |
 | M12 | Four devices, relay, one out of direct range | Message arrives once, not repeatedly; no broadcast storm |
 | M13 | Wi-Fi Direct, automatic: Bluetooth off, mobile data off, Wi-Fi on, nothing arranged in Settings; launch on two handsets, then a third | Within about twenty seconds `adb logcat -s itantra-wifidirect` shows one handset "creating a group" and the others "joining"; the owner shows Android's invitation dialog once per new handset; the Wi-Fi road's line reads "owning a group, N units joined" or "joined X's group"; a message crosses with Bluetooth off. Kill and relaunch a client: it rejoins with no dialog. Switch the Wi-Fi road off in settings: the group is taken down |
+| M14 | Two hops: A and C out of each other's range, B in range of both, relay mode on B. Set A and C up on different days if possible, or clear one's data so its epoch is reseeded | A's message appears on C, once, named with A's unit name, and A is in C's unit list within ten seconds of launch; C's reply appears on A the same way. `adb logcat -s itantra-net` on C shows `accepted ... from node <A>`; on A, the copy B sends back is logged dropped as `own transmission`. Switch B's screen off: still works. Set A's hops to 0: C stops receiving A |
 
 M10 and M12 are the ones most likely to be skipped and most likely to fail. Do not skip
 them.

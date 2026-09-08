@@ -397,7 +397,16 @@ class BleBroadcastLink(
 
         // The buffer survives a re-arm: what was on the air before the radio cycled is
         // still worth hearing. It is sized once the controller can be asked.
-        if (onAir == null) onAir = OnAir(softBudget = softBudget(), hardBudget = hardBudget())
+        if (onAir == null) {
+            onAir =
+                OnAir(
+                    softBudget = softBudget(),
+                    hardBudget = hardBudget(),
+                    // So a hello or presence relayed for a far unit queues rather than
+                    // taking this unit's own pin on the air.
+                    localSrc = localSrc.takeIf { it != AirBlob.UNKNOWN },
+                )
+        }
         onTheAir = null
         airing = false
 

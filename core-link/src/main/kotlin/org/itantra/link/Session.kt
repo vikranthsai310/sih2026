@@ -446,6 +446,7 @@ class Session(
         if (frame.type == MessageType.HEARTBEAT && !frame.isEncrypted) {
             val hinted = helloEpoch(frame.payload) ?: return Received.Dropped(Reason.MALFORMED, "hello")
             hints[frame.src] = hinted
+            relayHello(frame, hinted, nowMillis)
             return Received.Hello(frame.src, hinted)
         }
 
@@ -492,13 +493,15 @@ class Session(
         }
 
         // 6a. presence and locate requests. Authenticated and fresh by now, and neither is
-        //     text: they leave the path here. Presence is never relayed (a signal reading
-        //     is only meaningful from a direct neighbour); a locate request is, so it
-        //     reaches a unit three hops away.
+        //     text: they leave the path here. A presence is relayed when it is news (see
+        //     relayPresence); a locate request always is, so it reaches a unit three hops
+        //     away.
         when (opened.type) {
-            MessageType.HEARTBEAT ->
-                return Presence.decode(opened.payload)?.let { Received.Presence(opened.src, it) }
-                    ?: Received.Dropped(Reason.MALFORMED, "presence")
+            MessageType.HEARTBEAT -> {
+                val presence = Presence.decode(opened.payload) ?: return Received.Dropped(Reason.MALFORMED, "presence")
+                relayPresence(sealed, opened.payload, senderEpoch, nowMillis)
+                return Received.Presence(opened.src, presence)
+            }
             MessageType.POSITION -> {
                 forward(relay.consider(sealed, senderEpoch, nowMillis))
                 return Locate.decode(opened.payload)?.let { Received.Locate(opened.src, it) }
@@ -567,6 +570,81 @@ class Session(
     /** Epochs units have announced for themselves. Hints, never verdicts. */
     private val hints = HashMap<Int, Long>()
 
+    /** When a hello from each unit was last relayed, so a flood of them is not amplified. */
+    private val helloRelayedAt = HashMap<Int, Long>()
+
+    /** The last presence relayed for each unit: a hash of its payload, and when. */
+    private val presenceRelayed = HashMap<Int, Pair<Int, Long>>()
+
+    /**
+     * Relays a hello that is news: the first time this unit hears a given epoch from a
+     * given sender.
+     *
+     * ## Why a hello has to travel
+     *
+     * A unit two hops away never hears the sender directly, so it never hears the
+     * sender's hello, and the hello is the one thing that tells it which epoch the
+     * sender's frames are sealed under. Without it the far unit falls back on the search
+     * in [resolveEpoch], which reaches about three days either side of its own epoch and
+     * no further: two handsets first set up in different weeks, out of each other's range,
+     * could never read each other however many units stood between them. The relayed
+     * frames arrived, verified under nothing, and were counted as an attack.
+     *
+     * ## Why once, and rate-limited
+     *
+     * The seen-set keys the hello on `(SRC, EPOCH)` -- its `SEQ` is always zero -- so each
+     * unit relays each epoch it hears of once, however many times the sender repeats it
+     * and however many roads bring it back. A hello is not authenticated, so a forger
+     * could announce a new epoch with every frame and have every unit relay every one;
+     * [HELLO_RELAY_MIN_MILLIS] caps that at the hello's own cadence, per sender, and the
+     * TTL bounds how far any of it goes.
+     */
+    private fun relayHello(
+        frame: Frame,
+        hinted: Long,
+        nowMillis: Long,
+    ) {
+        if (frame.ttl <= 0) return
+        val last = helloRelayedAt[frame.src]
+        if (last != null && nowMillis - last < HELLO_RELAY_MIN_MILLIS) return
+        val decision = relay.considerControl(frame, hinted, nowMillis, slot = Relay.HELLO_SLOT)
+        if (decision is Relay.Decision.Forward) helloRelayedAt[frame.src] = nowMillis
+        forward(decision)
+    }
+
+    /**
+     * Relays a presence that is news: a name or position this unit has not relayed for
+     * that sender before, or the same one again after [PRESENCE_RELAY_REFRESH_MILLIS].
+     *
+     * A unit reached only through a relay would otherwise be a node number on the far
+     * unit's screen and absent from its roster: the name travels in the presence, and the
+     * roster counts a unit present for thirty-five seconds after its last authenticated
+     * frame. The refresh keeps a quiet far unit present; the change rule keeps a unit
+     * beaconing its position for a locator moving on that locator's screen. Never more
+     * often than [PRESENCE_RELAY_MIN_MILLIS] per sender, whatever changes: air is shared.
+     *
+     * The signal reading a receiver takes from a presence comes from the radio, not the
+     * frame, so a relayed presence carries no false distance.
+     */
+    private fun relayPresence(
+        sealed: Frame,
+        payload: ByteArray,
+        senderEpoch: Long,
+        nowMillis: Long,
+    ) {
+        if (sealed.ttl <= 0) return
+        val digest = payload.contentHashCode()
+        val last = presenceRelayed[sealed.src]
+        if (last != null) {
+            val (lastDigest, at) = last
+            if (nowMillis - at < PRESENCE_RELAY_MIN_MILLIS) return
+            if (lastDigest == digest && nowMillis - at < PRESENCE_RELAY_REFRESH_MILLIS) return
+        }
+        val decision = relay.considerControl(sealed, senderEpoch, nowMillis, slot = Relay.PRESENCE_SLOT)
+        if (decision is Relay.Decision.Forward) presenceRelayed[sealed.src] = digest to nowMillis
+        forward(decision)
+    }
+
     /**
      * This unit's own announcement: its node id and current epoch, in the clear.
      *
@@ -576,6 +654,9 @@ class Session(
      * sealed, carries nothing but the epoch, and is trusted for nothing: a receiver uses
      * it as the first candidate in a search whose every step is an AEAD check. A forged
      * hello costs the receiver one wasted tag check.
+     *
+     * It carries the operator's hop count, like every other frame this unit originates,
+     * so that a unit two hops away learns the epoch too; see [relayHello].
      */
     fun hello(): ByteArray =
         Frame(
@@ -585,7 +666,7 @@ class Session(
             flags = Flags.FINAL,
             src = localSrc,
             keyId = keyId,
-            ttl = 0,
+            ttl = ttl,
             payload =
                 byteArrayOf(
                     (epoch shr 24).toByte(),
@@ -763,6 +844,18 @@ class Session(
 
         /** Below this a fragment carries nothing; the link cannot carry frames at all. */
         const val MIN_FRAGMENT_MTU = 24
+
+        /** A hello is sent every five seconds; a unit relays at most that many per sender. */
+        const val HELLO_RELAY_MIN_MILLIS = 5_000L
+
+        /** A changed presence is relayed at most this often per sender. */
+        const val PRESENCE_RELAY_MIN_MILLIS = 2_000L
+
+        /**
+         * An unchanged presence is relayed again after this long, so a far unit stays on
+         * the roster: a unit is present for thirty-five seconds after its last frame.
+         */
+        const val PRESENCE_RELAY_REFRESH_MILLIS = 25_000L
 
         /** Restarts since we last heard a sender that a search will cover. */
         const val RESTART_SEARCH = 512

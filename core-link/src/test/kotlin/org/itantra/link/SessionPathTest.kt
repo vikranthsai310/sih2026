@@ -369,14 +369,20 @@ class SessionPresenceTest {
     private fun session(
         link: Link,
         src: Int,
+        store: Store = Store(),
     ) = Session(
         link = link,
         key = key,
         localSrc = src,
-        epochs = org.itantra.proto.EpochCounter(Store()),
+        epochs = org.itantra.proto.EpochCounter(store),
         templates = profile,
         transport = org.itantra.proto.TransportClass.BLE,
     )
+
+    private fun text(received: Session.Received): String {
+        org.junit.Assert.assertTrue(received.toString(), received is Session.Received.Message)
+        return (received as Session.Received.Message).text
+    }
 
     @org.junit.Test
     fun `a presence arrives with its name and position, authenticated`() =
@@ -398,7 +404,153 @@ class SessionPresenceTest {
             org.junit.Assert.assertEquals(1, received.from)
             org.junit.Assert.assertEquals("ALPHA", received.presence.name)
             org.junit.Assert.assertEquals(20.2961, received.presence.position!!.latitude, 1e-6)
-            org.junit.Assert.assertTrue("presence is never relayed", receiver.takeRelays().isEmpty())
+            org.junit.Assert.assertEquals(
+                "a presence heard for the first time is relayed, so a unit two hops away learns the name",
+                1,
+                receiver.takeRelays().size,
+            )
+        }
+
+    @org.junit.Test
+    fun `a presence is relayed when it is news and not while it is the same`() =
+        kotlinx.coroutines.test.runTest {
+            val link = CapturingLink()
+            link.connect()
+            val sender = session(link, 1)
+            val receiver = session(link, 2)
+            val alpha = org.itantra.proto.Presence(name = "ALPHA")
+
+            sender.sendPresence(alpha)
+            receiver.receive(link.take().single(), nowMillis = 0)
+            org.junit.Assert.assertEquals("the first is news", 1, receiver.takeRelays().size)
+
+            sender.sendPresence(alpha)
+            receiver.receive(link.take().single(), nowMillis = 1_000)
+            org.junit.Assert.assertTrue("the same again is not", receiver.takeRelays().isEmpty())
+
+            sender.sendPresence(alpha.copy(position = org.itantra.proto.Presence.Position(20.29, 85.82, 6, 1)))
+            receiver.receive(link.take().single(), nowMillis = 1_500)
+            org.junit.Assert.assertTrue(
+                "a change inside the minimum interval since the last relay waits",
+                receiver.takeRelays().isEmpty(),
+            )
+
+            sender.sendPresence(alpha.copy(position = org.itantra.proto.Presence.Position(20.30, 85.83, 6, 1)))
+            receiver.receive(link.take().single(), nowMillis = 3_000)
+            org.junit.Assert.assertEquals("a change after it is relayed", 1, receiver.takeRelays().size)
+
+            sender.sendPresence(alpha.copy(position = org.itantra.proto.Presence.Position(20.30, 85.83, 6, 1)))
+            receiver.receive(link.take().single(), nowMillis = 3_000 + Session.PRESENCE_RELAY_REFRESH_MILLIS)
+            org.junit.Assert.assertEquals(
+                "the same one is relayed again after the refresh, so the far unit keeps it on the roster",
+                1,
+                receiver.takeRelays().size,
+            )
+        }
+
+    // ── two hops ─────────────────────────────────────────────────────────────
+
+    /**
+     * The unit in the middle is in range of both; the two ends are not in range of each
+     * other and were set up in different months, so their epochs are far beyond the
+     * search. Without the relayed hello the far unit cannot open the sender's frames at
+     * all; with it, one check.
+     */
+    @org.junit.Test
+    fun `a unit two hops away with an epoch beyond the search reads the message, because the hello is relayed`() =
+        kotlinx.coroutines.test.runTest {
+            val link = CapturingLink()
+            link.connect()
+            val sender = session(link, src = 1, store = Store(9_000_000))
+            val middle = session(link, src = 2, store = Store(4_000_000))
+            val far = session(link, src = 3, store = Store(100_000))
+
+            // The sender's hello reaches the middle, which relays it on with one hop less.
+            val hello = middle.receive(sender.hello())
+            org.junit.Assert.assertTrue(hello.toString(), hello is Session.Received.Hello)
+            val helloRelay = middle.takeRelays().single()
+            org.junit.Assert.assertEquals(Session.DEFAULT_TTL - 1, helloRelay.frame.ttl)
+            org.junit.Assert.assertEquals("relayed as the sender's, not the middle's", 1, helloRelay.frame.src)
+
+            // The far unit hears the relayed hello, and relays it one hop further.
+            val farHello = far.receive(helloRelay.frame.encode())
+            org.junit.Assert.assertTrue(farHello.toString(), farHello is Session.Received.Hello)
+            org.junit.Assert.assertEquals(Session.DEFAULT_TTL - 2, far.takeRelays().single().frame.ttl)
+
+            // Now a message crosses both hops.
+            sender.send("मदद चाहिए")
+            org.junit.Assert.assertEquals("मदद चाहिए", text(middle.receive(link.take().single())))
+            val relayed = middle.takeRelays().single().frame
+            org.junit.Assert.assertEquals("मदद चाहिए", text(far.receive(relayed.encode())))
+
+            // And the sender, hearing its own hello and message come back, drops both.
+            val ownHello = sender.receive(helloRelay.frame.encode())
+            org.junit.Assert.assertTrue(ownHello.toString(), ownHello is Session.Received.Dropped)
+            org.junit.Assert.assertEquals(Session.Reason.NOT_FOR_US, (ownHello as Session.Received.Dropped).reason)
+            val ownMessage = sender.receive(relayed.encode())
+            org.junit.Assert.assertEquals(Session.Reason.NOT_FOR_US, (ownMessage as Session.Received.Dropped).reason)
+            org.junit.Assert.assertTrue("nothing of its own is relayed onward", sender.takeRelays().isEmpty())
+        }
+
+    @org.junit.Test
+    fun `without the relayed hello the same far unit cannot read the message`() =
+        kotlinx.coroutines.test.runTest {
+            val link = CapturingLink()
+            link.connect()
+            val sender = session(link, src = 1, store = Store(9_000_000))
+            val far = session(link, src = 3, store = Store(100_000))
+            sender.send("मदद चाहिए")
+            val received = far.receive(link.take().single())
+            org.junit.Assert.assertTrue(received.toString(), received is Session.Received.Dropped)
+            org.junit.Assert.assertEquals(Session.Reason.NOT_AUTHENTIC, (received as Session.Received.Dropped).reason)
+        }
+
+    @org.junit.Test
+    fun `a hello is relayed once per epoch, not every five seconds`() =
+        kotlinx.coroutines.test.runTest {
+            val link = CapturingLink()
+            link.connect()
+            // A store beyond the clock seed, so a restart moves the epoch by exactly one.
+            val store = Store(9_000_000)
+            val sender = session(link, src = 1, store = store)
+            val middle = session(link, src = 2)
+            middle.receive(sender.hello(), nowMillis = 0)
+            org.junit.Assert.assertEquals(1, middle.takeRelays().size)
+            middle.receive(sender.hello(), nowMillis = 5_000)
+            middle.receive(sender.hello(), nowMillis = 10_000)
+            org.junit.Assert.assertTrue("the same epoch again is not news", middle.takeRelays().isEmpty())
+
+            // The sender restarts: a new epoch, and news again.
+            val restarted = session(link, src = 1, store = store)
+            middle.receive(restarted.hello(), nowMillis = 15_000)
+            org.junit.Assert.assertEquals(1, middle.takeRelays().size)
+        }
+
+    @org.junit.Test
+    fun `a flood of hellos with made-up epochs is relayed no faster than a real hello cadence`() =
+        kotlinx.coroutines.test.runTest {
+            val link = CapturingLink()
+            link.connect()
+            val middle = session(link, src = 2)
+            var relayed = 0
+            for (i in 0 until 50) {
+                val forged = session(link, src = 1, store = Store(9_000_000L + i * 10))
+                middle.receive(forged.hello(), nowMillis = i * 100L)
+                relayed += middle.takeRelays().size
+            }
+            org.junit.Assert.assertEquals("five seconds of hellos: one relay", 1, relayed)
+        }
+
+    @org.junit.Test
+    fun `a hello sent with no hops is not relayed`() =
+        kotlinx.coroutines.test.runTest {
+            val link = CapturingLink()
+            link.connect()
+            val sender = session(link, src = 1)
+            sender.ttl = 0
+            val middle = session(link, src = 2)
+            middle.receive(sender.hello())
+            org.junit.Assert.assertTrue(middle.takeRelays().isEmpty())
         }
 
     @org.junit.Test

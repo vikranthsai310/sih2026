@@ -49,6 +49,13 @@ class OnAir(
     private val minAirMillis: Long = MIN_AIR_MILLIS,
     private val maxAirMillis: Long = MAX_AIR_MILLIS,
     private val waitingCapacity: Int = MAX_WAITING,
+    /**
+     * This unit's node id, so that only its *own* hello and presence are pinned. A hello
+     * or presence relayed for a unit two hops away queues like a message: pinned, it would
+     * replace this unit's own announcement on the air, and this unit would vanish from
+     * every roster in range while the far one appeared. Null pins any, for a test.
+     */
+    private val localSrc: Int? = null,
 ) {
     init {
         require(softBudget > 0) { "soft budget must be positive: $softBudget" }
@@ -215,7 +222,9 @@ class OnAir(
         if (frame.size < Frame.HEADER_SIZE) return Kind.MESSAGE
         val type = (frame[TYPE_OFFSET].toInt() shr 4) and 0xF
         val encrypted = frame[FLAGS_OFFSET].toInt() and Flags.ENCRYPTED != 0
+        val own = localSrc == null || (frame[SRC_OFFSET].toInt() and 0xFF) == localSrc
         return when {
+            type == MessageType.HEARTBEAT.code && !own -> Kind.MESSAGE
             type == MessageType.HEARTBEAT.code && !encrypted -> Kind.HELLO
             type == MessageType.HEARTBEAT.code -> Kind.PRESENCE
             type == MessageType.ALERT.code -> Kind.ALERT
@@ -235,6 +244,7 @@ class OnAir(
 
         private const val TYPE_OFFSET = 1
         private const val FLAGS_OFFSET = 4
+        private const val SRC_OFFSET = 7
     }
 }
 
