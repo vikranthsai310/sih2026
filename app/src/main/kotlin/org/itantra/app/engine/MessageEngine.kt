@@ -18,7 +18,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.itantra.app.platform.FoundBeacon
-import org.itantra.app.platform.Heading
+import org.itantra.app.platform.LocateSiren
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.PositionSource
 import org.itantra.app.platform.Recogniser
@@ -109,14 +109,18 @@ class MessageEngine(
     private val speaker: Speaker? = null,
     /** The operator's name for this unit, its mode and its text size. Null in a test. */
     private val preferences: UnitPreferences? = null,
-    /** Where this handset is, for beaconing and for the arrow. Null without a receiver. */
+    /** Where this handset is, for beaconing and for calibrating the distance. Null without a receiver. */
     private val positions: PositionSource? = null,
-    /** Which way this handset points, for the arrow. Null without the sensor. */
-    private val heading: Heading? = null,
 ) {
     private val mesh = MeshLink(scope)
 
     private var bluetoothNet: BluetoothNet? = null
+
+    /** The Wi-Fi road is added once per run; see [start]. */
+    private var wifiAdded = false
+
+    /** The mesh has been opened and is being watched; see [start]. */
+    private var netStarted = false
 
     /** Guards the loops that must exist exactly once, however often [start] is called. */
     private var started = false
@@ -193,7 +197,7 @@ class MessageEngine(
     /** Who is on the channel, by name and signal. */
     private val roster = Roster()
 
-    private val locator = Locator(positions, heading)
+    private val locator = Locator(positions, LocateSiren(wifiContext))
 
     /** The locate screen's state: null when nobody is being looked for. */
     val locate: StateFlow<LocateState?> get() = locator.state
@@ -202,12 +206,24 @@ class MessageEngine(
     private var beaconingUntilMillis = 0L
 
     /**
-     * The chirp this unit makes when a searcher close by asks for it, and how long the
-     * last request holds. A searcher whose handset died must not leave a target chirping
-     * in a pocket for the rest of the day.
+     * The chirp this unit makes when a searcher asks for it, and how long the last
+     * request holds. A searcher whose handset died must not leave a target chirping in a
+     * pocket for the rest of the day.
      */
     private val foundBeacon = FoundBeacon(wifiContext)
     private var chirpUntilMillis = 0L
+
+    /**
+     * Who asked for the chirp, and how strongly this unit hears them: the chirp quickens
+     * as the searcher closes in, on the searcher's own advertisements, which this unit
+     * hears whether or not the searcher hears it.
+     */
+    @Volatile
+    private var chirpRequester = -1
+    private val chirpRange = SignalSmoother()
+
+    @Volatile
+    private var chirpSignalAtMillis = 0L
 
     /** What this unit last asked its target about sound, so a change is sent at once. */
     private var askedTheirSound = false
@@ -273,22 +289,55 @@ class MessageEngine(
             // transmit and getting a template.
             ensurePackFor(language)
         }
-        if (bluetoothNet != null) return
+
+        // The Wi-Fi road first, and whatever the Bluetooth radio is doing. One handset's
+        // hotspot, a Wi-Fi Direct group made in the system settings, or any access point
+        // the units share is a local network, and every unit on it receives the same
+        // datagram: no data plan, no internet, no pairing. The first version added this
+        // road only after it had checked Bluetooth, and returned early when Bluetooth was
+        // off -- so a unit with Bluetooth off and a Wi-Fi Direct link up had no road at
+        // all, and "the text did not transfer" was the whole of what the operator saw.
+        // Added once: the recovery tick re-enters here every few seconds, and re-adding
+        // the road would close and reopen its socket each time.
+        if (!wifiAdded) {
+            wifiContext?.let {
+                mesh.addPeer(WIFI_PEER, WifiBroadcastLink(it, scope))
+                wifiAdded = true
+            }
+        }
+
+        // The mesh's own life: opened once, and watched for the rest of the run. Roads
+        // added later are opened by the recovery tick's reconnectDown.
+        if (!netStarted) {
+            netStarted = true
+            loops +=
+                scope.launch {
+                    mesh.connect()
+                    // Announced at once as well as on the tick, so a restarted handset is
+                    // known again within a second rather than within five.
+                    delay(HELLO_AFTER_CONNECT_MILLIS)
+                    if (mesh.state.value == LinkState.CONNECTED) runCatching { mesh.send(session.hello()) }
+                    watchLink()
+                }
+        }
 
         val bluetooth = adapter
-        if (bluetooth == null || !isEnabled(bluetooth)) {
-            // Not a link failure, and nothing retries its way out of a radio that is off.
-            // refresh() says which of the two it is; the tick above notices when the
-            // operator comes back from Settings having fixed it.
+        if (bluetoothNet != null || bluetooth == null || !isEnabled(bluetooth)) {
+            // Bluetooth roads already up, or no radio to put them on. Nothing retries its
+            // way out of a radio that is off; the tick above notices when the operator
+            // comes back from Settings having switched it on, and the Wi-Fi road carries
+            // the traffic meanwhile.
             refresh()
             return
         }
 
-        // The radio channel first, because it needs nothing arranged. Every unit with the
+        // The radio channel, because it needs nothing arranged. Every unit with the
         // application open is on it; there is no bond, no dialog and no roster. This is the
         // shape docs/PROTOCOL.md section 8 always described — every frame to every unit,
         // no destination field — and the shape docs/TRANSPORT.md section 8 says pairing
-        // keeps breaking on demonstration day.
+        // keeps breaking on demonstration day. The two radios fail differently, which is
+        // the reason for running both: a frame arriving by both roads is delivered once,
+        // because the replay window discards the second copy.
         mesh.addPeer(
             BROADCAST_PEER,
             BleBroadcastLink(
@@ -301,29 +350,18 @@ class MessageEngine(
             ),
         )
 
-        // The same channel over Wi-Fi. One handset's hotspot is enough: no data plan, no
-        // internet, no pairing, and every unit joined to it receives the same datagram.
-        // The two radios fail differently, which is the reason for running both. A frame
-        // arriving by both roads is delivered once, because the replay window discards the
-        // second copy.
-        wifiContext?.let { mesh.addPeer(WIFI_PEER, WifiBroadcastLink(it, scope)) }
-
         // Bonded handsets are still used where they exist: RFCOMM is ~200 kbps against a
         // few advertisements a second, so a paired pair gets the better link for free. It
         // is no longer a requirement for the application to work.
         val net = BluetoothNet(bluetooth, scope, mesh, bondedDevices)
         bluetoothNet = net
         net.start()
-
-        loops +=
-            scope.launch {
-                mesh.connect()
-                // Announced at once as well as on the tick, so a restarted handset is
-                // known again within a second rather than within five.
-                delay(HELLO_AFTER_CONNECT_MILLIS)
-                if (mesh.state.value == LinkState.CONNECTED) runCatching { mesh.send(session.hello()) }
-                watchLink()
-            }
+        // Opened now rather than at the next tick: a radio switched on in Settings should
+        // be carrying within a second of the operator coming back.
+        scope.launch {
+            mesh.reconnectDown()
+            if (mesh.state.value == LinkState.CONNECTED) runCatching { mesh.send(session.hello()) }
+        }
         refresh()
     }
 
@@ -380,6 +418,8 @@ class MessageEngine(
         loops.forEach { it.cancel() }
         loops.clear()
         started = false
+        wifiAdded = false
+        netStarted = false
         scope.launch { mesh.disconnect() }
     }
 
@@ -1062,6 +1102,14 @@ class MessageEngine(
     private fun onSignal(signal: Signal) {
         roster.signal(signal)
         locator.onSignal(signal)
+        if (signal.src == chirpRequester && foundBeacon.isRunning) {
+            // The searcher's distance, on the assumed model: uncalibrated, but a rate
+            // needs only to rise as they come, and the same scale as their own siren.
+            val rssi = chirpRange.offer(signal.rssi, signal.atMillis)
+            chirpSignalAtMillis = signal.atMillis
+            val metres = Locator.distanceFor(rssi, Locator.referenceFor(signal.txPower))
+            foundBeacon.proximity = Locator.proximityForMetres(metres)
+        }
     }
 
     private fun onPresence(received: Session.Received.Presence) {
@@ -1087,15 +1135,22 @@ class MessageEngine(
         if (received.locate.start) {
             beaconingUntilMillis = now + BEACON_MILLIS
             positions?.start()
-            scope.launch { sendPresence() }
-            // The searcher is close and wants to follow a sound. Held for a bounded time
-            // and renewed by every request, so the chirp ends when the requests do.
+            // The searcher wants to follow a sound. Held for a bounded time and renewed
+            // by every request, so the chirp ends when the requests do. Every request
+            // from the searcher carries its current wish, so a renewal never silences a
+            // chirp the searcher still wants.
             if (received.locate.sound) {
                 chirpUntilMillis = now + CHIRP_MILLIS
+                if (chirpRequester != received.from) {
+                    chirpRange.clear()
+                    chirpRequester = received.from
+                }
                 foundBeacon.start()
             } else {
                 stopChirping()
             }
+            // Answered at once, and the answer says whether this unit is chirping.
+            scope.launch { sendPresence() }
         } else {
             beaconingUntilMillis = 0L
             stopChirping()
@@ -1105,21 +1160,34 @@ class MessageEngine(
 
     private fun stopChirping() {
         chirpUntilMillis = 0L
+        chirpRequester = -1
+        chirpRange.clear()
         foundBeacon.stop()
     }
 
     /**
-     * Tells the target whether to chirp, when the answer changes and every few seconds
-     * while it is yes. The request is one advertisement, so it is repeated; a target that
-     * hears none of them stops by itself when the last one it heard runs out.
+     * The one request this unit makes of its target: beacon, and sound or not.
+     *
+     * Sent when the sound wish changes, every [CHIRP_RENEW_TICKS] while it is yes -- the
+     * chirp holds [CHIRP_MILLIS] per request, so a target that misses three in a row still
+     * does not fall silent -- and every [LOCATE_RENEW_TICKS] regardless, so a target that
+     * missed the first request, or whose beacon timer ran out, is still beaconing for as
+     * long as somebody is looking. One request rather than two kinds: the first version
+     * renewed the beacon with a request that said nothing about sound, and the target
+     * read that as "stop chirping" once a minute.
      */
-    private suspend fun syncTheirSound(
+    private suspend fun askTarget(
         tick: Long,
         force: Boolean = false,
     ) {
         val target = locator.target ?: return
         val want = locator.wantsTheirSound
-        if (!force && want == askedTheirSound && !(want && tick % CHIRP_RENEW_TICKS == 0L)) return
+        val due =
+            force ||
+                want != askedTheirSound ||
+                (want && tick % CHIRP_RENEW_TICKS == 0L) ||
+                tick % LOCATE_RENEW_TICKS == 0L
+        if (!due) return
         askedTheirSound = want
         session.sendLocate(Locate(target, true, sound = want), System.currentTimeMillis())
     }
@@ -1134,6 +1202,7 @@ class MessageEngine(
                 position = position,
                 beaconing = beaconing,
                 openLine = mode == UnitPreferences.MODE_PHONE,
+                chirping = foundBeacon.isRunning,
                 batteryPercent = batteryPercent(),
             ),
         )
@@ -1151,6 +1220,10 @@ class MessageEngine(
         // The clock on the locate screen runs whether or not there is a link: "signal
         // lost" is the one thing it must be able to say when the link is gone.
         if (locator.isActive) locator.tick()
+        // A chirp whose searcher has not been heard for a while goes back to its slowest:
+        // the rate says how near they are, and nobody knows.
+        if (foundBeacon.isRunning && now - chirpSignalAtMillis > Locator.LOST_AFTER_MILLIS) foundBeacon.proximity = 0f
+        if (chirpUntilMillis != 0L && now > chirpUntilMillis) stopChirping()
         if (mesh.state.value != LinkState.CONNECTED) return
         val beaconing = now < beaconingUntilMillis
         if (!beaconing && beaconingUntilMillis != 0L) {
@@ -1158,17 +1231,9 @@ class MessageEngine(
             stopChirping()
             if (!locator.isActive) positions?.stop()
         }
-        if (chirpUntilMillis != 0L && now > chirpUntilMillis) stopChirping()
-        if (locator.isActive) syncTheirSound(tick)
+        if (locator.isActive) askTarget(tick)
         // Every second while somebody is walking towards this unit, every ten otherwise.
         if (beaconing || locator.isActive || tick % PRESENCE_EVERY_TICKS == 0L) sendPresence()
-        if (locator.isActive && tick % LOCATE_RENEW_TICKS == 0L) {
-            // Kept asking, so a target that missed the first request, or whose beacon
-            // timer ran out, is still beaconing for as long as somebody is looking.
-            locator.target?.let {
-                session.sendLocate(Locate(it, true), System.currentTimeMillis())
-            }
-        }
     }
 
     // ── locating a unit ──────────────────────────────────────────────────────
@@ -1181,9 +1246,10 @@ class MessageEngine(
         positions?.start()
         scope.launch {
             // Three times over two seconds: the request is one advertisement, and the
-            // first one is the easiest to miss.
+            // first one is the easiest to miss. Each carries the sound wish, which is a
+            // preference kept from the last search.
             repeat(3) {
-                session.sendLocate(Locate(src, true), System.currentTimeMillis())
+                askTarget(tick = 0L, force = true)
                 delay(LOCATE_REPEAT_MILLIS)
             }
         }
@@ -1200,7 +1266,7 @@ class MessageEngine(
     /** Which handset sounds during the search. A change reaches the target at once. */
     fun setLocateSound(from: SoundFrom) {
         locator.setSound(from)
-        scope.launch { syncTheirSound(tick = 0L, force = true) }
+        scope.launch { askTarget(tick = 0L, force = true) }
     }
 
     // ── the open line ────────────────────────────────────────────────────────
@@ -1330,11 +1396,16 @@ class MessageEngine(
      * to go and pair something would now be advice for a problem they do not have.
      */
     private fun netTrouble(): EngineState.Degraded.Reason? {
+        // A net that is up is up, whichever radio carries it: a unit on a hotspot or a
+        // Wi-Fi Direct group with Bluetooth off is on the channel, and a banner telling
+        // its operator to switch Bluetooth on would be advice for a problem they do not
+        // have. Only when nothing carries is the radio that is off worth naming.
+        if (mesh.state.value == LinkState.CONNECTED) return null
         val bluetooth = adapter
         if (bluetooth == null || !isEnabled(bluetooth)) {
             return EngineState.Degraded.Reason.BLUETOOTH_OFF
         }
-        return if (mesh.state.value == LinkState.CONNECTED) null else EngineState.Degraded.Reason.LINK_DOWN
+        return EngineState.Degraded.Reason.LINK_DOWN
     }
 
     /**
@@ -1369,7 +1440,7 @@ class MessageEngine(
             ChannelStatus(
                 id = WIFI_PEER,
                 name = "Wi-Fi broadcast",
-                detail = "One handset's hotspot is enough. No data plan, no router",
+                detail = "A hotspot, a Wi-Fi Direct group, or any shared Wi-Fi. No data plan, no router",
                 state = states[WIFI_PEER],
                 enabled = WIFI_PEER in on,
             ),
@@ -1432,7 +1503,7 @@ class MessageEngine(
 
         const val LOCATE_RENEW_TICKS = 60L
 
-        /** A chirp request holds this long; the searcher renews it every few seconds. */
+        /** A chirp request holds this long; the searcher renews it every [CHIRP_RENEW_TICKS] seconds. */
         const val CHIRP_MILLIS = 20_000L
         const val CHIRP_RENEW_TICKS = 5L
         const val LOCATE_REPEAT_MILLIS = 700L

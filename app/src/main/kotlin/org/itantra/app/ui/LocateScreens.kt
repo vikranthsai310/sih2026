@@ -2,7 +2,6 @@ package org.itantra.app.ui
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,10 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -48,7 +44,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import org.itantra.app.engine.Locator
 
 // The locate feature: who is on the channel, and the walk to one of them. Plus the one
 // setting it depends on, the unit's own name.
@@ -177,11 +172,13 @@ private fun ago(millis: Long): String =
 /**
  * The walk to one unit.
  *
- * Two instruments, because a phone can only measure two things about another radio: how
- * strongly it hears it, and -- with both positions -- which way it lies. The arrow turns
- * with the handset in real time; the bar beneath it fills as the signal strengthens; the
- * siren, heard rather than seen, does the same. When either instrument has nothing to say
- * the screen says why, in words, rather than pointing somewhere it does not know.
+ * One instrument, because a phone can measure one thing about another radio: how
+ * strongly it hears it. The bar fills as the signal strengthens; the figure under it is
+ * the distance that signal implies, with its honest width; and the sound, heard rather
+ * than seen, does the same. Which way is left to the ear -- the target's chirp -- because
+ * an arrow from two GPS fixes wandered by more than the distance between the units for
+ * the whole of the part of the search where it would have mattered, and was taken off.
+ * When the instrument has nothing to say the screen says why, in words.
  */
 @Composable
 fun LocateScreen(
@@ -207,6 +204,8 @@ fun LocateScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            Spacer(Modifier.height(18.dp))
+
             // The trend is on the same line as the label, in the family the siren means:
             // mint closing, blush further. The ear has it from the beep rate; the eye has
             // it here, and a colleague looking over a shoulder has it too.
@@ -230,63 +229,27 @@ fun LocateScreen(
                     },
             )
 
-            // What the arrow means right now, said above it so the meaning cannot be
-            // missed: the target, or north while the target's position is unknown.
-            Text(
-                when (state.arrowMode) {
-                    ArrowMode.NONE -> "NO COMPASS"
-                    ArrowMode.TARGET -> "TO ${state.name.uppercase()}"
-                    ArrowMode.SWEEP -> "SIGNAL STRONGEST THIS WAY"
-                    ArrowMode.WALK -> "SIGNAL RISING THIS WAY"
-                    ArrowMode.LAST_KNOWN -> "NEAR · LAST KNOWN DIRECTION"
-                    ArrowMode.NORTH ->
-                        if (state.sweptDeg > 0) {
-                            "NORTH · TURNED ${state.sweptDeg}° OF 360°"
-                        } else {
-                            "NORTH · TURN A CIRCLE TO FIND THE SIGNAL"
-                        }
-                },
-                fontSize = Tokens.Instrument,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Medium,
-                color =
-                    when (state.arrowMode) {
-                        ArrowMode.TARGET, ArrowMode.SWEEP, ArrowMode.WALK -> p.periwinkle.deep
-                        else -> p.muted
-                    },
-            )
-
-            Arrow(state, p)
-
-            // The two headings in figures, so an operator with a map or a second compass
-            // can check the arrow rather than trust it.
-            Text(
-                buildString {
-                    append("heading ")
-                    append(state.headingDeg?.let { "${it.toInt()}°" } ?: "—")
-                    append(" · target ")
-                    append(state.bearingDeg?.let { "${it.toInt()}°" } ?: "—")
-                    state.compassErrorDeg?.let { if (it >= 1f) append(" · ±${it.toInt()}°") }
-                    state.headingCorrectionDeg?.let { append(" · walk ${if (it >= 0) "+" else ""}${it.toInt()}°") }
-                    if (state.compassDisturbed) append(" · gyro")
-                },
-                fontSize = Tokens.Instrument,
-                fontFamily = FontFamily.Monospace,
-                color = p.muted,
-            )
-
             SignalBar(state, p)
 
+            // The distance, large. GPS while the two fixes are further apart than their
+            // error, because out there it is the better figure; the signal's own estimate
+            // once they are not, which is where the signal is the better one.
             val cm = state.estimatedCentimetres
             val distance =
                 when {
-                    state.arrowAtTarget && state.gpsMetres != null -> "${state.gpsMetres} m"
+                    state.gpsApart && state.gpsMetres != null -> "${state.gpsMetres} m"
                     cm == null -> "—"
                     cm < 300 -> "about $cm cm"
                     cm < 1_000 -> "about ${cm / 100}.${cm / 10 % 10} m"
                     else -> "about ${cm / 100} m"
                 }
-            Text(distance, fontSize = Tokens.Display, fontWeight = FontWeight.Bold, color = p.ink)
+            Text(
+                distance,
+                fontSize = Tokens.Display,
+                fontWeight = FontWeight.Bold,
+                color = p.ink,
+                modifier = Modifier.semantics { contentDescription = "Distance $distance" },
+            )
             Text(
                 buildString {
                     state.rssi?.let { append("signal $it dBm") } ?: append("no signal yet")
@@ -304,7 +267,7 @@ fun LocateScreen(
                 color = p.muted,
             )
 
-            state.arrowNote?.let {
+            state.note?.let {
                 Text(
                     it,
                     fontSize = Tokens.BodySmall,
@@ -340,107 +303,10 @@ fun LocateScreen(
 }
 
 /**
- * The arrow, and nothing round it.
- *
- * It fills the width of the screen because it is the instrument, and it is drawn straight
- * from the engine's reading: the compass fires some fifty times a second and the engine
- * subtracts it from the bearing on each one, so the arrow turns with the hand that turns
- * the phone. An animation here would chase a value that has already moved on, and would
- * spin the long way round at north. It always turns: at the target when there is a usable
- * position, at north when there is not, drawn in the quiet ink so the two are told apart
- * at a glance as well as by the caption above.
+ * How strongly the target is heard, as a bar that fills as the operator closes in. Tall,
+ * because with the arrow gone it is the one thing on the screen an eye can read from
+ * arm's length in sunlight.
  */
-@Composable
-private fun Arrow(
-    state: LocateState,
-    p: ItantraPalette,
-) {
-    val bearing = state.arrowDeg
-    val arrowColour =
-        when {
-            bearing == null -> p.hairline
-            state.compassNeedsCalibration || state.compassDisturbed -> p.butter.deep
-            state.arrowMode == ArrowMode.TARGET -> p.periwinkle.deep
-            state.arrowMode == ArrowMode.SWEEP -> p.periwinkle.deep
-            state.arrowMode == ArrowMode.WALK -> p.periwinkle.deep
-            state.arrowMode == ArrowMode.LAST_KNOWN -> p.periwinkle.mid
-            else -> p.hairlineStrong
-        }
-    val spread = state.arrowSpreadDeg?.coerceIn(2f, 90f)
-    Box(
-        Modifier
-            .size(250.dp)
-            .semantics {
-                contentDescription =
-                    when {
-                        bearing == null -> "No compass yet"
-                        state.arrowMode == ArrowMode.TARGET -> "Arrow to ${state.name} pointing ${clockFace(bearing)}"
-                        state.arrowMode == ArrowMode.SWEEP ->
-                            "Signal strongest towards ${clockFace(bearing)}"
-                        state.arrowMode == ArrowMode.WALK ->
-                            "Signal has risen towards ${clockFace(bearing)} as you walked"
-                        state.arrowMode == ArrowMode.LAST_KNOWN ->
-                            "Arrow to where ${state.name} last was, ${clockFace(bearing)}"
-                        else -> "Arrow pointing north, ${clockFace(bearing)}"
-                    }
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val half = size.minDimension / 2
-            // A ring with north on it, turning with the compass, so an operator with the
-            // sun or a map can check the compass itself before trusting what it points
-            // the arrow at. Drawn in the quiet ink; the arrow is the instrument.
-            state.headingDeg?.let { heading ->
-                drawCircle(color = p.hairline, radius = half * 0.99f, center = center, style = Stroke(width = 2f))
-                rotate(-heading, pivot = center) {
-                    val tickTop = center.y - half * 0.99f
-                    drawLine(
-                        color = p.hairlineStrong,
-                        start = androidx.compose.ui.geometry.Offset(center.x, tickTop),
-                        end = androidx.compose.ui.geometry.Offset(center.x, tickTop + half * 0.12f),
-                        strokeWidth = 6f,
-                    )
-                }
-            }
-            rotate(bearing ?: 0f, pivot = center) {
-                // The arrow's own doubt, as a faint fan behind it: the combined GPS error
-                // over the distance. Wide when the units are close, a sliver when far.
-                if (spread != null) {
-                    drawArc(
-                        color = p.periwinkle.tint,
-                        startAngle = -90f - spread,
-                        sweepAngle = spread * 2,
-                        useCenter = true,
-                        topLeft = androidx.compose.ui.geometry.Offset(center.x - half, center.y - half),
-                        size = androidx.compose.ui.geometry.Size(half * 2, half * 2),
-                    )
-                }
-                // A single pointer: a broad head on a stout shaft, the whole height of
-                // the box, so at arm's length in sunlight it is one shape with one end.
-                val tip = center.y - half * 0.98f
-                val headBase = center.y - half * 0.30f
-                val headHalfWidth = half * 0.62f
-                val shaftHalfWidth = half * 0.20f
-                val tail = center.y + half * 0.92f
-                val path =
-                    Path().apply {
-                        moveTo(center.x, tip)
-                        lineTo(center.x + headHalfWidth, headBase)
-                        lineTo(center.x + shaftHalfWidth, headBase)
-                        lineTo(center.x + shaftHalfWidth, tail)
-                        lineTo(center.x - shaftHalfWidth, tail)
-                        lineTo(center.x - shaftHalfWidth, headBase)
-                        lineTo(center.x - headHalfWidth, headBase)
-                        close()
-                    }
-                drawPath(path, arrowColour)
-            }
-        }
-    }
-}
-
-/** How strongly the target is heard, as a bar that fills as the operator closes in. */
 @Composable
 private fun SignalBar(
     state: LocateState,
@@ -451,7 +317,7 @@ private fun SignalBar(
     Box(
         Modifier
             .fillMaxWidth()
-            .height(10.dp)
+            .height(22.dp)
             .background(p.sunken, RoundedCornerShape(Tokens.RadiusPill))
             .semantics { contentDescription = "Signal ${Math.round(state.proximity * 100)} percent" },
         contentAlignment = Alignment.CenterStart,
@@ -459,7 +325,7 @@ private fun SignalBar(
         Box(
             Modifier
                 .fillMaxWidth(fill.coerceIn(0.02f, 1f))
-                .height(10.dp)
+                .height(22.dp)
                 .background(colour, RoundedCornerShape(Tokens.RadiusPill)),
         )
     }
@@ -473,17 +339,13 @@ private fun span(cm: IntRange): String =
         "${cm.first / 100}.${cm.first / 10 % 10}–${cm.last / 100}.${cm.last / 10 % 10} m"
     }
 
-private fun clockFace(relativeDeg: Float): String {
-    val hour = ((relativeDeg / 30f).toInt() + 12) % 12
-    return "${if (hour == 0) 12 else hour} o'clock"
-}
-
 /**
  * The sound selector: this phone, their phone, or nothing.
  *
- * Under it, one line saying what the choice is doing right now -- because "their phone"
- * chirps only once the searcher is near enough to hear it, and a control that seems to
- * do nothing for the first fifty metres needs to say it is waiting rather than broken.
+ * Under it, one line saying what the choice is doing right now. "Their phone" is a
+ * request over the radio, and the line says *chirping* only when the target has said so
+ * in its own presence frame -- a control that reports its own wish as a fact would say
+ * "chirping" over a target that never heard it.
  */
 @Composable
 private fun SoundFromRow(
@@ -515,11 +377,9 @@ private fun SoundFromRow(
                 SoundFrom.THIS_PHONE -> "This handset beeps faster as the signal rises."
                 SoundFrom.THEIR_PHONE ->
                     when {
-                        state.theirSoundAsked -> "${state.name} is chirping. Follow the sound."
-                        state.lost -> "${state.name} will chirp once its signal is heard and near."
-                        else ->
-                            "${state.name} will chirp inside about ${Locator.CHIRP_WITHIN_METRES} m. " +
-                                "Keep walking in."
+                        state.theirChirping -> "${state.name} is chirping, faster as you close in. Follow the sound."
+                        state.beaconing -> "Asking ${state.name} to chirp…"
+                        else -> "Asking ${state.name} to chirp. No answer yet: it may be out of range."
                     }
                 SoundFrom.OFF -> "No sound. The screen alone."
             }
@@ -527,7 +387,7 @@ private fun SoundFromRow(
             line,
             fontSize = Tokens.Label,
             lineHeight = Tokens.Label * Tokens.INDIC_LINE_HEIGHT,
-            color = if (state.theirSoundAsked) p.mint.deep else p.muted,
+            color = if (state.theirChirping) p.mint.deep else p.muted,
             modifier = Modifier.semantics { contentDescription = line },
         )
     }

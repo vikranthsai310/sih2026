@@ -70,6 +70,16 @@ class PresenceTest {
         assertEquals(Locate(5, true, sound = false), Locate.decode(Locate(5, true).encode()))
     }
 
+    @Test
+    fun `chirping travels as a flag and is off by default`() {
+        val sounding = Presence(name = "A", chirping = true)
+        assertEquals(sounding, Presence.decode(sounding.encode()))
+        assertEquals(false, Presence.decode(Presence(name = "A").encode())?.chirping)
+        // Alongside the other flags, not instead of them.
+        val all = Presence(name = "A", beaconing = true, openLine = true, chirping = true)
+        assertEquals(all, Presence.decode(all.encode()))
+    }
+
     /** The two versions share a channel: three bytes is silence, and a stop never sounds. */
     @Test
     fun `a three-byte request from an older unit reads as silence`() {

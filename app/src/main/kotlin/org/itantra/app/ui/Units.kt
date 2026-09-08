@@ -36,26 +36,16 @@ data class UnitInfo(
 /**
  * What the locate screen shows while walking towards one unit.
  *
- * @param proximity 0 (far, or unknown) to 1 (within arm's reach), from signal strength
+ * @param proximity 0 (far, or unknown) to 1 (within arm's reach), from the calibrated
+ *   distance on a logarithmic scale: what both sounds follow
  * @param estimatedMetres from signal strength; a rough figure, and said so on screen
  * @param estimatedCentimetres the same figure at the resolution the last few metres want
  * @param spreadCentimetres the nearest and farthest the last few readings put it, when
  *   there are enough of them to say: the honest width of the estimate
  * @param gpsMetres from both positions, when both are known
- * @param arrowDeg the angle the arrow is drawn at, clockwise from the top of the screen,
- *   or null when there is no compass. It turns with the handset whatever it points at.
- * @param arrowMode what the arrow means: the target, the last direction it had, or north
- * @param arrowSpreadDeg half the width of the arrow's own uncertainty, from the combined
- *   GPS error over the distance, when it points at the target
+ * @param gpsApart whether the two positions are further apart than their combined error,
+ *   so that [gpsMetres] is a distance and not noise; the screen shows it large then
  * @param ownAccuracyMetres this handset's own fix error, averaged
- * @param headingCorrectionDeg what the walk has taught about the compass, when in force
- * @param sweptDeg how much of a full circle the signal has been sampled over, for the
- *   sweep; the screen shows it as progress while the operator turns
- * @param relativeBearingDeg where the target lies relative to the way this handset is
- *   pointing, clockwise, or null when either position or the compass is missing
- * @param bearingDeg the target's true bearing from here, or null without both positions
- * @param compassErrorDeg the platform's own estimate of the compass error, when it has one
- * @param compassNeedsCalibration the magnetometer has said it is unreliable
  * @param lost no signal for a while
  */
 data class LocateState(
@@ -67,32 +57,20 @@ data class LocateState(
     val estimatedCentimetres: Int? = null,
     val spreadCentimetres: IntRange? = null,
     val gpsMetres: Int?,
-    val arrowDeg: Float? = null,
-    val arrowMode: ArrowMode = ArrowMode.NONE,
-    val arrowSpreadDeg: Float? = null,
+    val gpsApart: Boolean = false,
     val targetAccuracyMetres: Int?,
     val ownAccuracyMetres: Int? = null,
-    val headingCorrectionDeg: Float? = null,
-    val sweptDeg: Int = 0,
-    val relativeBearingDeg: Float?,
-    val headingDeg: Float?,
-    val bearingDeg: Float? = null,
-    val compassErrorDeg: Float? = null,
-    val compassNeedsCalibration: Boolean = false,
-    /** Iron nearby: the heading is being carried by the gyroscope from the last clean place. */
-    val compassDisturbed: Boolean = false,
     val lost: Boolean,
     /** Whether the target has answered the request and is beaconing. */
     val beaconing: Boolean,
-    /** What is missing for the arrow: permission, our fix, their fix, the compass. */
-    val arrowNote: String?,
+    /** What is missing or what to do: the target's answer, a position, the GPS overlap. */
+    val note: String?,
     /** Which handset makes the sound the searcher follows. */
     val sound: SoundFrom = SoundFrom.THIS_PHONE,
-    /**
-     * Whether the target has been asked to chirp right now: [sound] is [SoundFrom.THEIR_PHONE]
-     * and the searcher is close enough for a chirp to be worth hearing.
-     */
+    /** Whether the target is being asked to chirp: [sound] is [SoundFrom.THEIR_PHONE]. */
     val theirSoundAsked: Boolean = false,
+    /** Whether the target says, in its own presence, that it is chirping right now. */
+    val theirChirping: Boolean = false,
     /** Whether the signal has risen or fallen over the last few seconds. Null when lost. */
     val trend: Trend? = null,
     /**
@@ -100,9 +78,7 @@ data class LocateState(
      * positions could vouch for the distance, rather than on the assumed one.
      */
     val distanceCalibrated: Boolean = false,
-) {
-    val arrowAtTarget: Boolean get() = arrowMode == ArrowMode.TARGET
-}
+)
 
 /** The signal over the last few seconds, as a word: what the siren says to the ear. */
 enum class Trend { CLOSING, STEADY, FURTHER }
@@ -111,38 +87,18 @@ enum class Trend { CLOSING, STEADY, FURTHER }
  * Which handset sounds during a search.
  *
  * The searcher's own siren says *how close*, by rate. The target's chirp says *which
- * way*, because two ears place a sound to a few degrees where no radio on a handset can.
- * Both are offered and the operator picks: their own phone when the target must stay
- * quiet, the target's when the last metres matter more than the target's silence.
+ * way*, because two ears place a sound to a few degrees where no radio on a handset can,
+ * and it quickens too as the searcher closes in. Both are offered and the operator
+ * picks: their own phone when the target must stay quiet, the target's when the last
+ * metres matter more than the target's silence.
  */
 enum class SoundFrom {
     /** The siren on this handset, faster as the signal rises. */
     THIS_PHONE,
 
-    /** The target chirps, once the searcher is near enough to hear it. */
+    /** The target chirps, from the moment it hears the request. */
     THEIR_PHONE,
 
     /** Silence. The screen alone. */
     OFF,
-}
-
-/** What the arrow on the locate screen is pointing at. */
-enum class ArrowMode {
-    /** No compass reading yet: nothing can be drawn. */
-    NONE,
-
-    /** The target, from the two positions. */
-    TARGET,
-
-    /** The direction the signal was strongest in, from a turn on the spot. */
-    SWEEP,
-
-    /** The direction the signal has risen in as the operator walked. Coarse. */
-    WALK,
-
-    /** The direction the target was in when the fixes were last far enough apart to say. */
-    LAST_KNOWN,
-
-    /** North: no direction has ever been known on this walk. */
-    NORTH,
 }

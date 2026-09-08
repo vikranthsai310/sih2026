@@ -124,4 +124,17 @@ class WifiBroadcastLinkTest {
             assertEquals("octet $i", expected[i].toInt(), actual[i].toInt())
         }
     }
+
+    /**
+     * The road's state is decided by the subnet targets alone: the limited broadcast can
+     * always be "sent", to nowhere, so it must never count as a network. Every send target
+     * is a subnet target or the limited broadcast, and the limited one is last.
+     */
+    @Test
+    fun `the subnet targets are the send targets less the limited broadcast`() {
+        val all = WifiBroadcastLink.broadcastTargets()
+        val subnets = WifiBroadcastLink.subnetBroadcastTargets()
+        assertEquals(subnets, all.dropLast(1))
+        assertTrue(subnets.none { it.address.all { b -> b == (-1).toByte() } })
+    }
 }

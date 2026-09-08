@@ -41,6 +41,12 @@ data class Presence(
     val beaconing: Boolean = false,
     /** Whether this unit is on an open line rather than push-to-talk. */
     val openLine: Boolean = false,
+    /**
+     * Whether this unit is sounding for a searcher right now. The searcher's screen says
+     * "chirping" on this and not on its own request, because a request is one
+     * advertisement and may not have arrived.
+     */
+    val chirping: Boolean = false,
     /** 0..100, or [BATTERY_UNKNOWN]. */
     val batteryPercent: Int = BATTERY_UNKNOWN,
 ) {
@@ -61,6 +67,7 @@ data class Presence(
         if (position != null) flags = flags or HAS_POSITION
         if (beaconing) flags = flags or BEACONING
         if (openLine) flags = flags or OPEN_LINE
+        if (chirping) flags = flags or CHIRPING
         out += flags.toByte()
         out += nameBytes.size.toByte()
         for (b in nameBytes) out += b
@@ -84,6 +91,7 @@ data class Presence(
         private const val HAS_POSITION = 0x01
         private const val BEACONING = 0x02
         private const val OPEN_LINE = 0x04
+        private const val CHIRPING = 0x08
         private const val HEADER = 3
         private const val POSITION_BYTES = 4 + 4 + 2 + 1
         private const val MICRO = 1_000_000.0
@@ -117,6 +125,7 @@ data class Presence(
                 position = position,
                 beaconing = flags and BEACONING != 0,
                 openLine = flags and OPEN_LINE != 0,
+                chirping = flags and CHIRPING != 0,
                 batteryPercent = battery,
             )
         }
@@ -170,12 +179,13 @@ data class Presence(
  *
  * ## The fourth byte
  *
- * `flags` bit 0 is **sound**: the searcher is close, and asks the target to make itself
- * heard. Inside the last fifteen metres no radio on a handset can say which way, and two
- * ears can, to a few degrees; the target chirping is what turns the last steps of a
- * search from a guess into a walk towards a noise. The byte is optional on the wire -- a
- * unit reading the three-byte form ignores it, and a unit sending the three-byte form is
- * read as asking for silence -- so the two versions share a channel.
+ * `flags` bit 0 is **sound**: the searcher asks the target to make itself heard. No radio
+ * on a handset can say which way another lies, and two ears can, to a few degrees; the
+ * target chirping is what turns a search from a guess into a walk towards a noise. The
+ * target says it is sounding in its own presence frame ([Presence.chirping]). The byte
+ * is optional on the wire -- a unit reading the three-byte form ignores it, and a unit
+ * sending the three-byte form is read as asking for silence -- so the two versions share
+ * a channel.
  */
 data class Locate(
     val target: Int,

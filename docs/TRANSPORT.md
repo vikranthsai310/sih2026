@@ -208,6 +208,26 @@ Implementation notes worth stating, because each was a bug first:
 - **A unit's own broadcast comes back to it.** Recently sent frames are remembered by hash
   and dropped on arrival, so a handset does not read its own transmission as traffic.
 
+### Wi-Fi Direct, and what "up" means
+
+A Wi-Fi Direct group made in the system settings is a local network like any other: the
+group owner's `p2p` interface is 192.168.49.1 and the client is given an address on the
+same subnet, so the enumerated broadcast above reaches it and nothing here has to know
+that P2P was involved. The road reports itself **up only while some interface has a
+subnet broadcast address** -- a hotspot's, a group's, an access point's -- and looks again
+every three seconds, because a group formed after the application started, or a client
+still waiting for its address, appears with no callback.
+
+> **Amended 2026-09-08 — "with Bluetooth off, nothing transfers over Wi-Fi Direct".** Two
+> defects. The engine added the Wi-Fi road only *after* it had checked the Bluetooth radio,
+> and returned early when the radio was off, so a unit with Bluetooth off had no road at
+> all. And the Wi-Fi road reported itself connected from the moment its socket was bound,
+> whether or not the handset was on any network, since the limited broadcast can always be
+> sent to nowhere; so the engine could not have told the difference anyway. The road is
+> now added first and whatever the radio is doing, Bluetooth roads are added when the
+> radio is on, then or later, and the road's state is the honest one above. The banner
+> names Bluetooth as the problem only when nothing carries.
+
 ### The permission this costs
 
 `android.permission.INTERNET`. Android requires it to open any socket, including one that
@@ -294,7 +314,7 @@ them.
 
 | Phase | Behaviour |
 | --- | --- |
-| Discovery | RFCOMM: bonded devices first, then a bounded 12 s scan. BLE: advertise and scan on the service UUID, no bonding. Wi-Fi: none — frames are broadcast to the subnet on port `38173` and any unit on the network receives them |
+| Discovery | RFCOMM: bonded devices first, then a bounded 12 s scan. BLE: advertise and scan on the service UUID, no bonding. Wi-Fi: none — frames are broadcast to the subnet on port `38173` and any unit on the network receives them; a hotspot, a Wi-Fi Direct group or an access point all count, and the road is up only while one exists |
 | Connection | RFCOMM: the unit with the lexicographically greater **Bluetooth name** dials, the other listens (`PeerPreference`). Two units with the same name, or no name, both dial and **both sockets are kept** — a duplicate frame costs nothing, a pair that closes each other's socket never connects. Broadcast roads have no connection at all |
 | Hello | Every 5 s and once on start: 16 bytes announcing this unit's epoch, so a peer that restarted or was reinstalled is verified in one check (PROTOCOL.md §9). On the BLE road the latest hello is pinned to the advertisement, so it is on the air continuously. The 2 s authenticated heartbeat in the original design was never sent, for the reason given there |
 | Backoff | Exponential with jitter, 1.5 s → 15 s, reset on connection |

@@ -542,37 +542,35 @@ from a dead one.
 >   figure means.
 > - **Locate**: type `POSITION`, sealed, relayed. Payload: version, command (start or
 >   stop), target node id, and since 2026-09-08 an optional fourth byte of flags whose bit
->   0 is **sound** -- the searcher is near and asks the target to chirp so it can be found
->   by ear. A three-byte request reads as silence, so the two forms share a channel. The
->   target answers by beaconing its presence with position every second for ten minutes,
+>   0 is **sound** -- the searcher asks the target to chirp so it can be found by ear. A
+>   three-byte request reads as silence, so the two forms share a channel. The target
+>   answers by beaconing its presence with position every second for ten minutes,
 >   renewed while the locator keeps asking, and chirps for twenty seconds per request
->   with sound set, renewed every five while the searcher stays near. No consent dialog:
->   the request is authenticated under the net's key.
+>   with sound set, renewed every five while the searcher keeps asking. Every request the
+>   searcher sends carries its current sound wish, so a beacon renewal never reads as
+>   "stop chirping". The target's presence carries a **chirping** flag (bit 3 of the
+>   presence flags, since 2026-09-08) while it sounds, and the searcher's screen says
+>   "chirping" on that flag and not on its own request. No consent dialog: the request is
+>   authenticated under the net's key.
 >
 > Position is sent **only** while beaconing or locating, and only inside these sealed
 > frames. `core-proto/Presence.kt`, `SessionPresenceTest`.
 >
-> **The arrow, on the receiving side.** The locator draws the target's true bearing (from
-> the two positions) against the handset's own heading. The heading is the platform's
-> rotation vector — magnetometer, accelerometer and gyroscope fused — read as the direction
-> the phone is *pointing*: its top edge when flat, the back of the phone when held up,
-> blended by how far it is raised, so the arrow is right at every angle a phone is held at
-> and does not swing as it is lifted. Only the bearing, which jumps with each position fix,
-> is smoothed; the compass is followed on every reading, fifty a second. The magnetometer's
-> own accuracy flag is surfaced as a calibration note, and the two headings are printed in
-> degrees under the arrow so it can be checked against a map. `app/platform/Heading.kt`,
-> `HeadingTest`. The arrow turns with the compass on every reading whether or not it has a
-> target: at the unit when both fixes are fresh and further apart than their combined
-> error, at north otherwise, with the caption saying which. Within that error the siren,
-> from signal strength, takes over, and the figure is given in centimetres under three
-> metres with the spread of the recent readings beside it. Indoors, with no fix on either
-> side, there is one more direction source: the operator's own body, which takes ten to
-> twenty decibels out of a Bluetooth signal it stands in the way of. Every reading is
-> tagged with the compass heading it arrived at, and once a turn on the spot has covered
-> most of the circle the power-weighted circular mean of those headings is the arrow
-> ("SIGNAL STRONGEST THIS WAY"), with its width from how sharply the signal peaked. The
-> screen shows the degrees covered while the operator turns. `Locator.sweepOf`,
-> `LocatorSweepTest`.
+> **The receiving side, amended 2026-09-08 -- no arrow.** The 2026-09-07 note here
+> described an arrow: the target's bearing from the two positions against the handset's
+> compass, a sweep of the operator's own body shadow indoors, and a walk gradient. All
+> three were taken off the screen and out of the code (`Heading`, `HeadingFusion`,
+> `WalkGradient`, `Locator.sweepOf` are gone). A handset's fix wanders by more than the
+> distance between the units for the whole of the part of a search where an arrow would
+> matter, and an arrow pointing at noise is worse than none. The positions still travel,
+> for two things: the GPS distance, shown large while the two fixes are further apart
+> than their combined error, and the calibration of the signal-to-distance model on the
+> way in (`PathLossFit`). Inside that error the signal takes over, and the figure is
+> given in centimetres under three metres with the spread of the recent readings beside
+> it. Which way is left to the ear: the searcher's own siren, or the target's chirp,
+> which quickens as the target hears the searcher's advertisements strengthen. Both
+> follow the calibrated distance on a logarithmic scale (`Locator.proximityForMetres`).
+> `Locator.kt`, `LocatorTest`, `SignalSmootherTest`, `SoundCadenceTest`.
 
 ---
 

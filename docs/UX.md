@@ -182,7 +182,7 @@ returns and the protocol version increments.
 | Provisioning | QR display or scan | 2 taps |
 | Metrics | Latency histogram, resource graph, CSV export | 2 taps |
 | Locate list | Every unit heard this run, nearest first, with signal bars | 1 tap |
-| Locate | The walk to one unit: an arrow, a signal bar, a distance figure and a siren | 2 taps |
+| Locate | The walk to one unit: a signal bar, a distance figure, and a sound from either handset | 2 taps |
 
 Each of these is drawn in [WIREFRAMES.md](WIREFRAMES.md), which also covers the build order
 — the interface is never further ahead than the engine feeding it.
@@ -192,54 +192,59 @@ step 5 of the demonstration can be rehearsed without a second operator, and so t
 can verify alert delivery works on their specific handset — vendor audio policy varies
 enough that this is a real concern, not a convenience.
 
-### The locate screen, and what the arrow is allowed to claim
+### The locate screen, and why there is no arrow on it
 
-A phone can measure two things about another radio: how strongly it hears it, and, with
-a position on each side, which way it lies. The screen keeps the two apart. **How close**
-is signal strength -- the bar, the distance figure with its spread, and the siren, which
-beeps faster as the operator closes in. **Which way** is the arrow, and the caption above
-it always says what the arrow means, because the same shape points at four different
-things:
-
-| Caption | What the arrow is | When |
-| --- | --- | --- |
-| `TO <unit>` | The bearing between the two GPS positions, against the compass | Both positions known and further apart than their combined error |
-| `SIGNAL STRONGEST THIS WAY` | The direction the signal peaked in as the operator turned a circle | Indoors, or nearer than GPS can tell apart, after most of a circle |
-| `SIGNAL RISING THIS WAY` | The direction the signal has risen in as the operator walked -- warmer and colder, as a vector sum over the last half minute | Inside the GPS error, while walking, once the signal has actually changed and the stretches agree |
-| `NEAR · LAST KNOWN DIRECTION` | The bearing from when the positions were last far enough apart | Inside the GPS error, for ninety seconds |
-| `NORTH · …` | North, so the compass can be seen to be alive | Nothing else is known yet |
-
-When more than one of these is available at once they are combined weighted by the
-inverse square of their spreads, the way instruments of known error are, and the caption
-names the best of them.
+A phone can measure one thing about another radio: how strongly it hears it. **How
+close** is signal strength -- the bar, the distance figure with its spread, and a sound
+that quickens as the operator closes in. **Which way** is not on the screen. An arrow
+from the two GPS positions against the compass was built and taken off: a handset's fix
+wanders by several metres from second to second, so for the whole of the part of a
+search where an arrow would matter the two fixes are inside their own error and the
+arrow was pointing at noise. Which way is left to the ear, which is the one instrument a
+handset can offer for it.
 
 **How close** is calibrated on the way in. While the positions are far enough apart to
 vouch for the distance, every signal reading is a calibration point, and a line fitted
-through them gives this pair of handsets' own one-metre strength and loss rate. By the
-time GPS can no longer tell the two apart, the metres on the screen are measured against
-that phone rather than assumed for every phone; the figures line says `calibrated` when
-that is so. The signal's rise or fall over the last three seconds is shown beside the
-`SIGNAL` label as `CLOSING` or `FURTHER` -- what the siren says to the ear, said to the eye.
+through them gives this pair of handsets' own one-metre strength and loss rate. Out
+there the GPS distance is the figure shown large, because it is the better one; once
+the two fixes are inside their combined error the signal's own estimate takes over, and
+the metres on it are measured against that phone rather than assumed for every phone --
+the figures line says `calibrated` when that is so. The signal's rise or fall over the
+last three seconds is shown beside the `SIGNAL` label as `CLOSING` or `FURTHER` -- what
+the sound says to the ear, said to the eye.
 
 **Which handset sounds** is the operator's choice, on the screen: *this phone*, *their
-phone*, or *off*. This phone is the siren above, and says how close. Their phone is the
-answer to the last fifteen metres, where no radio a handset has can say which way and two
-ears can, to a few degrees: once the searcher is inside about twenty-five metres the
-target is asked to chirp -- a rising pair on the alarm stream at full volume, through a
-locked screen and a silenced ringer -- and the searcher walks towards the noise. The line
-under the selector says what the choice is doing right now, because a control that seems
-to do nothing for the first fifty metres has to say it is waiting rather than broken.
-The chirp holds for twenty seconds per request and is renewed while the searcher stays
-near, so a searcher whose handset dies does not leave a target chirping in a pocket.
+phone*, or *off*. Both sounds follow the same scale, the distance on a logarithm
+([`Locator.proximityForMetres`](../app/src/main/kotlin/org/itantra/app/engine/Locator.kt)):
+halving the distance is the same step anywhere between thirty metres and half a metre,
+and the rate follows it geometrically, so the beeps come faster by the same factor for
+every step closer, all the way in. A linear rate spends most of its range on the last
+two metres and leaves the first twenty sounding the same.
 
-The compass behind it is the gyroscope, anchored to the magnetometer only while the
-magnetic field here has the strength and dip the geomagnetic model expects (`Heading`,
-`HeadingFusion`). A turn of the hand is followed at once and a steel door frame is not.
-When the field stops looking like the Earth's the arrow turns amber, the figures line says
-`gyro`, and the note asks the operator to move a few metres. A thin ring with a north tick
-turns with the compass so an operator with the sun or a map can check it. The faint fan
-behind the arrow is its stated doubt: the positions' error over the distance and the
-compass's own error together, wide when the units are close and a sliver when far.
+*This phone* is a Geiger counter: one note, faster and higher as the signal rises, slow
+and low when the signal is lost. *Their phone* asks the target to chirp -- a rising
+pair on the alarm stream at full volume, through a locked screen and a silenced ringer --
+and the searcher walks towards the noise, which two ears place to a few degrees in the
+dark or around a corner. The target hears the searcher's own advertisements and quickens
+its chirp as they close in, so the chirp alone says warmer and colder. The request is
+not gated on distance: an earlier version asked only once the searcher's own estimate
+was inside twenty-five metres, which made the chirp depend on the searcher hearing the
+target before the target was allowed to be heard, and Bluetooth reception is not
+symmetric. The line under the selector says what the choice is doing, and it says
+*chirping* only when the target has said so in its own presence frame -- a request is
+one advertisement and may not have arrived, and a control that reports its wish as a
+fact would say "chirping" over a target that never heard it. Until then it says it is
+asking. The chirp holds for twenty seconds per request and is renewed every five while
+the searcher keeps asking, so a searcher whose handset dies does not leave a target
+chirping in a pocket.
+
+Both sounds are one loop
+([`ToneLoop`](../app/src/main/kotlin/org/itantra/app/platform/ToneLoop.kt)) that writes
+the tone and then the silence as samples, so the audio clock paces it and the gap is
+exactly as long as asked; the silence goes out in twenty-millisecond slices and the gap
+is asked again before each, so three quick steps are heard inside the pause rather than
+after it. The alarm volume is raised to the top while either sound runs and put back
+after, the way an alert does it.
 
 ## 7. States the interface must show
 

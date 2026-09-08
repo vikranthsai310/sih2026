@@ -73,7 +73,7 @@ enum class Destination(val title: String) {
     /** Who is on the channel, to pick one to walk to. Reached from the operating screen. */
     LOCATE("LOCATE"),
 
-    /** The walk itself: the arrow, the distance, the siren. */
+    /** The walk itself: the distance, and the sound that leads to it. */
     LOCATE_UNIT("LOCATE"),
 
     /**

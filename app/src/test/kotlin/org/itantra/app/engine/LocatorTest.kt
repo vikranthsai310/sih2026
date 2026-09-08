@@ -46,14 +46,24 @@ class LocatorTest {
     }
 }
 
-/** The pieces of the bearing that can be tested without a phone. */
-class LocatorBearingTest {
+/** What both sounds follow: the distance on a logarithmic scale. */
+class LocatorScaleTest {
     @Test
-    fun `an arc is the short way round`() {
-        assertEquals(-20f, Locator.arc(340f), 0.01f)
-        assertEquals(20f, Locator.arc(-340f), 0.01f)
-        assertEquals(170f, Locator.arc(170f), 0.01f)
-        assertEquals(-170f, Locator.arc(190f), 0.01f)
+    fun `arm's reach is one, the far edge is zero, and beyond either is clamped`() {
+        assertEquals(1f, Locator.proximityForMetres(Locator.NEAR_METRES), 0.0001f)
+        assertEquals(1f, Locator.proximityForMetres(0.0), 0.0001f)
+        assertEquals(0f, Locator.proximityForMetres(Locator.FAR_METRES), 0.0001f)
+        assertEquals(0f, Locator.proximityForMetres(500.0), 0.0001f)
+    }
+
+    @Test
+    fun `halving the distance is the same step anywhere in the range`() {
+        val step = Locator.proximityForMetres(8.0) - Locator.proximityForMetres(16.0)
+        assertEquals(step, Locator.proximityForMetres(2.0) - Locator.proximityForMetres(4.0), 0.0001f)
+        assertTrue("$step", step > 0f)
+        // The middle of the scale is the geometric mean of the ends: under four metres.
+        val middle = kotlin.math.sqrt(Locator.NEAR_METRES * Locator.FAR_METRES)
+        assertEquals(0.5f, Locator.proximityForMetres(middle), 0.0001f)
     }
 
     @Test
@@ -61,102 +71,5 @@ class LocatorBearingTest {
         assertEquals(5.0, Locator.combinedError(3f, 4f), 0.001)
         assertEquals(14.14, Locator.combinedError(10f, 10f), 0.01)
         assertEquals(1.0, Locator.combinedError(0f, 0f), 0.0)
-    }
-
-    @Test
-    fun `the fan is the positions' error over the distance, and the compass's, together`() {
-        // Ten metres of error at a hundred metres is under six degrees; with a five-degree
-        // compass that is under eight.
-        assertEquals(7.6f, Locator.bearingSpread(10.0, 100.0, 5f), 0.2f)
-        // The same error at ten metres is forty-five degrees, and the compass hardly matters.
-        assertEquals(45.3f, Locator.bearingSpread(10.0, 10.0, 5f), 0.2f)
-        // Far off, only the compass is left.
-        assertEquals(5f, Locator.bearingSpread(1.0, 10_000.0, 5f), 0.05f)
-    }
-}
-
-/** The sweep: direction of strongest signal from a turn on the spot. */
-class LocatorSweepTest {
-    /** Readings every 15° round the circle, strongest at [peakDeg], [depthDb] weaker opposite. */
-    private fun circle(
-        peakDeg: Float,
-        depthDb: Double,
-    ): Pair<List<Float>, List<Int>> {
-        val headings = ArrayList<Float>()
-        val rssis = ArrayList<Int>()
-        for (h in 0 until 360 step 15) {
-            val rad = Math.toRadians((h - peakDeg).toDouble())
-            headings += h.toFloat()
-            rssis += (-60.0 - depthDb * (1 - kotlin.math.cos(rad)) / 2).toInt()
-        }
-        return headings to rssis
-    }
-
-    @Test
-    fun `a body-shadowed circle points at the peak`() {
-        for (peak in listOf(0f, 45f, 200f, 350f)) {
-            val (h, r) = circle(peak, 18.0)
-            val sweep = Locator.sweepOf(h, r) ?: error("no sweep at $peak")
-            var delta = sweep.bearingDeg - peak
-            if (delta > 180f) delta -= 360f
-            if (delta < -180f) delta += 360f
-            assertTrue("peak $peak read as ${sweep.bearingDeg}", kotlin.math.abs(delta) < 8f)
-            assertTrue("spread ${sweep.spreadDeg}", sweep.spreadDeg < 60f)
-        }
-    }
-
-    @Test
-    fun `an uneven turn does not drag the peak towards where the operator lingered`() {
-        // Peak at 90°, but forty readings taken while standing at 270° and one each
-        // elsewhere: a mean of the readings would sit near 270; the fit must not.
-        val (h0, r0) = circle(90f, 16.0)
-        val h = ArrayList(h0)
-        val r = ArrayList(r0)
-        repeat(40) {
-            h += 270f
-            r += r0[h0.indexOf(270f)]
-        }
-        val sweep = Locator.sweepOf(h, r) ?: error("no sweep")
-        var delta = sweep.bearingDeg - 90f
-        if (delta > 180f) delta -= 360f
-        assertTrue("read as ${sweep.bearingDeg}", kotlin.math.abs(delta) < 8f)
-    }
-
-    @Test
-    fun `a flat circle gives no direction`() {
-        val (h, r) = circle(90f, 0.0)
-        assertEquals(null, Locator.sweepOf(h, r))
-    }
-
-    @Test
-    fun `half a circle is not enough`() {
-        val h = (0 until 180 step 15).map { it.toFloat() }
-        val r = h.map { -60 - (it / 15).toInt() }
-        assertEquals(null, Locator.sweepOf(h, r))
-        assertEquals(180, Locator.coverageOf(h))
-        assertEquals(0, Locator.coverageOf(emptyList()))
-    }
-}
-
-/** Several bearings of known spread, as one. */
-class LocatorFuseTest {
-    @Test
-    fun `the sharper source leads`() {
-        val fused = Locator.fuse(listOf(Locator.Companion.Sweep(10f, 5f), Locator.Companion.Sweep(70f, 60f)))
-        // Weights 1/25 and 1/3600: the second moves the first by well under a degree.
-        assertTrue("${fused.bearingDeg}", fused.bearingDeg in 10f..11f)
-        assertTrue("${fused.spreadDeg}", fused.spreadDeg < 5f)
-    }
-
-    @Test
-    fun `equal sources meet in the middle, across north`() {
-        val fused = Locator.fuse(listOf(Locator.Companion.Sweep(350f, 20f), Locator.Companion.Sweep(10f, 20f)))
-        assertEquals(0f, fused.bearingDeg, 0.01f)
-    }
-
-    @Test
-    fun `combining narrows the spread`() {
-        val fused = Locator.fuse(listOf(Locator.Companion.Sweep(0f, 20f), Locator.Companion.Sweep(0f, 20f)))
-        assertEquals(20f / kotlin.math.sqrt(2f), fused.spreadDeg, 0.01f)
     }
 }

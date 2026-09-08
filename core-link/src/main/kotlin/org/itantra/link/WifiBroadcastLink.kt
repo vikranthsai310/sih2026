@@ -122,16 +122,52 @@ class WifiBroadcastLink(
             return
         }
         socket = bound
-        _state.value = LinkState.CONNECTED
-        Log.i(TAG, "channel open on port $port, targets ${broadcastAddresses()}")
         reader = scope.launch(Dispatchers.IO) { receiveLoop(bound) }
+        keeper?.cancel()
+        keeper = scope.launch(Dispatchers.IO) { watchNetwork() }
+        judgeNetwork()
+    }
+
+    /**
+     * Says whether there is a network to broadcast on, and keeps saying it.
+     *
+     * The socket binds whether or not the handset is on any Wi-Fi, so a bound socket is
+     * not a road: the first version reported "connected" from the moment of the bind, and
+     * a unit with Bluetooth off and no Wi-Fi at all showed a net that was up and carried
+     * nothing. The road is up when some interface has a subnet broadcast address -- a
+     * hotspot's, a Wi-Fi Direct group's `p2p` interface, an access point's -- and down
+     * otherwise. Checked every few seconds, because a group formed in the system settings
+     * after the application started, or a client still waiting for its address, appears
+     * with no callback to this class.
+     */
+    private suspend fun watchNetwork() {
+        while (currentCoroutineContext().isActive) {
+            delay(NETWORK_CHECK_MILLIS)
+            if (socket == null) return
+            judgeNetwork()
+        }
+    }
+
+    private fun judgeNetwork() {
+        val subnets = subnetBroadcastTargets()
+        val up = subnets.isNotEmpty()
+        val was = _state.value
+        _state.value = if (up) LinkState.CONNECTED else LinkState.DEGRADED
+        if (_state.value != was || subnets != lastTargets) {
+            val word = if (up) "channel open on port $port, targets $subnets" else "no network to broadcast on; waiting"
+            Log.i(TAG, word)
+        }
+        lastTargets = subnets
     }
 
     override suspend fun disconnect() {
+        keeper?.cancel()
+        keeper = null
         reader?.cancel()
         reader = null
         runCatching { socket?.close() }
         socket = null
+        lastTargets = emptyList()
         runCatching { lock?.release() }
         lock = null
         _state.value = LinkState.IDLE
@@ -142,13 +178,17 @@ class WifiBroadcastLink(
         if (frame.size > mtu) return
         remember(frame)
 
+        // Every subnet broadcast, and the limited broadcast besides. Only the subnets
+        // count as delivery: the limited broadcast can always be sent, to nowhere.
         var delivered = 0
-        for (target in broadcastAddresses()) {
+        val subnets = subnetBroadcastTargets()
+        for (target in subnets) {
             runCatching {
                 open.send(DatagramPacket(frame, frame.size, target, port))
                 delivered++
             }
         }
+        runCatching { open.send(DatagramPacket(frame, frame.size, limitedBroadcast(), port)) }
         if (delivered == 0) {
             // No Wi-Fi, or no interface with a broadcast address. Recoverable: a hotspot
             // may be switched on at any moment, and the mesh has other roads meanwhile.
@@ -194,13 +234,11 @@ class WifiBroadcastLink(
         }
     }
 
-    /**
-     * Every broadcast address this handset can reach, plus the limited broadcast.
-     *
-     * Delegates to [broadcastTargets], which holds no instance state precisely so that
-     * `WifiBroadcastLinkTest` can assert constraint **C2** over it without a `Context`.
-     */
-    private fun broadcastAddresses(): List<InetAddress> = broadcastTargets()
+    /** Watches for a network appearing or going. See [watchNetwork]. */
+    private var keeper: Job? = null
+
+    /** What the last check found, so the log says something only when it changes. */
+    private var lastTargets: List<InetAddress> = emptyList()
 
     private fun remember(frame: ByteArray) {
         val now = System.currentTimeMillis()
@@ -233,6 +271,18 @@ class WifiBroadcastLink(
          * included. That is also why this note spells the method name nowhere.
          */
         internal fun broadcastTargets(): List<InetAddress> {
+            val out = ArrayList(subnetBroadcastTargets())
+            runCatching { out += limitedBroadcast() }
+            return out
+        }
+
+        /**
+         * The subnet broadcast address of every interface that is up: a hotspot's own
+         * network, a Wi-Fi Direct group's `p2p` interface, an access point's. Empty
+         * means there is no network to broadcast on, which is what makes the road's
+         * state honest.
+         */
+        internal fun subnetBroadcastTargets(): List<InetAddress> {
             val out = ArrayList<InetAddress>()
             runCatching {
                 for (nic in NetworkInterface.getNetworkInterfaces()) {
@@ -242,9 +292,10 @@ class WifiBroadcastLink(
                     }
                 }
             }
-            runCatching { out += InetAddress.getByAddress(LIMITED_BROADCAST) }
             return out
         }
+
+        private fun limitedBroadcast(): InetAddress = InetAddress.getByAddress(LIMITED_BROADCAST)
 
         /** 255.255.255.255, as bytes, so no resolver is ever consulted. */
         private val LIMITED_BROADCAST =
@@ -254,6 +305,9 @@ class WifiBroadcastLink(
         const val FRAME_PORT = 38_173
 
         private const val RETRY_MILLIS = 500L
+
+        /** How often the interfaces are looked at for a network coming or going. */
+        private const val NETWORK_CHECK_MILLIS = 3_000L
 
         /** A broadcast returns to its sender within milliseconds; this is generous. */
         private const val ECHO_WINDOW_MILLIS = 5_000L

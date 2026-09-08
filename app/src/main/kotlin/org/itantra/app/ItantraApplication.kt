@@ -13,7 +13,6 @@ import android.provider.Settings
 import kotlinx.coroutines.CoroutineScope
 import org.itantra.app.engine.MessageEngine
 import org.itantra.app.platform.DataStoreEpochStore
-import org.itantra.app.platform.Heading
 import org.itantra.app.platform.ModelStore
 import org.itantra.app.platform.NodeIdentity
 import org.itantra.app.platform.PositionSource
@@ -55,9 +54,8 @@ class ItantraApplication : Application() {
 
     val identity: NodeIdentity by lazy { NodeIdentity.of(installationId(), preferences.unitName) }
 
-    /** Position and compass, for finding a unit. Both idle until somebody is looking. */
+    /** Position, for finding a unit and calibrating its distance. Idle until somebody is looking. */
     val positions: PositionSource by lazy { PositionSource(this) }
-    val heading: Heading by lazy { Heading(this) }
 
     /**
      * Builds the engine, on [scope], with everything it needs.
@@ -81,7 +79,6 @@ class ItantraApplication : Application() {
             speaker = Speaker(ModelStore(this), this),
             preferences = preferences,
             positions = positions,
-            heading = heading,
         )
     }
 
