@@ -692,30 +692,39 @@ class MainActivity : ComponentActivity() {
         service = null
     }
 
-    private fun requiredPermissions(): Array<String> =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            arrayOf(
-                Manifest.permission.RECORD_AUDIO,
-                Manifest.permission.BLUETOOTH_CONNECT,
-                Manifest.permission.BLUETOOTH_SCAN,
-                // Declared in the manifest since week 6 and never asked for, so every
-                // advertisement was refused with a SecurityException the radio swallowed.
-                // It is a runtime permission from Android 12 like the other two, and on a
-                // broadcast channel it is the one that actually transmits.
-                Manifest.permission.BLUETOOTH_ADVERTISE,
-                // For finding a unit: this handset's position goes to a colleague who asks,
-                // sealed, on the channel, and theirs comes back the same way. Asked for up
-                // front so that being found never needs a dialog answered mid-incident.
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION,
-            )
-        } else {
-            arrayOf(
-                Manifest.permission.RECORD_AUDIO,
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION,
-            )
+    private fun requiredPermissions(): Array<String> {
+        val wanted =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                arrayListOf(
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    // Declared in the manifest since week 6 and never asked for, so every
+                    // advertisement was refused with a SecurityException the radio swallowed.
+                    // It is a runtime permission from Android 12 like the other two, and on a
+                    // broadcast channel it is the one that actually transmits.
+                    Manifest.permission.BLUETOOTH_ADVERTISE,
+                    // For finding a unit: this handset's position goes to a colleague who asks,
+                    // sealed, on the channel, and theirs comes back the same way. Asked for up
+                    // front so that being found never needs a dialog answered mid-incident.
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                )
+            } else {
+                arrayListOf(
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                )
+            }
+        // Finding and joining the other handsets over Wi-Fi Direct, so the group forms
+        // without anybody opening Settings. Android 13 split this out of location; on
+        // older versions the location permission above is what the platform checks.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            wanted += Manifest.permission.NEARBY_WIFI_DEVICES
         }
+        return wanted.toTypedArray()
+    }
 
     /**
      * Shown between launch and the permission answer, and for good if it was refused.

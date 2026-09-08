@@ -172,12 +172,14 @@ everything this unit has said recently, laid out by `OnAir` and packed by `AirBl
 ## 4. Wi-Fi — hotspot or any shared network
 
 Two mechanisms produce the same result: a local network between the devices, with no
-router, no SIM and no internet. The **hosted-network** path is the one that ships — the
-ordinary hotspot toggle, mobile data off, joined by the other handsets in Wi-Fi settings.
-`WifiP2pManager` discovery is inconsistent across Samsung, Xiaomi and Realme builds and has
-consumed a substantial fraction of many teams' schedules; the hosted network needs no P2P
-API at all, so it is treated as optional (risk T-09). Any existing access point — a relief
-camp's, an office's — works identically and needs nothing arranged.
+router, no SIM and no internet. **Wi-Fi Direct, formed by the application**, is the one
+that needs nothing arranged: with Wi-Fi switched on, the handsets find each other, one
+becomes the group owner and the rest join it — see "Wi-Fi Direct, formed by the
+application" below. The **hosted-network** path is the fallback and the one to reach for
+on a handset whose vendor build discovers nobody (risk T-09): the ordinary hotspot toggle,
+mobile data off, joined by the other handsets in Wi-Fi settings. Any existing access
+point — a relief camp's, an office's — works identically. The road itself is the same
+UDP broadcast on all three, and does not know which one it is on.
 
 ### What is actually sent, and why it is not TCP
 
@@ -210,13 +212,57 @@ Implementation notes worth stating, because each was a bug first:
 
 ### Wi-Fi Direct, and what "up" means
 
-A Wi-Fi Direct group made in the system settings is a local network like any other: the
-group owner's `p2p` interface is 192.168.49.1 and the client is given an address on the
-same subnet, so the enumerated broadcast above reaches it and nothing here has to know
-that P2P was involved. The road reports itself **up only while some interface has a
-subnet broadcast address** -- a hotspot's, a group's, an access point's -- and looks again
-every three seconds, because a group formed after the application started, or a client
-still waiting for its address, appears with no callback.
+A Wi-Fi Direct group is a local network like any other: the group owner's `p2p` interface
+is 192.168.49.1 and the client is given an address on the same subnet, so the enumerated
+broadcast above reaches it and nothing here has to know that P2P was involved. The road
+reports itself **up only while some interface has a subnet broadcast address** -- a
+hotspot's, a group's, an access point's -- and looks again every three seconds, because a
+group formed after the application started, or a client still waiting for its address,
+appears with no callback.
+
+### Wi-Fi Direct, formed by the application
+
+Added 2026-09-08. Until then the group had to be made by hand in Settings on every pair of
+handsets, every time. `WifiDirectGroup` (core-link) now does it, and `WifiDirectElection`
+decides what it does. The rules, in order:
+
+1. **Join any owner you can see.** Discovery runs while searching, re-issued every fifteen
+   seconds because the platform stops it after two minutes and some vendor builds sooner.
+   A peer whose group-capability bit says it owns a group is joined at once; two such peers
+   and the lower address is chosen, so every unit seeing the same two picks the same one.
+2. **If none appears for a while, become one.** The while is random, five to twenty
+   seconds, so two units switched on together do not both become owners at the same
+   instant. The one whose wait ends first calls `createGroup()`; the other sees it as an
+   owner on its next peer report and joins.
+3. **An owner with no clients that sees another owner steps down** after a random five to
+   fifteen seconds and goes back to rule 1. Two units whose waits ended close together --
+   two owners, both empty -- resolve this way. An owner *with* clients never steps down.
+
+There is no leader because there cannot be one: Android reports a handset's own P2P
+address as `02:00:00:00:00:00`, so "lowest address wins" is not available, and there is
+no channel to agree on before the group exists. The rules are plain Kotlin with a clock
+passed in; `WifiDirectElectionTest` walks two and three units through them on the JVM.
+
+What the platform still asks of a person, stated so nobody is surprised on stage:
+
+- **One tap on the owner, once per pair.** The first time a unit joins a particular owner,
+  the owner's screen shows Android's own "Invitation to connect" dialog and somebody taps
+  Accept within about thirty seconds. There is no application-level way round it. The
+  group is persistent, so the join is silent from then on, across restarts and reboots.
+- **Wi-Fi on.** No network is needed, but the radio must be on, and an application cannot
+  switch it on from Android 10. The road's line on the settings screen says so.
+- **Location mode on, Android 12 and below.** The platform gates P2P discovery on it there.
+  From Android 13 the `NEARBY_WIFI_DEVICES` permission replaces that, declared
+  `neverForLocation`; nothing here reads a position.
+
+Known limit: two groups that both have clients are not merged. That is two crews who
+formed groups out of each other's range and then met; the BLE road carries traffic between
+them, and switching the Wi-Fi road off and on in the settings resets both. The road switch
+also stops the group: a road switched off should not keep a radio busy.
+
+The `itantra-wifidirect` log tag narrates every decision -- "discovering", "joining X",
+"creating a group", "owning DIRECT-xx, 1 client(s)", "stepping down for another owner" --
+and `docs/TESTING.md` M13 is the bench procedure.
 
 > **Amended 2026-09-08 — "with Bluetooth off, nothing transfers over Wi-Fi Direct".** Two
 > defects. The engine added the Wi-Fi road only *after* it had checked the Bluetooth radio,

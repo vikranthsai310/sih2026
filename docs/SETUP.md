@@ -161,7 +161,8 @@ hard way. Use `org.itantra`; the `applicationId` is `org.itantra`.
 | RFCOMM connects then throughput collapses | Bluetooth discovery still running | `adapter.cancelDiscovery()` before `connect()` |
 | Frames arrive corrupted under load | Missing `readFully` loop | [PROTOCOL.md §13](PROTOCOL.md#13-stream-framing) |
 | First transmission is silent or truncated | Models not yet resident | Transmit must stay disabled until state is `READY` (T-11) |
-| Wi-Fi Direct never discovers a peer | `WifiP2pManager` vendor inconsistency | Use the hosted-network path (T-09) |
+| Wi-Fi Direct never discovers a peer | `WifiP2pManager` vendor inconsistency; or Wi-Fi off; or, on Android 12 and below, location mode off | `adb logcat -s itantra-wifidirect` says which. The road's line on the settings screen names the missing switch. If discovery genuinely finds nobody, use the hotspot path (T-09) |
+| Wi-Fi Direct joins, then the owner shows "Invitation to connect" | First join between this pair of handsets | Tap Accept within thirty seconds. Once per pair; the group is persistent |
 | RTF doubles after ten minutes | Thermal throttling | Expected. Report sustained figures; reduce thread count under thermal pressure (T-03) |
 | Alert is silent on one specific handset | Vendor audio policy | Run the alert test in settings on that device; check all six steps of [UX.md §3](UX.md#3-alert-delivery) |
 | AEAD verification fails after a restart | `EPOCH` not persisted or not incremented | This is correctness-critical; see [SECURITY.md §4](SECURITY.md#4-cryptographic-detail) |

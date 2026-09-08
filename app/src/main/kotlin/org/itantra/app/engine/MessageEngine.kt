@@ -44,6 +44,7 @@ import org.itantra.link.Road
 import org.itantra.link.Session
 import org.itantra.link.Signal
 import org.itantra.link.WifiBroadcastLink
+import org.itantra.link.WifiDirectGroup
 import org.itantra.proto.Aead
 import org.itantra.proto.EpochCounter
 import org.itantra.proto.Language
@@ -118,6 +119,12 @@ class MessageEngine(
 
     /** The Wi-Fi road is added once per run; see [start]. */
     private var wifiAdded = false
+
+    /**
+     * Forms the Wi-Fi Direct group the Wi-Fi road runs on, so nobody opens Settings. Kept
+     * for the run and started or stopped with the road switch; see [keepWifiDirectWanted].
+     */
+    private var wifiDirect: WifiDirectGroup? = null
 
     /** The mesh has been opened and is being watched; see [start]. */
     private var netStarted = false
@@ -305,6 +312,10 @@ class MessageEngine(
                 wifiAdded = true
             }
         }
+        // And the group for it to run on. The road above carries frames over any local
+        // network; this makes one out of nothing but the handsets, by discovering a unit
+        // that owns a group and joining it, or owning one if none is found.
+        keepWifiDirectWanted()
 
         // The mesh's own life: opened once, and watched for the rest of the run. Roads
         // added later are opened by the recovery tick's reconnectDown.
@@ -418,6 +429,8 @@ class MessageEngine(
         loops.forEach { it.cancel() }
         loops.clear()
         started = false
+        wifiDirect?.stop()
+        wifiDirect = null
         wifiAdded = false
         netStarted = false
         scope.launch { mesh.disconnect() }
@@ -1073,11 +1086,23 @@ class MessageEngine(
         val clean = Road.sanitise(selected)
         preferences?.setRoads(clean)
         mesh.roads = clean
+        keepWifiDirectWanted()
         refresh()
     }
 
     /** The roads routine traffic takes now. */
     val roads: Set<String> get() = mesh.roads ?: Road.ALL
+
+    /**
+     * Runs the Wi-Fi Direct group while the Wi-Fi road is on, and takes it down when the
+     * operator switches the road off: a road switched off should not keep a radio busy.
+     * Both calls are idempotent, so this is safe on every [start].
+     */
+    private fun keepWifiDirectWanted() {
+        val context = wifiContext ?: return
+        val group = wifiDirect ?: WifiDirectGroup(context, scope).also { wifiDirect = it }
+        if (WIFI_PEER in roads) group.start() else group.stop()
+    }
 
     /** How many relay hops a message from this unit may travel. Clamped by the session. */
     fun setTtl(hops: Int) {
@@ -1440,7 +1465,7 @@ class MessageEngine(
             ChannelStatus(
                 id = WIFI_PEER,
                 name = "Wi-Fi broadcast",
-                detail = "A hotspot, a Wi-Fi Direct group, or any shared Wi-Fi. No data plan, no router",
+                detail = wifiDetail(),
                 state = states[WIFI_PEER],
                 enabled = WIFI_PEER in on,
             ),
@@ -1462,6 +1487,22 @@ class MessageEngine(
                     },
             ),
         )
+    }
+
+    /**
+     * The Wi-Fi road's line: what the Wi-Fi Direct group is doing, because that is the part
+     * that acts on its own and the part an operator will want to see the reason for when
+     * it does not.
+     */
+    private fun wifiDetail(): String {
+        val group = wifiDirect?.state?.value
+        val direct =
+            when (group) {
+                null -> "Wi-Fi Direct not running"
+                is WifiDirectGroup.Status.Off -> "Wi-Fi Direct: " + group.reason
+                else -> "Wi-Fi Direct, automatic: " + group.summary
+            }
+        return "$direct. A hotspot or any shared Wi-Fi carries it too"
     }
 
     /**

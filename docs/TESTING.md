@@ -98,6 +98,7 @@ recorded with date, build and device.
 | M10 | Kill the app on one device, restart | Reconnects automatically; `EPOCH` incremented; no replay rejection of new frames |
 | M11 | Noisy environment (crowd recording at ~10 dB SNR) | Critical terms survive; template fallback engages where confidence drops |
 | M12 | Four devices, relay, one out of direct range | Message arrives once, not repeatedly; no broadcast storm |
+| M13 | Wi-Fi Direct, automatic: Bluetooth off, mobile data off, Wi-Fi on, nothing arranged in Settings; launch on two handsets, then a third | Within about twenty seconds `adb logcat -s itantra-wifidirect` shows one handset "creating a group" and the others "joining"; the owner shows Android's invitation dialog once per new handset; the Wi-Fi road's line reads "owning a group, N units joined" or "joined X's group"; a message crosses with Bluetooth off. Kill and relaunch a client: it rejoins with no dialog. Switch the Wi-Fi road off in settings: the group is taken down |
 
 M10 and M12 are the ones most likely to be skipped and most likely to fail. Do not skip
 them.
@@ -137,7 +138,7 @@ python tools/fetch_models.py --all --verify-only
 | `fetch_models.py --verify-only` | Task W1.25 — a model artefact absent or hashing to something other than the manifest says |
 | `build_manifest_hashes.py --verify` | A `manifest.json` hash that no longer matches the file it names, or a placeholder — `Manifest.requireSha256` refuses an all-zero hash, so a stale manifest fails at parse rather than at install |
 | `check_install_index.py` | A half-built `install-index.json` — `build_install_index.py` is stage 1 of two, and running it alone drops every `bundled` flag and every `?download=true` |
-| Manifest inspection | Constraint C2 — no location permission, `neverForLocation` on `BLUETOOTH_SCAN`, and thirteen `android.permission.*` entries. `aapt2` prints a fourteenth line, `org.itantra.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, which AndroidX adds and which is signature-level. `INTERNET` is expected to be present; see below |
+| Manifest inspection | Constraint C2 — `neverForLocation` on `BLUETOOTH_SCAN` and on `NEARBY_WIFI_DEVICES`, the two location permissions present only for finding a unit and for Wi-Fi Direct discovery on Android 12 and below, and twenty-one `android.permission.*` entries. `aapt2` prints a twenty-second line, `org.itantra.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, which AndroidX adds and which is signature-level. `INTERNET` is expected to be present; see below |
 | Offline inspection | Constraint C2 — `grep` finds no HTTP client and no `getByName` in `src/main`; `WifiBroadcastLinkTest` asserts broadcast-only addressing |
 
 The licence check and the two inspections are worth running deliberately before any
