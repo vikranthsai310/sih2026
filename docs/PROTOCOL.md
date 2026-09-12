@@ -598,6 +598,27 @@ from a dead one.
 
 ---
 
+> **Amended 2026-09-12 — timing.** The clock-sync exchange that §6 of EVALUATION.md has
+> always described was a library with no caller: nothing on the wire carried a timestamp,
+> so no receiver stage ever reached `latency.csv` and `end_to_end_ms` was empty on every
+> row. Three more **sealed `HEARTBEAT`** payloads now exist, told apart from a presence by
+> their first byte (`Presence.VERSION` is 1, `Timing.VERSION` is 2):
+>
+> | Payload | Bytes | Carries |
+> | --- | --- | --- |
+> | `PING` | 10 | the sender's `nanoTime` `t1` |
+> | `PONG` | 26 | `t1` echoed, `t2` when the ping arrived, `t3` as the pong left |
+> | `AUDIO_REPORT` | 21 | sender node, `SEQ` of the message, `tRx` and `tAudio` on the receiver's clock |
+>
+> A ping is broadcast every 5 s until every present unit has answered four times, then
+> every 30 s; each answering unit's offset is the median of its last eight round trips
+> (`ClockSync`). When a receiver's first audio leaves the speaker it reports `tRx` and
+> `tAudio`; the sender converts both with that unit's offset and completes the row. The
+> first receiver to report wins. Like every `HEARTBEAT`, none of the three is relayed, so
+> the end-to-end figure is measured over a direct link — which is the two-phone
+> evaluation the problem statement describes. `core-proto/Timing.kt`, `TimingTest`,
+> `SessionTimingTest`; `MessageEngine.onTiming` and `onAudioReport` in `app`.
+
 ## 10. Position payload
 
 | Offset | Size | Field |

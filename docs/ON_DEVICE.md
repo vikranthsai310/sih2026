@@ -120,7 +120,7 @@ than there are handsets in the room and still receive everything.
 | `Nearby devices permission refused` | Android will not ask twice. Settings → Apps → iTantra → Permissions |
 | Two handsets show the **same** node number | A 1-in-254 id collision. Both drop each other's frames as their own transmission, so the net reads `LINK OK` and stays silent. Nothing detects this yet — clear app data on one handset to re-derive its id |
 | Nothing is spoken aloud | Expected. No voice models — see §1 |
-| Band F latency shows `—` | Expected. Nothing measures a stage yet |
+| `end_to_end_ms` empty in `latency.csv` | The receiver had not reported back, or its clock was not synchronised yet. Sync takes four pings at 5 s, so wait ~20 s after both units show each other before measuring; a message nobody in range spoke has no receiver stage |
 | A message appears twice | Should not happen; the replay window and relay seen-set both prevent it. If it does, capture the frame and add it to the fuzz corpus (C.7) |
 
 ## 6. What is unsafe about this build

@@ -127,5 +127,5 @@ disclosed with their consequences in [LICENSES.md](LICENSES.md).
 
 <div align="center">
 <br>
-<sub>Team <b>Taraketu</b> · Smart India Hackathon 2026 · Problem Statement 26173</sub>
+<sub>Team <b>Taraket</b> · Smart India Hackathon 2026 · Problem Statement 26173</sub>
 </div>

@@ -517,6 +517,11 @@ parallel with week 1.**
   · *Median, not mean — a test holds a single 200 ms radio stall to ≤ 1 ms of error*
   · *Refuses to return an offset before four round trips complete. Silently returning
     zero would make every latency figure wrong in a way nobody would notice*
+  · *On the live path from 2026-09-12: until then `ClockSync` had no caller and no frame
+    carried a timestamp. `Timing` ping/pong/audio-receipt payloads in sealed `HEARTBEAT`
+    frames (PROTOCOL.md §9), sent from `MessageEngine.everySecond`; the receiver reports
+    `tRx`/`tAudio` on first sound and the sender completes the row. Eight-sample rolling
+    window so the offset follows drift*
 - [x] **W3.11** — `latency.csv` writer, every stage boundary, every utterance
   · *`LatencyLog` + `UtteranceTrace` + `LatencySummary` in `bench`, wired into `app`
     so every utterance is logged on the live path — the only way to reach the 100

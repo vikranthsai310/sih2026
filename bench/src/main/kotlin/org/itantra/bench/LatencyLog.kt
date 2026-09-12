@@ -15,8 +15,12 @@ import org.itantra.proto.ClockSync
  * Receiver-side stages are converted to the sender's clock through [ClockSync] before
  * any difference is taken — see [UtteranceTrace.endToEndMillis].
  */
-class LatencyLog(private val sink: Appendable) {
-    private var wroteHeader = false
+class LatencyLog(
+    private val sink: Appendable,
+    /** False when the caller has already written the column line, as [ReportBundle] has. */
+    writeHeader: Boolean = true,
+) {
+    private var wroteHeader = !writeHeader
     private var rows = 0
 
     val rowCount: Int get() = rows

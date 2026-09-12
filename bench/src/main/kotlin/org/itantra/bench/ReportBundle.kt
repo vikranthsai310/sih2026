@@ -40,15 +40,18 @@ class ReportBundle(val conditions: RunConditions) {
             "not reportable under EVALUATION.md section 1:\n" + unmet.joinToString("\n") { "  - $it" }
         }
 
+        // The column line is written here, once, so a file with no rows still has one;
+        // the writers are told not to repeat it. A second header in the middle of a CSV
+        // shifts every row under it in a spreadsheet.
         return mapOf(
             "latency.csv" to
                 csv(LatencyLog.COLUMNS) { sink ->
-                    val log = LatencyLog(sink)
+                    val log = LatencyLog(sink, writeHeader = false)
                     traces.forEach(log::write)
                 },
             "resource.csv" to
                 csv(ResourceLogWriter.COLUMNS) { sink ->
-                    val writer = ResourceLogWriter(sink)
+                    val writer = ResourceLogWriter(sink, writeHeader = false)
                     samples.forEach(writer::write)
                 },
             // The scorecard already carries device, build and soak as columns on every
@@ -57,7 +60,7 @@ class ReportBundle(val conditions: RunConditions) {
             // cheaper defence than one that might be dropped.
             "scorecard.csv" to
                 csv(ScorecardWriter.COLUMNS) { sink ->
-                    val writer = ScorecardWriter(sink)
+                    val writer = ScorecardWriter(sink, writeHeader = false)
                     scorecard.forEach(writer::write)
                 },
         )
@@ -99,7 +102,13 @@ data class RunConditions(
      * All of them, not the first — a run being told it failed on the build only to be told
      * it also failed on the battery is two wasted half-hours.
      */
-    fun unmetRequirements(traces: List<UtteranceTrace> = emptyList()): List<String> {
+    /**
+     * @param traces the utterances of a latency run, or null when the run is not a latency
+     *   run at all (a resource trace on its own has no utterance count). An **empty** list
+     *   is a latency run with nothing in it, and is refused: pressing export before
+     *   speaking used to write three files of headers that passed every other check.
+     */
+    fun unmetRequirements(traces: List<UtteranceTrace>? = null): List<String> {
         val unmet = ArrayList<String>()
 
         if (device.isBlank()) unmet += "no device named"
@@ -121,8 +130,7 @@ data class RunConditions(
         if (onCharge) unmet += "measured on charge; many handsets throttle differently charging"
         if (date.isBlank()) unmet += "no date"
 
-        // Only checked when traces are supplied: the resource CSV has no utterance count.
-        if (traces.isNotEmpty() && !LatencySummary.isReportable(traces)) {
+        if (traces != null && !LatencySummary.isReportable(traces)) {
             val completed = traces.count { it.endToEndMillis != null }
             unmet +=
                 "$completed utterances completed, and the requirement is " +

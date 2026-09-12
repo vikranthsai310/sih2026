@@ -10,6 +10,7 @@ import org.itantra.proto.Language
 import org.itantra.proto.Locate
 import org.itantra.proto.MessageType
 import org.itantra.proto.Presence
+import org.itantra.proto.Timing
 import org.itantra.proto.RejectReason
 import org.itantra.proto.ReplayWindow
 import org.itantra.proto.ScriptPacker
@@ -247,6 +248,16 @@ class Session(
     suspend fun sendPresence(presence: Presence): Boolean =
         sendControl(MessageType.HEARTBEAT, presence.encode(), queue = false)
 
+    /**
+     * A clock-sync ping or pong, or the receipt that says when a message was heard. Never
+     * queued: a timestamp held until the link comes back measures the outage, not the path.
+     * `docs/EVALUATION.md` section 4, task **W3.10**.
+     *
+     * @return whether a frame left
+     */
+    suspend fun sendTiming(timing: Timing): Boolean =
+        sendControl(MessageType.HEARTBEAT, timing.encode(), queue = false)
+
     /** Asks [Locate.target] to beacon for this unit, or to stop. Queued if the link is down. */
     suspend fun sendLocate(
         locate: Locate,
@@ -391,6 +402,9 @@ class Session(
 
         /** A unit asking [Locate.target] to beacon, or to stop. Authenticated, and relayed. */
         data class Locate(val from: Int, val locate: org.itantra.proto.Locate) : Received
+
+        /** A clock-sync ping or pong, or an audio receipt. Authenticated, never relayed. */
+        data class Timing(val from: Int, val timing: org.itantra.proto.Timing) : Received
     }
 
     enum class Reason {
@@ -498,9 +512,15 @@ class Session(
         //     away.
         when (opened.type) {
             MessageType.HEARTBEAT -> {
-                val presence = Presence.decode(opened.payload) ?: return Received.Dropped(Reason.MALFORMED, "presence")
-                relayPresence(sealed, opened.payload, senderEpoch, nowMillis)
-                return Received.Presence(opened.src, presence)
+                // A sealed heartbeat is a presence or a timing payload; the first byte says
+                // which (Presence.VERSION is 1, Timing.VERSION is 2). Neither is relayed as
+                // a message, and only a presence is rebroadcast at all.
+                Presence.decode(opened.payload)?.let { presence ->
+                    relayPresence(sealed, opened.payload, senderEpoch, nowMillis)
+                    return Received.Presence(opened.src, presence)
+                }
+                val timing = Timing.decode(opened.payload) ?: return Received.Dropped(Reason.MALFORMED, "presence")
+                return Received.Timing(opened.src, timing)
             }
             MessageType.POSITION -> {
                 forward(relay.consider(sealed, senderEpoch, nowMillis))

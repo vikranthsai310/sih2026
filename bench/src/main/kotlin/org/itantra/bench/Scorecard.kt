@@ -16,8 +16,12 @@ import java.util.Locale
  *   its real-time factor can double, so a cold number is not the number anyone will
  *   see in the field (requirement N9).
  */
-class ScorecardWriter(private val sink: Appendable) {
-    private var wroteHeader = false
+class ScorecardWriter(
+    private val sink: Appendable,
+    /** False when the caller has already written the column line, as [ReportBundle] has. */
+    writeHeader: Boolean = true,
+) {
+    private var wroteHeader = !writeHeader
     private var rows = 0
 
     val rowCount: Int get() = rows
