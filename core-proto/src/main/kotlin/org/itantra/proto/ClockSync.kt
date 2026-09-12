@@ -29,7 +29,19 @@ package org.itantra.proto
  *
  * `docs/EVALUATION.md` section 4, "How end-to-end is measured". Task **W3.10**.
  */
-class ClockSync(private val requiredSamples: Int = REQUIRED_SAMPLES) {
+class ClockSync(
+    private val requiredSamples: Int = REQUIRED_SAMPLES,
+    /**
+     * How many round trips are kept. The exchange runs for as long as two units are on
+     * the channel, and two `nanoTime` clocks drift apart by milliseconds an hour, so the
+     * offset has to follow the recent samples rather than average over the whole day.
+     */
+    private val maxSamples: Int = MAX_SAMPLES,
+) {
+    init {
+        require(maxSamples >= requiredSamples) { "window of $maxSamples cannot hold $requiredSamples samples" }
+    }
+
     /**
      * One completed round trip. All four timestamps are in nanoseconds; [t1] and [t4]
      * come from the local clock, [t2] and [t3] from the remote one.
@@ -60,6 +72,7 @@ class ClockSync(private val requiredSamples: Int = REQUIRED_SAMPLES) {
     /** @return true if the sample was usable and recorded. */
     fun add(sample: Sample): Boolean {
         if (!sample.isUsable) return false
+        if (samples.size >= maxSamples) samples.removeAt(0)
         samples += sample
         return true
     }
@@ -103,6 +116,9 @@ class ClockSync(private val requiredSamples: Int = REQUIRED_SAMPLES) {
     companion object {
         /** Four round trips, per `docs/EVALUATION.md` section 4. */
         const val REQUIRED_SAMPLES = 4
+
+        /** A rolling window of the last eight round trips; a minute or so at the live cadence. */
+        const val MAX_SAMPLES = 8
 
         /** Even counts take the mean of the two central values. */
         fun median(values: List<Long>): Long {

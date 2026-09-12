@@ -12,7 +12,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 D = (sys.argv[1] if len(sys.argv) > 1
      else os.environ.get('REPORT_BUILD_DIR') or os.path.join(ROOT, 'build', 'report'))
-PDF = os.path.join(ROOT, 'docs', 'Taraketu_iTantra_Report.pdf')
+PDF = os.path.join(ROOT, 'docs', 'Taraket_iTantra_Report.pdf')
 
 REPORT = os.path.join(D, 'report4.html')
 RENDER = os.path.join(D, 'render4.html')

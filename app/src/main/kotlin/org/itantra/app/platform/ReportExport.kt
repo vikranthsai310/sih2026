@@ -134,8 +134,13 @@ class ReportExport(private val context: Context) {
         name: String,
         body: String,
     ): String? {
+        // MediaStore's Downloads collection exists from Android 10. Below that the
+        // insert throws, runCatching swallowed it, and the files landed silently in
+        // the directory the comment above says nobody can browse.
         val viaStore =
-            runCatching {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                null
+            } else runCatching {
                 val values =
                     ContentValues().apply {
                         put(MediaStore.MediaColumns.DISPLAY_NAME, name)

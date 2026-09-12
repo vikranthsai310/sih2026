@@ -23,6 +23,10 @@ android {
 
     buildTypes {
         release {
+            // Signed with the local debug keystore so a release build installs on a
+            // handset: ReportExport refuses a debuggable build, and an unsigned APK
+            // refuses to install. Replace with a real upload key before any store release.
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

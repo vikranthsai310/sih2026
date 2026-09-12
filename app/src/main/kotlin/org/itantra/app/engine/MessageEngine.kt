@@ -46,12 +46,14 @@ import org.itantra.link.Signal
 import org.itantra.link.WifiBroadcastLink
 import org.itantra.link.WifiDirectGroup
 import org.itantra.proto.Aead
+import org.itantra.proto.ClockSync
 import org.itantra.proto.EpochCounter
 import org.itantra.proto.Language
 import org.itantra.proto.Locate
 import org.itantra.proto.MessageType
 import org.itantra.proto.Presence
 import org.itantra.proto.TemplateTable
+import org.itantra.proto.Timing
 
 /**
  * Everything the operating screen needs, joined to everything that does the work.
@@ -259,6 +261,26 @@ class MessageEngine(
      * exactly the direction that flatters the project.
      */
     val traces: StateFlow<List<UtteranceTrace>> = _traces.asStateFlow()
+
+    /**
+     * How far each unit's clock is from this one, from the ping-pong exchange in
+     * [onTiming]. A receiver's audio timestamp is meaningless here until its entry is
+     * synchronised; see [onAudioReport]. `docs/EVALUATION.md` section 4, task W3.10.
+     */
+    private val clockSyncs = HashMap<Int, ClockSync>()
+
+    /**
+     * Utterances this unit sent and has not yet heard back about, by sequence number.
+     * The first receiver to report audio completes the row; the rest are duplicates of
+     * the same measurement over the same air and are ignored. Bounded, because a message
+     * nobody was in range to hear is never reported.
+     */
+    private val awaitingAudio = LinkedHashMap<Int, PendingTrace>()
+
+    private class PendingTrace(val clock: UtteranceClock, val sent: Session.Sent, val confidence: Float?)
+
+    /** What a receiver needs to tell the sender when the message it is speaking was heard. */
+    private class Receipt(val sender: Int, val seq: Int, val rxNanos: Long)
 
     private fun initialState() =
         OperatingState(
@@ -495,6 +517,8 @@ class MessageEngine(
 
             is Session.Received.Locate -> onLocate(received)
 
+            is Session.Received.Timing -> onTiming(received)
+
             else -> Unit
         }
 
@@ -512,6 +536,10 @@ class MessageEngine(
     }
 
     private fun onMessage(message: Session.Received.Message) {
+        // The receiver's first stage, on the receiver's clock: the frame has just become
+        // text. Reported back to the sender with the audio mark, so the sender can put
+        // both on its own clock and write the end-to-end figure.
+        val rxNanos = System.nanoTime()
         val now = SystemClock.elapsedRealtime()
         synchronized(heardFrom) { heardFrom[message.from] = now }
         roster.heard(message.from, now)
@@ -543,6 +571,7 @@ class MessageEngine(
             from = entry.from,
             alert = message.frame.type == MessageType.ALERT,
             writtenIn = writtenIn,
+            receipt = Receipt(sender = message.from, seq = message.frame.seq, rxNanos = rxNanos),
         )
     }
 
@@ -559,6 +588,7 @@ class MessageEngine(
         from: String,
         alert: Boolean,
         writtenIn: Language = language,
+        receipt: Receipt? = null,
     ) {
         val speaker = speaker ?: return
         val receivedAt = SystemClock.elapsedRealtime()
@@ -577,6 +607,15 @@ class MessageEngine(
                 // The same instant that stops the TTS clock starts the screen's speaking
                 // state: the first chunk reaching the audio device is both the latency the
                 // problem statement asks for and the moment a listener has heard something.
+                // It is also the receiver's last stage, and the sender is told about it.
+                receipt?.let { r ->
+                    val audioNanos = System.nanoTime()
+                    scope.launch {
+                        runCatching {
+                            session.sendTiming(Timing.AudioReport(r.sender, r.seq, r.rxNanos, audioNanos))
+                        }.onFailure { Log.w(TAG, "audio receipt for node ${r.sender} seq ${r.seq} not sent", it) }
+                    }
+                }
                 _state.value =
                     _state.value.copy(
                         speakingFrom = from,
@@ -841,9 +880,121 @@ class MessageEngine(
         // isStarted: a press where the microphone never opened has no MIC mark, and
         // toTrace refuses to invent one.
         if (heard != null && clock != null && clock.isStarted) {
-            _traces.value = (_traces.value + clock.toTrace(frameBytes = sent.wireBytes)).takeLast(MAX_TRACES)
+            val pending = PendingTrace(clock, sent, heard.confidence)
+            // The sender-side row goes in now, so the metrics screen has the STT and link
+            // stages at once; it is replaced by the full row when a receiver reports
+            // audio (onAudioReport). Until then end_to_end_ms is empty, which is honest.
+            _traces.value = (_traces.value + traceOf(pending, clockOffsetNanos = 0)).takeLast(MAX_TRACES)
+            synchronized(awaitingAudio) {
+                awaitingAudio[sent.seq] = pending
+                while (awaitingAudio.size > MAX_AWAITING_AUDIO) awaitingAudio.remove(awaitingAudio.keys.first())
+            }
         }
     }
+
+    private fun traceOf(
+        pending: PendingTrace,
+        clockOffsetNanos: Long,
+    ): UtteranceTrace =
+        pending.clock.toTrace(
+            clockOffsetNanos = clockOffsetNanos,
+            frameBytes = pending.sent.wireBytes,
+            compressionRatio = pending.sent.compressionRatio,
+            confidence = pending.confidence?.let { String.format(java.util.Locale.ROOT, "%.2f", it) },
+            templateId = pending.sent.templateId,
+        )
+
+    // ── clock sync and the end-to-end figure ─────────────────────────────────
+
+    /**
+     * A ping is answered at once; a pong becomes a sample of that unit's clock offset; an
+     * audio receipt completes the row for the message it names. All three are sealed
+     * `HEARTBEAT` payloads (`Timing`), so a forged one is refused before reaching here.
+     */
+    private fun onTiming(received: Session.Received.Timing) {
+        val arrived = System.nanoTime()
+        when (val timing = received.timing) {
+            is Timing.Ping ->
+                scope.launch {
+                    runCatching { session.sendTiming(Timing.Pong(timing.t1, t2 = arrived, t3 = System.nanoTime())) }
+                }
+
+            is Timing.Pong -> {
+                val sample = ClockSync.Sample(timing.t1, timing.t2, timing.t3, t4 = arrived)
+                val synced =
+                    synchronized(clockSyncs) {
+                        val sync = clockSyncs.getOrPut(received.from) { ClockSync() }
+                        sync.add(sample)
+                        sync.isSynchronised
+                    }
+                if (synced) retryUnconvertedReports(received.from)
+            }
+
+            is Timing.AudioReport -> onAudioReport(received.from, timing)
+        }
+    }
+
+    /** Receipts that arrived before the reporting unit's clock was synchronised. */
+    private val reportsAwaitingSync = LinkedHashMap<Int, Pair<Int, Timing.AudioReport>>()
+
+    /**
+     * Completes the row for the message a receiver just spoke.
+     *
+     * The receiver's two timestamps are on its clock. With that unit's offset known they
+     * are placed on this clock and the difference from the microphone is the end-to-end
+     * figure — `docs/EVALUATION.md` section 4, "not with a stopwatch". Without the offset
+     * the receipt is kept until the next pong lands rather than converted with a guess.
+     */
+    private fun onAudioReport(
+        from: Int,
+        report: Timing.AudioReport,
+    ) {
+        if (report.sender != identity.src) return
+        val offset =
+            synchronized(clockSyncs) { clockSyncs[from]?.takeIf { it.isSynchronised }?.offsetNanos() }
+        if (offset == null) {
+            synchronized(reportsAwaitingSync) {
+                reportsAwaitingSync[report.seq] = from to report
+                while (reportsAwaitingSync.size > MAX_AWAITING_AUDIO) {
+                    reportsAwaitingSync.remove(reportsAwaitingSync.keys.first())
+                }
+            }
+            Log.i(TAG, "audio receipt for seq ${report.seq} held: node $from's clock is not synchronised yet")
+            return
+        }
+        val pending = synchronized(awaitingAudio) { awaitingAudio.remove(report.seq) } ?: return
+        pending.clock
+            .markAt(UtteranceClock.Stage.RX, report.rxNanos)
+            .markAt(UtteranceClock.Stage.AUDIO, report.audioNanos)
+        val complete = traceOf(pending, clockOffsetNanos = offset)
+        _traces.value = _traces.value.map { if (it.utteranceId == complete.utteranceId) complete else it }
+        Log.i(TAG, "seq ${report.seq} heard on node $from: end to end ${complete.endToEndMillis} ms")
+    }
+
+    private fun retryUnconvertedReports(from: Int) {
+        val held =
+            synchronized(reportsAwaitingSync) {
+                val mine = reportsAwaitingSync.filterValues { it.first == from }
+                mine.keys.forEach(reportsAwaitingSync::remove)
+                mine.values.map { it.second }
+            }
+        held.forEach { onAudioReport(from, it) }
+    }
+
+    /**
+     * One ping, broadcast: every unit in range answers with its own clock, so one frame
+     * samples every offset at once. Sent every few seconds until every present unit is
+     * synchronised, then occasionally, so the window follows the clocks as they drift.
+     */
+    private suspend fun sendPing() {
+        runCatching { session.sendTiming(Timing.Ping(System.nanoTime())) }
+            .onFailure { Log.w(TAG, "ping not sent", it) }
+    }
+
+    private fun anyPeerUnsynchronised(nowMillis: Long): Boolean =
+        roster.present(nowMillis).any { unit ->
+            synchronized(clockSyncs) { clockSyncs[unit.src]?.isSynchronised != true }
+        }
 
     /**
      * The transcription, repaired against the alert lexicon **only where that is safe**.
@@ -1259,6 +1410,11 @@ class MessageEngine(
         if (locator.isActive) askTarget(tick)
         // Every second while somebody is walking towards this unit, every ten otherwise.
         if (beaconing || locator.isActive || tick % PRESENCE_EVERY_TICKS == 0L) sendPresence()
+        // Clock sync: often until every unit on the channel has answered four times, then
+        // only to keep the window fresh. See onTiming.
+        if (tick % PING_EVERY_TICKS == 0L && (tick % PING_REFRESH_TICKS == 0L || anyPeerUnsynchronised(now))) {
+            sendPing()
+        }
     }
 
     // ── locating a unit ──────────────────────────────────────────────────────
@@ -1595,6 +1751,15 @@ class MessageEngine(
 
         /** Enough for the 100-utterance run docs/EVALUATION.md section 4 asks for. */
         const val MAX_TRACES = 200
+
+        /** Sent messages kept waiting for a receiver's audio receipt. */
+        const val MAX_AWAITING_AUDIO = 32
+
+        /** A clock-sync ping every five seconds while any unit is unsynchronised ... */
+        const val PING_EVERY_TICKS = 5L
+
+        /** ... and every thirty once they all are, so the offset window follows drift. */
+        const val PING_REFRESH_TICKS = 30L
 
         private const val TAG = "itantra-net"
 

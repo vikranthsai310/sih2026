@@ -18,8 +18,12 @@ import java.util.Locale
  * [ResourceRun.Summary.throttlingBeganAtMillis] exists: the moment throttling starts is the single most
  * useful thing this file records, and finding it in week 8 would be finding it too late.
  */
-class ResourceLogWriter(private val sink: Appendable) {
-    private var wroteHeader = false
+class ResourceLogWriter(
+    private val sink: Appendable,
+    /** False when the caller has already written the column line, as [ReportBundle] has. */
+    writeHeader: Boolean = true,
+) {
+    private var wroteHeader = !writeHeader
     private var rows = 0
 
     val rowCount: Int get() = rows
