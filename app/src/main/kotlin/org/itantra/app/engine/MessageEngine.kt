@@ -1283,7 +1283,7 @@ class MessageEngine(
             // needs only to rise as they come, and the same scale as their own siren.
             val rssi = chirpRange.offer(signal.rssi, signal.atMillis)
             chirpSignalAtMillis = signal.atMillis
-            val metres = Locator.distanceFor(rssi, Locator.referenceFor(signal.txPower))
+            val metres = Locator.distanceFor(rssi)
             foundBeacon.proximity = Locator.proximityForMetres(metres)
         }
     }
@@ -1400,6 +1400,9 @@ class MessageEngine(
         // the rate says how near they are, and nobody knows.
         if (foundBeacon.isRunning && now - chirpSignalAtMillis > Locator.LOST_AFTER_MILLIS) foundBeacon.proximity = 0f
         if (chirpUntilMillis != 0L && now > chirpUntilMillis) stopChirping()
+        // Both ends of a search hand the 2.4 GHz air to Bluetooth: the searcher's scanner
+        // is the instrument, and the target's is what quickens its chirp. See WifiDirectGroup.hold.
+        wifiDirect?.hold(locator.isActive || now < beaconingUntilMillis)
         if (mesh.state.value != LinkState.CONNECTED) return
         val beaconing = now < beaconingUntilMillis
         if (!beaconing && beaconingUntilMillis != 0L) {
@@ -1425,6 +1428,7 @@ class MessageEngine(
     fun startLocating(src: Int) {
         locator.start(src, roster.nameOf(src))
         positions?.start()
+        wifiDirect?.hold(true)
         scope.launch {
             // Three times over two seconds: the request is one advertisement, and the
             // first one is the easiest to miss. Each carries the sound wish, which is a

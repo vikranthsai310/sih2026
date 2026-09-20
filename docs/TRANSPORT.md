@@ -150,6 +150,21 @@ everything this unit has said recently, laid out by `OnAir` and packed by `AirBl
 > antenna rather than one figure for every make of phone. `Signal.txPower`,
 > `Locator.referenceFor`.
 
+> **Amended 2026-09-20 — the interval was backwards, and the locate screen went deaf.**
+> `INTERVAL_HIGH` is 1600 units of 0.625 ms: one advertisement a *second*. `INTERVAL_LOW`
+> (160) is the 100 ms one, and is what the first version set; the amendment above swapped
+> them, and the locate screen got a tenth of its readings. It is `INTERVAL_LOW` again.
+> The transmit power is still carried, but distance is no longer reckoned against it:
+> handsets report the controller's setting inconsistently, and the fixed −59 dBm at a
+> metre with exponent 2.6 read truer. Three more causes of "not in range" with the target
+> in reach: the scan asked for two hardware filter slots and was blocked outright when
+> only one was free (it asks for one now); a scan failure was retried every five seconds,
+> past Android's five starts in thirty seconds, after which the platform delivers nothing
+> (starts are now counted, four per half minute); and Wi-Fi Direct peer discovery held the
+> shared antenna nearly all the time (it is paused while a search is on, at either end).
+> Advertising sets also leaked through a shared callback on every retry; each set now has
+> its own.
+
 > **Amended 2026-09-07 — "it sends for a while, then stops, then sometimes sends".** Two
 > causes, one each side. *Receiving:* Android puts a thirty-minute limit on every scan,
 > after which it is silently downgraded to *opportunistic* — the application is no longer

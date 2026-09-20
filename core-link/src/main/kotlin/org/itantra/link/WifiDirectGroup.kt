@@ -118,6 +118,38 @@ class WifiDirectGroup(
     /** Whether the platform says Wi-Fi Direct is on; from a sticky broadcast, so known at once. */
     private var p2pOn = false
 
+    /** Whether the election is paused for a search; see [hold]. */
+    private var held = false
+
+    /**
+     * Pauses the election -- no discovery, no join, no new group -- while a unit is being
+     * searched for, and resumes it after.
+     *
+     * A peer find hops the 2.4 GHz social channels, 1, 6 and 11, for as long as two minutes
+     * and was asked for every fifteen to thirty seconds, so it was on nearly all the time.
+     * A handset has one antenna for Wi-Fi and Bluetooth, and while a find holds it the
+     * Bluetooth scanner hears a fraction of the advertisements: the locate screen, which
+     * is made of nothing but those, read "signal lost" with the target in the next room.
+     * A group already formed is kept, because it may be the only road carrying the
+     * search's own requests; only the finding stops.
+     */
+    fun hold(on: Boolean) {
+        synchronized(lock) {
+            if (held == on) return
+            held = on
+            if (on) {
+                val p2p = manager
+                val ch = channel
+                if (p2p != null && ch != null) runCatching { p2p.stopPeerDiscovery(ch, null) }
+                Log.i(TAG, "held for a search: discovery stopped")
+            } else {
+                // Found again at once rather than at the next due time.
+                election.discoveryStopped()
+                Log.i(TAG, "released after a search")
+            }
+        }
+    }
+
     /** The last peer report, so a tick can decide with it. */
     private var peers: List<WifiDirectElection.Peer> = emptyList()
 
@@ -222,6 +254,7 @@ class WifiDirectGroup(
                 }
                 Log.i(TAG, "channel open")
             }
+            if (held) return
             act(election.advance(now(), peers))
             show()
         }
@@ -359,6 +392,7 @@ class WifiDirectGroup(
                     peers = seen
                     val roll = seen.joinToString { nameOf(it.address) + if (it.isOwner) " (owner)" else "" }
                     Log.i(TAG, "peers: $roll")
+                    if (held) return@requestPeers
                     act(election.advance(now(), seen))
                     show()
                 }

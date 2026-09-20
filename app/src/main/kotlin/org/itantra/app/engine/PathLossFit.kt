@@ -140,11 +140,17 @@ class PathLossFit(
         const val MIN_LOG_SPAN = 0.3
 
         /** Free space is 2; a steel corridor approaches 4. Outside is not a fit. */
-        const val MIN_EXPONENT = 1.6
-        const val MAX_EXPONENT = 4.2
+        const val MIN_EXPONENT = 1.8
+        const val MAX_EXPONENT = 3.8
 
-        /** No handset is heard louder than −40 dBm at a metre, nor quieter than −78. */
-        const val MIN_REFERENCE = -78.0
-        const val MAX_REFERENCE = -40.0
+        /**
+         * Within ten decibels of [Locator.RSSI_AT_ONE_METRE]. Two phones of different make
+         * differ by about that much at a metre; a fit further off than that is two GPS fixes
+         * erring together, which they do -- the same sky, the same buildings -- and the old
+         * bounds of −78 to −40 let such a fit turn one metre into five with nothing on the
+         * screen to say so.
+         */
+        const val MIN_REFERENCE = Locator.RSSI_AT_ONE_METRE - 10.0
+        const val MAX_REFERENCE = Locator.RSSI_AT_ONE_METRE + 10.0
     }
 }

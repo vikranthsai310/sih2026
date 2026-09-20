@@ -60,7 +60,7 @@ class PathLossFitTest {
         val fit = PathLossFit()
         walkIn(fit, 60, 15)
         val heardAtThreeMetres = rssiAt(3.0)
-        val fitted = Locator.distanceFor(heardAtThreeMetres, fit.referenceDbm!!, fit.exponent!!, fitted = true)
+        val fitted = Locator.distanceFor(heardAtThreeMetres, fit.referenceDbm!!, fit.exponent!!)
         val assumed = Locator.distanceFor(heardAtThreeMetres)
         assertEquals(3.0, fitted, 0.15)
         // Not "the assumed model is wrong by a metre" -- how wrong it is depends on the

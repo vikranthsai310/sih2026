@@ -76,8 +76,6 @@ class Locator(
     private val signal = SignalSmoother()
     private var lastSignalAtMillis = 0L
 
-    /** The target's transmit power, from its advertising header, when it says. */
-    private var targetTxPower: Int? = null
     private var targetPosition: Presence.Position? = null
     private var targetPositionAtMillis = 0L
     private var targetBeaconing = false
@@ -119,7 +117,6 @@ class Locator(
         stop()
         this.name = name
         signal.clear()
-        targetTxPower = null
         lastSignalAtMillis = 0L
         targetPosition = null
         targetPositionAtMillis = 0L
@@ -171,7 +168,6 @@ class Locator(
     fun onSignal(reading: Signal) {
         val t = target ?: return
         if (reading.src != t) return
-        reading.txPower?.let { targetTxPower = it }
         val smoothed = signal.offer(reading.rssi, reading.atMillis)
         lastSignalAtMillis = reading.atMillis
         trail.addLast(Trail(reading.atMillis, smoothed))
@@ -218,17 +214,19 @@ class Locator(
     ): LocateState {
         val lost = lastSignalAtMillis == 0L || now - lastSignalAtMillis > LOST_AFTER_MILLIS
         val rssi = signal.value
-        // The fitted model first, the sender's stated power second, the assumption last.
-        val reference = pathLoss.referenceDbm ?: referenceFor(targetTxPower)
+        // The fitted model when there is one, else the first version's figure. Not the
+        // sender's stated transmit power: handsets report it inconsistently -- the
+        // controller's setting, not what leaves the antenna -- and reckoning against it
+        // made the same metre read differently from one pair of phones to the next.
+        val reference = pathLoss.referenceDbm ?: RSSI_AT_ONE_METRE
         val exponent = pathLoss.exponent ?: PATH_LOSS_EXPONENT
-        val fitted = pathLoss.exponent != null
-        val metres = rssi?.let { distanceFor(it, reference, exponent, fitted) }
+        val metres = rssi?.let { distanceFor(it, reference, exponent) }
         val centimetres = metres?.let { centimetresOf(it) }
         val recent = signal.recent
         val spread =
             if (recent.size >= 3) {
-                val nearest = centimetresFor(recent.max().toDouble(), reference, exponent, fitted)
-                val furthest = centimetresFor(recent.min().toDouble(), reference, exponent, fitted)
+                val nearest = centimetresFor(recent.max().toDouble(), reference, exponent)
+                val furthest = centimetresFor(recent.min().toDouble(), reference, exponent)
                 nearest..furthest
             } else {
                 null
@@ -320,8 +318,11 @@ class Locator(
         /** Signal expected one metre from a handset advertising at high power, dBm. */
         const val RSSI_AT_ONE_METRE = -59.0
 
-        /** Path-loss exponent at range: 2 is free space, 3 to 4 deep indoors. In between for a field. */
-        const val PATH_LOSS_EXPONENT = 2.8
+        /**
+         * Path-loss exponent: 2 is free space, 3 to 4 deep indoors. In between for a field.
+         * The first version's figure, and the one that read truest in the hand.
+         */
+        const val PATH_LOSS_EXPONENT = 2.6
 
         /**
          * Where the sounds are at their slowest and fastest, in metres. Thirty metres is
@@ -330,15 +331,6 @@ class Locator(
          */
         const val FAR_METRES = 30.0
         const val NEAR_METRES = 0.5
-
-        /**
-         * What a phone loses between its own antenna and another's at one metre, in dB,
-         * over and above the transmit power: free-space loss at 2.44 GHz (41 dB) plus the
-         * two handset antennas and their mismatch. The contact-tracing measurement studies
-         * that calibrated phone-to-phone Bluetooth put the one-metre attenuation at 50 to
-         * 60 dB; this is their middle.
-         */
-        const val ATTENUATION_AT_ONE_METRE_DB = 57.0
 
         /** Beacons come every second; five missed is a unit that has moved out of range. */
         const val LOST_AFTER_MILLIS = 6_000L
@@ -373,55 +365,32 @@ class Locator(
             return kotlin.math.sqrt(squares).coerceAtLeast(1.0)
         }
 
-        /** The signal expected at one metre: from the sender's own power when it says, else assumed. */
-        fun referenceFor(txPower: Int?): Double = txPower?.let { it - ATTENUATION_AT_ONE_METRE_DB } ?: RSSI_AT_ONE_METRE
-
         /**
          * Distance in metres from a signal, against the one-metre reference.
          *
-         * The path-loss exponent is not one number. Within a few metres and in sight of
-         * each other the two antennas are in free space, exponent 2; further off, with
-         * walls and floors and bodies in the way, it climbs towards 3. So the exponent
-         * rises with the loss itself: 2 at the reference, [PATH_LOSS_EXPONENT] thirty
-         * decibels below it, continuously between, which keeps the last metre honest
-         * without pretending a corridor is free space.
+         * One exponent throughout, as the first version had it, and the version the
+         * operators found most accurate. A later one ramped the exponent up from free
+         * space at the reference, which stretched the first few metres -- 2.8 m where
+         * this reads 2.4 at ten decibels down -- exactly where the figure matters most.
          */
         fun distanceFor(
             rssi: Double,
             reference: Double = RSSI_AT_ONE_METRE,
-            /** The exponent the loss climbs to when assumed, or the exponent throughout when fitted. */
             exponent: Double = PATH_LOSS_EXPONENT,
-            /**
-             * Whether [exponent] was measured for this pair by [PathLossFit]. The ramp from
-             * free space is a prior about the last few metres; a measurement replaces a
-             * prior, so a fitted exponent is used flat.
-             */
-            fitted: Boolean = false,
-        ): Double {
-            val loss = reference - rssi
-            val n =
-                if (fitted) {
-                    exponent
-                } else {
-                    2.0 + (exponent.coerceAtLeast(2.0) - 2.0) * (loss / 30.0).coerceIn(0.0, 1.0)
-                }
-            return 10.0.pow(loss / (10 * n))
-        }
+        ): Double = 10.0.pow((reference - rssi) / (10 * exponent))
 
         fun metresFor(
             rssi: Double,
             reference: Double = RSSI_AT_ONE_METRE,
             exponent: Double = PATH_LOSS_EXPONENT,
-            fitted: Boolean = false,
-        ): Int = distanceFor(rssi, reference, exponent, fitted).toInt().coerceIn(0, 999)
+        ): Int = distanceFor(rssi, reference, exponent).toInt().coerceIn(0, 999)
 
         /** The same model at the resolution the last few metres want. Capped at 999 m. */
         fun centimetresFor(
             rssi: Double,
             reference: Double = RSSI_AT_ONE_METRE,
             exponent: Double = PATH_LOSS_EXPONENT,
-            fitted: Boolean = false,
-        ): Int = centimetresOf(distanceFor(rssi, reference, exponent, fitted))
+        ): Int = centimetresOf(distanceFor(rssi, reference, exponent))
 
         private fun centimetresOf(metres: Double): Int = (100.0 * metres).toInt().coerceIn(0, 99_900)
 

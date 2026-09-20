@@ -27,22 +27,11 @@ class LocatorTest {
     }
 
     @Test
-    fun `the sender's own power sets the one-metre reference`() {
-        // A sender at +4 dBm is expected at -53 dBm one metre off; at 0 dBm, -57.
-        assertEquals(-53.0, Locator.referenceFor(4), 0.01)
-        assertEquals(-57.0, Locator.referenceFor(0), 0.01)
-        assertEquals(Locator.RSSI_AT_ONE_METRE, Locator.referenceFor(null), 0.01)
-        assertEquals(100, Locator.centimetresFor(-53.0, Locator.referenceFor(4)))
-    }
-
-    @Test
-    fun `the exponent is free space close in and rises with range`() {
-        // 20 dB below the reference: exponent 2.53, so nearer than free space's 10 m
-        // would say and further than a corridor's 5 m.
-        val d = Locator.distanceFor(Locator.RSSI_AT_ONE_METRE - 20)
-        assertTrue("$d", d > 5.0 && d < 10.0)
-        // 6 dB above it: half a metre, free space.
-        assertEquals(0.5, Locator.distanceFor(Locator.RSSI_AT_ONE_METRE + 6), 0.02)
+    fun `one exponent throughout, the first version's model`() {
+        // -59 dBm at a metre, 2.6 all the way: 26 dB is ten times the distance.
+        assertEquals(10.0, Locator.distanceFor(Locator.RSSI_AT_ONE_METRE - 26), 0.001)
+        assertEquals(2.42, Locator.distanceFor(Locator.RSSI_AT_ONE_METRE - 10), 0.01)
+        assertEquals(0.1, Locator.distanceFor(Locator.RSSI_AT_ONE_METRE + 26), 0.001)
     }
 }
 

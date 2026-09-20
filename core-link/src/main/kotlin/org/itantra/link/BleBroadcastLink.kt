@@ -189,72 +189,99 @@ class BleBroadcastLink(
 
     private val heard = LinkedHashMap<Int, Long>()
 
-    private val advertiseCallback =
-        object : AdvertisingSetCallback() {
-            override fun onAdvertisingSetStarted(
-                set: AdvertisingSet?,
-                txPower: Int,
-                status: Int,
-            ) {
-                if (status != ADVERTISE_SUCCESS || set == null) {
-                    // Ignoring this status was a mistake worth not repeating: the
-                    // controller refuses an advertisement for perfectly ordinary reasons --
-                    // data too large for the chosen mode, too many sets already registered --
-                    // and a silent refusal looks exactly like a working radio with nobody
-                    // listening.
-                    Log.w(TAG, "advertisement refused, status $status (${describe(status)})")
-                    this@BleBroadcastLink.set = null
-                    airing = false
-                    starting?.complete(null)
-                    return
-                }
-                this@BleBroadcastLink.set = set
-                airing = true
-                starting?.complete(set)
-            }
+    /**
+     * The callback of the set this link holds or is starting, or null with none.
+     *
+     * A fresh object for every set. The platform keys a set on its callback, and a stop is
+     * answered asynchronously; with one callback shared by every set, the stop of a set
+     * torn down for a retry landed after its replacement had registered, and took the
+     * replacement's registration with it. That set could never be stopped again. Seen on
+     * an SM-E066B: six sets of this application still advertising when it was closed,
+     * each with an old buffer, until the controller had none left to give. A callback that
+     * is not [callback] belongs to a set this link has let go of, and is ignored -- or, if
+     * its set comes up late, stopped at once.
+     */
+    @Volatile
+    private var callback: SetCallback? = null
 
-            override fun onAdvertisingSetStopped(set: AdvertisingSet?) {
+    private inner class SetCallback : AdvertisingSetCallback() {
+        private val current: Boolean get() = callback === this
+
+        override fun onAdvertisingSetStarted(
+            set: AdvertisingSet?,
+            txPower: Int,
+            status: Int,
+        ) {
+            if (!current) {
+                // Given up on before it came up: it must not stay on the air unowned.
+                if (status == ADVERTISE_SUCCESS) {
+                    runCatching { adapter.bluetoothLeAdvertiser?.stopAdvertisingSet(this) }
+                }
+                return
+            }
+            if (status != ADVERTISE_SUCCESS || set == null) {
+                // Ignoring this status was a mistake worth not repeating: the
+                // controller refuses an advertisement for perfectly ordinary reasons --
+                // data too large for the chosen mode, too many sets already registered --
+                // and a silent refusal looks exactly like a working radio with nobody
+                // listening. A refused set is unregistered by the platform itself.
+                Log.w(TAG, "advertisement refused, status $status (${describe(status)})")
+                callback = null
                 this@BleBroadcastLink.set = null
                 airing = false
-                onTheAir = null
+                starting?.complete(null)
+                return
             }
-
-            override fun onAdvertisingDataSet(
-                set: AdvertisingSet?,
-                status: Int,
-            ) {
-                if (status != ADVERTISE_SUCCESS) {
-                    Log.w(TAG, "advertising data refused, status $status (${describe(status)})")
-                }
-                dataSet?.complete(status)
-            }
-
-            override fun onAdvertisingEnabled(
-                set: AdvertisingSet?,
-                enable: Boolean,
-                status: Int,
-            ) {
-                if (status != ADVERTISE_SUCCESS && enable) {
-                    Log.w(TAG, "could not put the set on the air, status $status (${describe(status)})")
-                }
-                if (enable) {
-                    enabled?.complete(status)
-                    return
-                }
-                val asked = disabled
-                if (asked != null) {
-                    asked.complete(status)
-                    return
-                }
-                // Unasked: the controller took the set off the air by itself. Nothing was
-                // given a duration, so this is a stack that has lost the set. The buffer is
-                // intact; the loop puts it back.
-                Log.w(TAG, "the set went off the air unasked (status $status); re-arming")
-                airing = false
-                onTheAir = null
-                nudges.trySend(Unit)
-            }
+            this@BleBroadcastLink.set = set
+            airing = true
+            starting?.complete(set)
         }
+
+        override fun onAdvertisingSetStopped(set: AdvertisingSet?) {
+            if (!current) return
+            this@BleBroadcastLink.set = null
+            airing = false
+            onTheAir = null
+        }
+
+        override fun onAdvertisingDataSet(
+            set: AdvertisingSet?,
+            status: Int,
+        ) {
+            if (!current) return
+            if (status != ADVERTISE_SUCCESS) {
+                Log.w(TAG, "advertising data refused, status $status (${describe(status)})")
+            }
+            dataSet?.complete(status)
+        }
+
+        override fun onAdvertisingEnabled(
+            set: AdvertisingSet?,
+            enable: Boolean,
+            status: Int,
+        ) {
+            if (!current) return
+            if (status != ADVERTISE_SUCCESS && enable) {
+                Log.w(TAG, "could not put the set on the air, status $status (${describe(status)})")
+            }
+            if (enable) {
+                enabled?.complete(status)
+                return
+            }
+            val asked = disabled
+            if (asked != null) {
+                asked.complete(status)
+                return
+            }
+            // Unasked: the controller took the set off the air by itself. Nothing was
+            // given a duration, so this is a stack that has lost the set. The buffer is
+            // intact; the loop puts it back.
+            Log.w(TAG, "the set went off the air unasked (status $status); re-arming")
+            airing = false
+            onTheAir = null
+            nudges.trySend(Unit)
+        }
+    }
 
     /** The step of the transmit loop waiting on the controller, if any. See [putOnAir]. */
     @Volatile
@@ -318,11 +345,38 @@ class BleBroadcastLink(
             }
 
             override fun onScanFailed(errorCode: Int) {
+                // Already started means the scan this link asked for is running: not a failure.
+                if (errorCode == SCAN_FAILED_ALREADY_STARTED) return
+                Log.w(TAG, "scan failed, code $errorCode")
                 // Recoverable: the radio may come back, and the operator is told by the
                 // banner rather than by a scan error code.
                 _state.value = LinkState.DEGRADED
             }
         }
+
+    /** When the scan was last started, newest last; see [mayStartScan]. */
+    private val scanStarts = ArrayDeque<Long>()
+
+    /**
+     * Whether a scan may be started now without the platform refusing it.
+     *
+     * Android allows an application five scan starts in thirty seconds, and past that it
+     * does not fail the sixth: it accepts it and delivers nothing, for as long as starts
+     * keep coming. A scan failure made this link degraded, the engine's recovery tick
+     * reconnected it every five seconds, every reconnect started the scan again, and a
+     * handset that had hit the limit once never heard another advertisement -- "not in
+     * range" with the other unit on the same table. Four in thirty seconds, counted here,
+     * keeps well inside it.
+     */
+    private fun mayStartScan(): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        synchronized(scanStarts) {
+            while (scanStarts.isNotEmpty() && now - scanStarts.first() > SCAN_START_WINDOW_MILLIS) scanStarts.removeFirst()
+            if (scanStarts.size >= MAX_SCAN_STARTS) return false
+            scanStarts.addLast(now)
+            return true
+        }
+    }
 
     override suspend fun connect() {
         if (_state.value == LinkState.CONNECTED && pump?.isActive == true) return
@@ -363,17 +417,17 @@ class BleBroadcastLink(
         // Filtered on the service UUID so the callback is not woken by every beacon, till
         // and pair of earbuds in range. setLegacy(false) is what admits extended
         // advertisements; without it the scanner reports only the 31-byte kind.
-        // Two filters, because a scan matches if any of them does, and the two AD fields
-        // involved are not the same field. A frame travels in **service data** (AD type
-        // 0x21); a ScanFilter.setServiceUuid matches the **service UUID** list (0x06/0x07).
-        // Filtering on the UUID alone while advertising only the data matched nothing ever,
-        // which is exactly what "the other phone received nothing" looks like.
+        // On the **service data** (AD type 0x21), which is where a frame travels and the
+        // only field the callback reads. Filtering on the service UUID list (0x06/0x07)
+        // alone, while advertising only the data, once matched nothing ever.
+        //
+        // One filter, not two. Each is a slot in the controller, a handset has a handful
+        // shared by every application, and when there are fewer free than a scan asks for
+        // the stack blocks the whole scan -- no error, no results. Seen on an SM-E066B:
+        // "Blocked: 2 filters of org.itantra becuz only 1 slots left" for a minute, which
+        // on the locate screen is "signal lost" with the target in reach.
         val id = ParcelUuid(SERVICE_UUID)
-        val filters =
-            listOf(
-                ScanFilter.Builder().setServiceData(id, ByteArray(0), ByteArray(0)).build(),
-                ScanFilter.Builder().setServiceUuid(id).build(),
-            )
+        val filters = listOf(ScanFilter.Builder().setServiceData(id, ByteArray(0), ByteArray(0)).build())
         val settings =
             ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
@@ -389,6 +443,12 @@ class BleBroadcastLink(
 
         scanFilters = filters
         scanSettings = settings
+        if (!mayStartScan()) {
+            // Asked again on the next recovery tick, by which time a start is allowed.
+            Log.w(TAG, "scan start deferred: too many starts in the last half minute")
+            _state.value = LinkState.DEGRADED
+            return
+        }
         runCatching { scanner.startScan(filters, settings, scanCallback) }
             .onFailure {
                 _state.value = LinkState.DEGRADED
@@ -452,9 +512,10 @@ class BleBroadcastLink(
                 continue
             }
             if (SystemClock.elapsedRealtime() - lastRestart < SCAN_CYCLE_MILLIS) continue
-            lastRestart = SystemClock.elapsedRealtime()
             val scanner = adapter.bluetoothLeScanner ?: continue
             val settings = scanSettings ?: continue
+            if (!mayStartScan()) continue
+            lastRestart = SystemClock.elapsedRealtime()
             runCatching { scanner.stopScan(scanCallback) }
             val restarted = runCatching { scanner.startScan(scanFilters, settings, scanCallback) }
             if (restarted.isFailure) {
@@ -522,8 +583,11 @@ class BleBroadcastLink(
                 // chance at the buffer and a reading of how far away the sender is; the
                 // locate screen is made of those readings, and at one a second a walk
                 // towards a unit showed twenty seconds late. At ten a second it shows
-                // within one.
-                .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
+                // within one. INTERVAL_LOW, because the constant names the *interval*:
+                // LOW is 160 units of 0.625 ms, 100 ms; HIGH is 1600, a whole second. A
+                // version that set HIGH meaning "high rate" cut the locate screen to one
+                // reading a second, and the first version, which set LOW, read truest.
+                .setInterval(AdvertisingSetParameters.INTERVAL_LOW)
                 .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
                 // The extended header carries the transmit power the controller actually
                 // uses, so a receiver can reckon distance against it. It costs nothing in
@@ -705,21 +769,28 @@ class BleBroadcastLink(
     ): AdvertisingSet? {
         val answer = CompletableDeferred<AdvertisingSet?>()
         starting = answer
+        val cb = SetCallback()
+        callback = cb
         val began =
             runCatching {
-                advertiser.startAdvertisingSet(parameters, data, null, null, null, 0, 0, advertiseCallback)
+                advertiser.startAdvertisingSet(parameters, data, null, null, null, 0, 0, cb)
             }
         if (began.isFailure) {
             Log.w(TAG, "startAdvertisingSet threw: ${began.exceptionOrNull()}")
             starting = null
             // The callback may be left registered against a set that never started;
             // clearing it is what lets the next attempt register again.
-            runCatching { advertiser.stopAdvertisingSet(advertiseCallback) }
+            callback = null
+            runCatching { advertiser.stopAdvertisingSet(cb) }
             return null
         }
         val result = withTimeoutOrNull(START_TIMEOUT_MILLIS) { answer.await() }
         starting = null
-        if (result == null) runCatching { advertiser.stopAdvertisingSet(advertiseCallback) }
+        if (result == null && callback === cb) {
+            // Let go first, so a set that comes up after all is stopped by its own callback.
+            callback = null
+            runCatching { advertiser.stopAdvertisingSet(cb) }
+        }
         return result
     }
 
@@ -727,8 +798,11 @@ class BleBroadcastLink(
         // Only when one is registered, or being registered. Stopping a set that was never
         // started logs "callback does not belong to any advertising set" on every call,
         // which buries the failures that matter.
-        if (set == null && starting == null) return
-        runCatching { adapter.bluetoothLeAdvertiser?.stopAdvertisingSet(advertiseCallback) }
+        val cb = callback
+        if (cb == null && set == null && starting == null) return
+        // Let go before stopping: whatever this set reports from now on is ignored.
+        callback = null
+        if (cb != null) runCatching { adapter.bluetoothLeAdvertiser?.stopAdvertisingSet(cb) }
         dataSet?.complete(AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR)
         enabled?.complete(AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR)
         disabled?.complete(AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR)
@@ -841,6 +915,13 @@ class BleBroadcastLink(
          * scan for, and far outside its limit of five starts in thirty seconds.
          */
         const val SCAN_CYCLE_MILLIS = 10 * 60_000L
+
+        /** The platform's limit is five starts in thirty seconds; this stays one under it. */
+        const val MAX_SCAN_STARTS = 4
+        const val SCAN_START_WINDOW_MILLIS = 30_000L
+
+        /** `ScanCallback.SCAN_FAILED_ALREADY_STARTED`: the scan asked for is running. */
+        const val SCAN_FAILED_ALREADY_STARTED = 1
 
         /** A frame heard again inside this window is the same transmission. Longer than any stay on the air. */
         const val REPEAT_WINDOW_MILLIS = OnAir.MAX_AIR_MILLIS + 10_000L
