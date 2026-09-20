@@ -44,7 +44,7 @@ import org.itantra.proto.MessageType
  * milliseconds and the transmit loop supplies real time.
  */
 class OnAir(
-    private val softBudget: Int,
+    softBudget: Int,
     private val hardBudget: Int,
     private val minAirMillis: Long = MIN_AIR_MILLIS,
     private val maxAirMillis: Long = MAX_AIR_MILLIS,
@@ -61,6 +61,35 @@ class OnAir(
         require(softBudget > 0) { "soft budget must be positive: $softBudget" }
         require(hardBudget >= softBudget) { "hard budget $hardBudget below soft $softBudget" }
         require(minAirMillis <= maxAirMillis) { "min air $minAirMillis beyond max $maxAirMillis" }
+    }
+
+    /**
+     * What fits in one radio packet, narrowed to what the controller turns out to take.
+     *
+     * The figure starts at what the specification and the controller's own stated maximum
+     * allow, and [narrowTo] lowers it when the radio proves otherwise. Measured on an
+     * SM-E066B: any advertising data of 166 bytes or more was refused an in-place update
+     * and could only go up by tearing the advertising set down and starting it again --
+     * which takes the unit off the air for as long as that takes, every time the buffer
+     * changes, which during a search is every second. An SM-S947B took 213 bytes without
+     * complaint. So the budget is a measurement, not a constant, and it is measured per
+     * handset at the only moment the answer is available.
+     */
+    @Volatile
+    var softBudget: Int = softBudget
+        private set
+
+    /**
+     * Lowers the budget to [bytes], never below [MIN_SOFT_BUDGET] and never upwards.
+     *
+     * @return whether the budget moved, so a caller can log it once rather than every time
+     */
+    @Synchronized
+    fun narrowTo(bytes: Int): Boolean {
+        val next = bytes.coerceAtLeast(MIN_SOFT_BUDGET)
+        if (next >= softBudget) return false
+        softBudget = next
+        return true
     }
 
     private class Aired(val frame: ByteArray, val sinceMillis: Long)
@@ -241,6 +270,12 @@ class OnAir(
 
         /** Behind the air. A flush of the outbox is the only thing that fills this. */
         const val MAX_WAITING = 64
+
+        /**
+         * However little a controller will take in place, the air holds at least this much:
+         * a hello and a presence together, so a unit never stops announcing itself.
+         */
+        const val MIN_SOFT_BUDGET = 96
 
         private const val TYPE_OFFSET = 1
         private const val FLAGS_OFFSET = 4

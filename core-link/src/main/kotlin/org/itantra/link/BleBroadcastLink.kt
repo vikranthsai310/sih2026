@@ -183,6 +183,18 @@ class BleBroadcastLink(
     @Volatile
     private var onTheAir: ByteArray? = null
 
+    /**
+     * The largest advertising data this controller has been seen to accept as an update to
+     * a set already registered, rather than only at the start of a new one.
+     *
+     * The specification's figure until the radio says otherwise. A frame too large for
+     * [OnAir.softBudget] still goes on the air alone, and on a controller with a lower
+     * ceiling than the specification's that one is written by restarting the set; knowing
+     * the ceiling turns two refusals and their waits into going straight to the restart.
+     */
+    @Volatile
+    private var inPlaceCeiling = LIVE_UPDATE_AD_BYTES - SERVICE_DATA_OVERHEAD
+
     /** Settled by the callback for the set being started: the set, or null on refusal. */
     @Volatile
     private var starting: CompletableDeferred<AdvertisingSet?>? = null
@@ -623,10 +635,31 @@ class BleBroadcastLink(
                     // Once with the set as it is; if the controller refuses, once more with
                     // a fresh set. A refusal is nearly always the set having died under us
                     // -- the radio cycled, the stack restarted -- and a fresh set is the cure.
-                    var accepted = putOnAir(existingSet = true, advertiser, parameters, blob)
+                    // Past what this controller has shown it will take in place, the two
+                    // attempts below are a refusal each, and each waits on the controller
+                    // for its answer: dead air, twice, for something already known.
+                    var accepted =
+                        blob.size <= inPlaceCeiling &&
+                            putOnAir(existingSet = true, advertiser, parameters, blob)
                     if (!accepted) {
                         stopAdvertising()
                         accepted = putOnAir(existingSet = false, advertiser, parameters, blob)
+                        if (accepted) {
+                            // The controller took this data at the start of a set and
+                            // refused it as an update, so the size is the reason and the
+                            // radio is healthy. Keep the buffer under it: a set restarted
+                            // for every change is a unit off the air for part of every
+                            // second, and during a search those are the readings the
+                            // distance is made of. See OnAir.softBudget.
+                            inPlaceCeiling = minOf(inPlaceCeiling, blob.size - 1)
+                            if (air.narrowTo(blob.size - AirBlob.HEADER_BYTES - 1)) {
+                                Log.w(
+                                    TAG,
+                                    "this controller will not update ${blob.size} B in place; " +
+                                        "the air is now ${air.softBudget} B of frames",
+                                )
+                            }
+                        }
                     }
                     if (accepted) {
                         onTheAir = blob
