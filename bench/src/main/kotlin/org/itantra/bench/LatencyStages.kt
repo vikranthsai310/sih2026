@@ -32,14 +32,33 @@ enum class Stage(
     val label: String,
     /** The budget from `docs/EVALUATION.md` section 4, in milliseconds. */
     val budgetMillis: IntRange,
+    /**
+     * Why this stage has no figure, when it has none.
+     *
+     * Carried here rather than phrased at the screen so the explanation cannot drift away
+     * from the mark that would have produced the number. There are two reasons a stage is
+     * blank and they mean opposite things: one is a deliberate property of push-to-talk
+     * and will never fill in, the other is a round trip that has not come back yet and
+     * will. A reader who cannot tell them apart is either waiting for nothing or has
+     * given up on something that was about to work.
+     */
+    val absentBecause: String,
 ) {
-    CAPTURE("Capture and buffering", 20..40),
-    ENDPOINT("Endpoint silence window", 150..400),
-    DECODE("Final decode after endpoint", 250..450),
-    TRANSMIT("Framing, encryption, transmit", 20..60),
-    NORMALISE("Normalisation", 0..10),
-    SYNTHESIS("First synthesis chunk", 150..250),
-    OUTPUT("Output pipeline", 30..80),
+    CAPTURE(
+        "Capture and buffering",
+        20..40,
+        "not separately timed in push-to-talk — the release is the endpoint",
+    ),
+    ENDPOINT(
+        "Endpoint silence window",
+        150..400,
+        "not separately timed in push-to-talk — the release is the endpoint",
+    ),
+    DECODE("Final decode after endpoint", 250..450, "no utterance has been decoded yet"),
+    TRANSMIT("Framing, encryption, transmit", 20..60, "waiting for a receiver to report audio"),
+    NORMALISE("Normalisation", 0..10, "waiting for a receiver to report audio"),
+    SYNTHESIS("First synthesis chunk", 150..250, "waiting for a receiver to report audio"),
+    OUTPUT("Output pipeline", 30..80, "waiting for a receiver to report audio"),
     ;
 
     /**
@@ -114,6 +133,19 @@ object StageSummary {
         }
 
     /**
+     * The stages no utterance in this run reached, in pipeline order.
+     *
+     * [byStage] drops them, which is right for a results file and wrong for a screen: a
+     * table that silently omits five of seven rows reads as a complete decomposition of
+     * the latency when it is a quarter of one. Naming the gap is the difference between a
+     * reader trusting the table and a reader being misled by it.
+     */
+    fun missingStages(traces: List<UtteranceTrace>): List<Stage> {
+        val measured = byStage(traces).mapTo(HashSet()) { it.stage }
+        return Stage.entries.filterNot { it in measured }
+    }
+
+    /**
      * The stage medians will not generally sum to the end-to-end median — a median is not
      * additive — so this reconciles a **single trace** instead, which is where a missing
      * stage would actually hide.
@@ -142,9 +174,13 @@ object StageSummary {
     fun histogram(
         traces: List<UtteranceTrace>,
         bucketMillis: Int = DEFAULT_BUCKET_MILLIS,
+        figure: LatencyFigure = LatencySummary.END_TO_END,
     ): List<Bucket> {
         require(bucketMillis > 0) { "bucket width must be positive: $bucketMillis" }
-        val values = traces.mapNotNull { it.endToEndMillis }
+        // Negative figures come from a bad clock offset and are set aside for the reason
+        // LatencySummary.of gives. They would fall in no bucket anyway, and the counts
+        // would then not sum to the run.
+        val values = traces.mapNotNull(figure).filter { it >= 0 }
         if (values.isEmpty()) return emptyList()
 
         val highest = values.max().toInt() / bucketMillis

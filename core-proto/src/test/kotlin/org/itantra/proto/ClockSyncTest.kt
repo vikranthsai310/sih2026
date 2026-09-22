@@ -90,6 +90,38 @@ class ClockSyncTest {
     }
 
     /**
+     * The failure that made the minimum-delay filter necessary, from two handsets over BLE
+     * broadcast: one direction waits a full advertising rotation and the other does not.
+     * A plain median inherits that asymmetry and puts half of it into the offset, which
+     * showed up on the metrics screen as an end-to-end figure of minus 79 ms.
+     */
+    @Test
+    fun `a round trip queued behind a broadcast rotation is not allowed to set the offset`() {
+        val sync =
+            synced(
+                sample(offsetMillis = 5_000, oneWayMillis = 20),
+                sample(offsetMillis = 5_000, oneWayMillis = 20, outboundExtraMillis = 900),
+                sample(offsetMillis = 5_000, oneWayMillis = 20, outboundExtraMillis = 850),
+                sample(offsetMillis = 5_000, oneWayMillis = 20),
+            )
+        val error = Math.abs(sync.offsetMillis() - 5_000L)
+        assertTrue("two queued round trips moved the offset by $error ms", error <= 1)
+    }
+
+    /** And the delay it reports is the path's, not the queue's. */
+    @Test
+    fun `the one-way delay ignores the queued round trips too`() {
+        val sync =
+            synced(
+                sample(offsetMillis = 0, oneWayMillis = 20),
+                sample(offsetMillis = 0, oneWayMillis = 20, outboundExtraMillis = 900),
+                sample(offsetMillis = 0, oneWayMillis = 20, outboundExtraMillis = 850),
+                sample(offsetMillis = 0, oneWayMillis = 20),
+            )
+        assertEquals(20L, sync.oneWayDelayNanos() / 1_000_000)
+    }
+
+    /**
      * The estimator's known weakness, stated as a test so nobody is surprised by it:
      * asymmetry between the two directions shows up as half of itself in the offset.
      * At Bluetooth scale that is a few milliseconds against an 800 ms budget.

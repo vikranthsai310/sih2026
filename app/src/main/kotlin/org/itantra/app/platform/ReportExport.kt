@@ -27,17 +27,20 @@ import java.time.LocalDate
  * as the transport chooser that offered one option and the storage screen that offered a
  * delete: a control that looks like it acts and does not.
  *
- * ## Why a refusal is the useful outcome, not the failure
+ * ## Why the verdict matters more than the refusal
  *
- * [ReportBundle] will not write files for a run that `docs/EVALUATION.md` section 1 says
- * is not reportable — a debug build, an emulator, a short soak, a handset on charge, fewer
- * than a hundred utterances. That is the point of it: figures produced outside those
- * conditions end up on a slide with nothing to say where they came from.
+ * `docs/EVALUATION.md` section 1 says figures produced outside its conditions "are not
+ * reportable" — a debug build, an emulator, a short soak, a handset on charge, fewer than
+ * a hundred utterances. The first version enforced that by writing **nothing**, which is
+ * the right instinct and the wrong mechanism: on a demonstration table nobody meets all
+ * seven conditions at once, so the button never produced a file, and rows that had been
+ * collected honestly could not be read at all.
  *
- * So most presses of this control will *not* produce files, and the valuable thing is
- * that it now says which condition failed and by how much — "soaked 3 minutes, and the
- * requirement is 30" — instead of appearing to work. Every unmet condition is listed at
- * once, because being told about the build and then about the battery is two wasted runs.
+ * So the files are always written, and the ones from a run that falls short carry
+ * `# NOT REPORTABLE` and a line per unmet condition above every row. The caveat is inside
+ * the file rather than in its name, because a filename is renamed and a preamble is not,
+ * and the status line here repeats it. Every unmet condition is listed at once: being told
+ * about the build and then about the battery is two wasted runs.
  *
  * ## What is not here yet
  *
@@ -61,13 +64,22 @@ class ReportExport(private val context: Context) {
     ): String {
         val conditions = conditions(soakMinutes)
         val unmet = conditions.unmetRequirements(traces)
-        if (unmet.isNotEmpty()) {
-            return "Not reportable yet — " + unmet.joinToString("; ")
-        }
+        val bundle = ReportBundle(conditions)
 
+        // A run that meets every condition is written as reportable. One that does not is
+        // still written -- with the verdict and every unmet condition stamped into each
+        // file -- because refusing outright meant that on a demonstration table, where
+        // nobody meets all seven at once, the button produced nothing at all and the rows
+        // already collected could not be looked at. The standard has not moved: the file
+        // says what it is, in a place a spreadsheet shows and a rename cannot remove.
         val files =
-            runCatching { ReportBundle(conditions).write(traces, samples, scorecard) }
-                .getOrElse { return "Could not build the report: ${it.message}" }
+            runCatching {
+                if (unmet.isEmpty()) {
+                    bundle.write(traces, samples, scorecard)
+                } else {
+                    bundle.writeProvisional(traces, samples, scorecard)
+                }
+            }.getOrElse { return "Could not build the report: ${it.message}" }
 
         val written = ArrayList<String>()
         var where: String? = null
@@ -78,7 +90,10 @@ class ReportExport(private val context: Context) {
         }
         return when {
             written.isEmpty() -> "Could not write the files. Storage may be full."
-            else -> "Wrote ${written.size} files to $where"
+            unmet.isEmpty() -> "Wrote ${written.size} reportable files to $where"
+            else ->
+                "Wrote ${written.size} files to $where, marked NOT REPORTABLE — " +
+                    unmet.joinToString("; ")
         }
     }
 
@@ -140,21 +155,26 @@ class ReportExport(private val context: Context) {
         val viaStore =
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
                 null
-            } else runCatching {
-                val values =
-                    ContentValues().apply {
-                        put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-                        put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
-                        put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/iTantra")
-                    }
-                val uri =
-                    context.contentResolver.insert(
-                        MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                        values,
-                    ) ?: return@runCatching null
-                context.contentResolver.openOutputStream(uri)?.use { it.write(body.toByteArray()) }
-                "Download/iTantra"
-            }.getOrNull()
+            } else {
+                runCatching {
+                    val values =
+                        ContentValues().apply {
+                            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                            put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+                            put(
+                                MediaStore.MediaColumns.RELATIVE_PATH,
+                                "${Environment.DIRECTORY_DOWNLOADS}/iTantra",
+                            )
+                        }
+                    val uri =
+                        context.contentResolver.insert(
+                            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                            values,
+                        ) ?: return@runCatching null
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(body.toByteArray()) }
+                    "Download/iTantra"
+                }.getOrNull()
+            }
         if (viaStore != null) return viaStore
 
         return runCatching {

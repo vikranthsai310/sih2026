@@ -41,6 +41,7 @@ import org.itantra.app.ui.AppState
 import org.itantra.app.ui.Download
 import org.itantra.app.ui.ItantraApp
 import org.itantra.app.ui.ItantraTheme
+import org.itantra.app.ui.LatencyHealth
 import org.itantra.app.ui.LicenceRow
 import org.itantra.app.ui.LocalReducedMotion
 import org.itantra.app.ui.PackRow
@@ -265,6 +266,8 @@ class MainActivity : ComponentActivity() {
                             AppState(
                                 operating = running?.state?.collectAsState()?.value ?: startingState(),
                                 traces = running?.traces?.collectAsState()?.value.orEmpty(),
+                                latencyHealth =
+                                    running?.latencyHealth?.collectAsState()?.value ?: LatencyHealth(),
                                 languages = running?.languageOptions().orEmpty().ifEmpty { languageNames() },
                                 transports = transports(),
                                 packs = onDisk.first,

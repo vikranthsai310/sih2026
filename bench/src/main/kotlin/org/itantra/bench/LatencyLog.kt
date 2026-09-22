@@ -61,7 +61,7 @@ class LatencyLog(
                 "t_mic", "t_vad", "t_first_partial", "t_endpoint", "t_final",
                 "t_tx", "t_rx", "t_norm", "t_chunk1", "t_audio", "t_done",
                 "payload_bytes", "frame_bytes", "compression_ratio",
-                "confidence", "template_id", "end_to_end_ms",
+                "confidence", "template_id", "end_to_end_ms", "pipeline_ms",
             )
     }
 }
@@ -130,6 +130,35 @@ data class UtteranceTrace(
             return (audio - clockOffsetNanos - tMic) / 1_000_000
         }
 
+    /**
+     * Release to sound: the operator letting go of transmit, to the first audio leaving
+     * the receiver's speaker.
+     *
+     * ## Why this exists beside [endToEndMillis]
+     *
+     * [endToEndMillis] runs from the microphone opening, so it carries however long the
+     * operator held the control. On push-to-talk that is the operator's speech, not the
+     * system's delay: a three-second sentence produces a three-and-a-half-second
+     * "latency", and quoting it against the 800-1200 ms budget in `docs/EVALUATION.md`
+     * section 4 compares two different quantities.
+     *
+     * That budget is a sum of stages -- decode, transmit, normalise, synthesise, output --
+     * every one of which happens **after** the endpoint. This is that sum, measured rather
+     * than added up, and it is the figure the metrics screen puts in its headline.
+     *
+     * Both are kept and both are exported. A reader who wants the literal
+     * microphone-to-speaker figure still has it; a reader comparing against the budget
+     * gets the one that is comparable.
+     *
+     * Null when the utterance never reached an endpoint or never produced audio.
+     */
+    val pipelineMillis: Long?
+        get() {
+            val audio = tAudio ?: return null
+            val endpoint = tEndpoint ?: return null
+            return (audio - clockOffsetNanos - endpoint) / 1_000_000
+        }
+
     fun toFields(): List<String> =
         listOf(
             utteranceId, language, mode, transport,
@@ -151,8 +180,20 @@ data class UtteranceTrace(
             confidence ?: "",
             templateId?.toString() ?: "",
             endToEndMillis?.toString() ?: "",
+            pipelineMillis?.toString() ?: "",
         )
 }
+
+/**
+ * Which figure a latency summary is over.
+ *
+ * The metrics screen quotes [UtteranceTrace.pipelineMillis] because that is what the
+ * `docs/EVALUATION.md` section 4 budget is a sum of; `latency.csv` and anything auditing
+ * the literal microphone-to-speaker claim want [UtteranceTrace.endToEndMillis]. Selecting
+ * the figure rather than keeping two near-identical summarisers means the median, the
+ * percentile rule and the refusal threshold cannot drift apart between the two.
+ */
+typealias LatencyFigure = (UtteranceTrace) -> Long?
 
 /**
  * Summarises a run of utterances the way the reporting rules demand.
@@ -162,17 +203,52 @@ data class UtteranceTrace(
  * slowest exchange, not the average one.
  */
 object LatencySummary {
-    data class Stats(val n: Int, val medianMillis: Long, val p95Millis: Long, val worstMillis: Long)
+    data class Stats(
+        val n: Int,
+        val medianMillis: Long,
+        val p95Millis: Long,
+        val worstMillis: Long,
+        /** Rows set aside as physically impossible. See [of]. */
+        val discarded: Int = 0,
+    )
 
-    /** @return null when no utterance completed, rather than a fabricated zero. */
-    fun of(traces: List<UtteranceTrace>): Stats? {
-        val values = traces.mapNotNull { it.endToEndMillis }.sorted()
+    /** The literal claim: microphone on the sender to speaker on the receiver. */
+    val END_TO_END: LatencyFigure = UtteranceTrace::endToEndMillis
+
+    /** The budgeted claim: the operator's release to speaker on the receiver. */
+    val PIPELINE: LatencyFigure = UtteranceTrace::pipelineMillis
+
+    /**
+     * ## Negative figures are set aside rather than averaged
+     *
+     * A negative latency says audio reached the receiver's speaker before the operator let
+     * go of the control, which did not happen. It means the clock offset was wrong — the
+     * one failure [ClockSync] exists to prevent and the one it cannot always detect, since
+     * a round trip queued behind a broadcast rotation looks like an ordinary slow one.
+     *
+     * Such a row must not be averaged in, and not because it is untidy: it drags the
+     * median *down*. An error that flatters the result is the one kind nobody goes looking
+     * for, and a run that quietly reports a better figure than the system achieved is
+     * exactly what this whole module exists to make impossible. The count is carried out
+     * in [Stats.discarded] so the screen can say how many, and the rows stay in
+     * `latency.csv` untouched — the raw record is evidence of the defect.
+     *
+     * @return null when no utterance produced a usable figure, rather than a fabricated
+     *   zero.
+     */
+    fun of(
+        traces: List<UtteranceTrace>,
+        figure: LatencyFigure = END_TO_END,
+    ): Stats? {
+        val measured = traces.mapNotNull(figure)
+        val values = measured.filter { it >= 0 }.sorted()
         if (values.isEmpty()) return null
         return Stats(
             n = values.size,
             medianMillis = ClockSync.median(values),
             p95Millis = values[percentileIndex(values.size, 95)],
             worstMillis = values.last(),
+            discarded = measured.size - values.size,
         )
     }
 
@@ -190,8 +266,10 @@ object LatencySummary {
     }
 
     /** True once a run is large enough to report, per `docs/EVALUATION.md` section 4. */
-    fun isReportable(traces: List<UtteranceTrace>): Boolean =
-        traces.count { it.endToEndMillis != null } >= MINIMUM_UTTERANCES
+    fun isReportable(
+        traces: List<UtteranceTrace>,
+        figure: LatencyFigure = END_TO_END,
+    ): Boolean = traces.count { figure(it) != null } >= MINIMUM_UTTERANCES
 
     const val MINIMUM_UTTERANCES = 100
 }

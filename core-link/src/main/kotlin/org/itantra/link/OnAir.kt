@@ -92,12 +92,30 @@ class OnAir(
         return true
     }
 
-    private class Aired(val frame: ByteArray, val sinceMillis: Long)
+    /**
+     * One frame on the air, with the stay it was admitted under.
+     *
+     * The stay is per frame rather than per buffer because the kinds want opposite things.
+     * A message wants every chance it can get — a receiver that missed fifty of them still
+     * hears it. A clock-sync pong wants to be heard **soon** and is worthless afterwards:
+     * an answer that reaches the pinger twenty seconds late is a round trip that says
+     * nothing about the path, and it spends those twenty seconds occupying room a message
+     * needed. So control traffic goes on the air, is heard, and leaves.
+     */
+    private class Aired(
+        val frame: ByteArray,
+        val sinceMillis: Long,
+        val minStayMillis: Long,
+        val maxStayMillis: Long,
+    )
+
+    /** A frame behind the air, with the kind decided when it was offered. */
+    private class Pending(val frame: ByteArray, val kind: Kind)
 
     private var hello: Aired? = null
     private var presence: Aired? = null
     private val aired = ArrayDeque<Aired>()
-    private val waiting = ArrayDeque<ByteArray>()
+    private val waiting = ArrayDeque<Pending>()
 
     /** Frames refused because the waiting queue was full: an outage that cost a message. */
     var droppedWaiting: Long = 0L
@@ -123,29 +141,31 @@ class OnAir(
     fun offer(
         frame: ByteArray,
         nowMillis: Long,
+        announcement: Boolean = false,
     ): Boolean {
         if (frame.size > hardBudget) {
             droppedOversize++
             return false
         }
         val copy = frame.copyOf()
-        when (kindOf(copy)) {
+        val kind = kindOf(copy, announcement)
+        when (kind) {
             Kind.HELLO -> {
-                hello = Aired(copy, nowMillis)
+                hello = Aired(copy, nowMillis, minAirMillis, maxAirMillis)
                 return true
             }
             Kind.PRESENCE -> {
-                presence = Aired(copy, nowMillis)
+                presence = Aired(copy, nowMillis, minAirMillis, maxAirMillis)
                 return true
             }
-            Kind.ALERT -> waiting.addFirst(copy)
-            Kind.MESSAGE -> waiting.addLast(copy)
+            Kind.ALERT -> waiting.addFirst(Pending(copy, kind))
+            Kind.CONTROL, Kind.MESSAGE -> waiting.addLast(Pending(copy, kind))
         }
         // The oldest goes, as in the outbox and for the same reason: the newest message is
         // the one most likely to still be true. An alert is never the one dropped.
         var droppedAny = false
         while (waiting.size > waitingCapacity) {
-            val victim = waiting.indexOfFirst { kindOf(it) != Kind.ALERT }.takeIf { it >= 0 } ?: 0
+            val victim = waiting.indexOfFirst { it.kind != Kind.ALERT }.takeIf { it >= 0 } ?: 0
             waiting.removeAt(victim)
             droppedWaiting++
             droppedAny = true
@@ -186,10 +206,10 @@ class OnAir(
         fun consider(at: Long) {
             next = next?.let { minOf(it, at) } ?: at
         }
-        hello?.let { consider(it.sinceMillis + maxAirMillis) }
-        presence?.let { consider(it.sinceMillis + maxAirMillis) }
-        aired.forEach { consider(it.sinceMillis + maxAirMillis) }
-        if (waiting.isNotEmpty()) aired.firstOrNull()?.let { consider(it.sinceMillis + minAirMillis) }
+        hello?.let { consider(it.sinceMillis + it.maxStayMillis) }
+        presence?.let { consider(it.sinceMillis + it.maxStayMillis) }
+        aired.forEach { consider(it.sinceMillis + it.maxStayMillis) }
+        if (waiting.isNotEmpty()) aired.firstOrNull()?.let { consider(it.sinceMillis + it.minStayMillis) }
         return next?.coerceAtLeast(nowMillis)
     }
 
@@ -202,10 +222,12 @@ class OnAir(
     }
 
     private fun expire(nowMillis: Long) {
-        fun stale(entry: Aired?): Boolean = entry != null && nowMillis - entry.sinceMillis >= maxAirMillis
+        fun stale(entry: Aired?): Boolean = entry != null && nowMillis - entry.sinceMillis >= entry.maxStayMillis
         if (stale(hello)) hello = null
         if (stale(presence)) presence = null
-        while (aired.isNotEmpty() && stale(aired.first())) aired.removeFirst()
+        // The whole buffer, not only its head: control frames stay a fraction as long as
+        // messages, so the frame that is ready to go is often not the oldest one.
+        aired.removeAll { stale(it) }
     }
 
     /**
@@ -215,9 +237,9 @@ class OnAir(
      */
     private fun makeRoom(nowMillis: Long) {
         val next = waiting.firstOrNull() ?: return
-        while (aired.isNotEmpty() && pinnedBytes() + airedBytes() + next.size > softBudget) {
+        while (aired.isNotEmpty() && pinnedBytes() + airedBytes() + next.frame.size > softBudget) {
             val oldest = aired.first()
-            if (nowMillis - oldest.sinceMillis < minAirMillis) return
+            if (nowMillis - oldest.sinceMillis < oldest.minStayMillis) return
             aired.removeFirst()
         }
     }
@@ -225,12 +247,21 @@ class OnAir(
     private fun admit(nowMillis: Long) {
         while (waiting.isNotEmpty()) {
             val next = waiting.first()
-            val fits = pinnedBytes() + airedBytes() + next.size <= softBudget
+            val fits = pinnedBytes() + airedBytes() + next.frame.size <= softBudget
             // Alone on the air with the pins, chained, rather than never: the alternative
             // is a message that waits for ever behind a budget it can never meet.
-            val aloneAndOversize = aired.isEmpty() && pinnedBytes() + next.size <= hardBudget
+            val aloneAndOversize = aired.isEmpty() && pinnedBytes() + next.frame.size <= hardBudget
             if (!fits && !aloneAndOversize) return
-            aired.addLast(Aired(waiting.removeFirst(), nowMillis))
+            val taken = waiting.removeFirst()
+            val control = taken.kind == Kind.CONTROL
+            aired.addLast(
+                Aired(
+                    frame = taken.frame,
+                    sinceMillis = nowMillis,
+                    minStayMillis = if (control) CONTROL_MIN_AIR_MILLIS else minAirMillis,
+                    maxStayMillis = if (control) CONTROL_AIR_MILLIS else maxAirMillis,
+                ),
+            )
             if (!fits) return
         }
     }
@@ -239,25 +270,55 @@ class OnAir(
 
     private fun airedBytes(): Int = aired.sumOf { it.frame.size }
 
-    private enum class Kind { HELLO, PRESENCE, ALERT, MESSAGE }
+    private enum class Kind { HELLO, PRESENCE, ALERT, CONTROL, MESSAGE }
 
     /**
-     * Which of the four kinds a frame is, from two header bytes and nothing else.
+     * Which of the five kinds a frame is, from two header bytes and the sender's word.
      *
      * The type nibble of byte 1 and the `ENCRYPTED` bit of byte 4, per `docs/PROTOCOL.md`
      * section 1. The payload is not read; a link sees bytes.
+     *
+     * ## Why the header is not enough
+     *
+     * A presence and a clock-sync ping are the same frame to anything that cannot read the
+     * payload: both are `HEARTBEAT`, both have `ENCRYPTED` set, both carry this unit's
+     * `SRC`. Told apart by the header alone they collapse into one kind, and since that
+     * kind is *pinned* — one slot, newest wins — every ping, pong and audio receipt evicted
+     * the presence that belonged there and then evicted each other.
+     *
+     * The damage was not subtle. This unit stopped announcing itself, so every roster in
+     * range emptied and the operating screen read "0 units" with the other handset on the
+     * same table. A pong put in that slot was overwritten by the next control frame six
+     * milliseconds later and never reached the air at all, so the four round trips the
+     * clock exchange needs never completed, so no audio receipt could be converted, so no
+     * end-to-end latency was ever measured. One indistinguishable pair of frames, three
+     * failures that looked unrelated.
+     *
+     * [announcement] is the sender saying which it is. Only a frame this unit originated
+     * *as its own announcement* is pinned; a relayed hello or presence belongs to another
+     * unit and queues, or it would replace this unit's announcement on the air and this
+     * unit would vanish from every roster while the far one appeared.
      */
-    private fun kindOf(frame: ByteArray): Kind {
+    private fun kindOf(
+        frame: ByteArray,
+        announcement: Boolean,
+    ): Kind {
         if (frame.size < Frame.HEADER_SIZE) return Kind.MESSAGE
         val type = (frame[TYPE_OFFSET].toInt() shr 4) and 0xF
         val encrypted = frame[FLAGS_OFFSET].toInt() and Flags.ENCRYPTED != 0
         val own = localSrc == null || (frame[SRC_OFFSET].toInt() and 0xFF) == localSrc
         return when {
-            type == MessageType.HEARTBEAT.code && !own -> Kind.MESSAGE
-            type == MessageType.HEARTBEAT.code && !encrypted -> Kind.HELLO
-            type == MessageType.HEARTBEAT.code -> Kind.PRESENCE
-            type == MessageType.ALERT.code -> Kind.ALERT
-            else -> Kind.MESSAGE
+            type != MessageType.HEARTBEAT.code ->
+                if (type == MessageType.ALERT.code) Kind.ALERT else Kind.MESSAGE
+            // Somebody else's announcement, relayed. Short-lived: it is news for a unit out
+            // of direct range, and holding it for half a minute spends this unit's air on
+            // another unit's introduction.
+            !own -> Kind.CONTROL
+            announcement && !encrypted -> Kind.HELLO
+            announcement -> Kind.PRESENCE
+            // A sealed heartbeat this unit sent that is not its announcement: a ping, a
+            // pong, or an audio receipt. Wanted promptly and worthless late.
+            else -> Kind.CONTROL
         }
     }
 
@@ -267,6 +328,21 @@ class OnAir(
 
         /** Long enough that a scanner restarting or busy elsewhere still catches up. */
         const val MAX_AIR_MILLIS = 30_000L
+
+        /**
+         * A control frame's stay: eighty chances at a hundred-millisecond interval.
+         *
+         * Far shorter than a message's, and deliberately. A ping, a pong and an audio
+         * receipt are all answers to a question asked a moment ago; one that arrives half
+         * a minute late tells the asker nothing, and the clock-sync estimator now discards
+         * it anyway as a queued round trip. What it does do, held that long, is occupy
+         * room in a 198-byte advertisement that a message needed — and during a two-way
+         * conversation there is one receipt for every message either unit speaks.
+         */
+        const val CONTROL_AIR_MILLIS = 8_000L
+
+        /** Its minimum, likewise: heard several times over, then out of the way. */
+        const val CONTROL_MIN_AIR_MILLIS = 2_000L
 
         /** Behind the air. A flush of the outbox is the only thing that fills this. */
         const val MAX_WAITING = 64

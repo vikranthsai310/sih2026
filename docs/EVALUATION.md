@@ -98,7 +98,7 @@ methodology attached. A MOS quoted without a panel size is not a measurement.
 | Normalisation | < 10 ms | Rule-based |
 | First synthesis chunk | 150–250 ms | Chunked, not full-sentence synthesis |
 | Output pipeline | 30–80 ms | `AudioTrack`; Oboe if this proves material |
-| **End to end, PTT mode** | **800–1200 ms** | **Revised upward.** The figure the jury will time. Naive offline decode would give ~1330 ms; sliding-window decoding recovers roughly 400 ms of it |
+| **End to end, PTT mode** | **800–1200 ms** | **Revised upward.** The figure the jury will time, measured from the release — see `pipeline_ms` in section 6. Naive offline decode would give ~1330 ms; sliding-window decoding recovers roughly 400 ms of it |
 | **End to end, phone mode** | **1050–1500 ms** | Includes the 400 ms silence window |
 | Real-time factor, ASR | < 0.30 | Sustained, after thermal soak |
 | Real-time factor, TTS | < 0.25 | Sustained |
@@ -122,10 +122,26 @@ the only realistic way to reach a hundred of them.
 Three decisions in there are worth stating, because each is a way the numbers could
 otherwise be wrong without anyone noticing:
 
-- **The offset is a median, not a mean.** Bluetooth round trips are occasionally stalled by
-  tens of milliseconds while the radio is busy, and one such outlier drags a mean far more
-  than it moves a median. A test holds a single 200 ms stall to no more than 1 ms of error
-  in the offset.
+- **The offset is a median, not a mean, and only over the round trips that were not
+  queued.** Bluetooth round trips are occasionally stalled by tens of milliseconds while
+  the radio is busy, and one such outlier drags a mean far more than it moves a median. A
+  test holds a single 200 ms stall to no more than 1 ms of error in the offset.
+
+  A median alone is not enough on a **broadcast** transport. The estimator's one assumption
+  is that the two directions take the same time, and its error is half of however wrong
+  that is. On BLE advertising a frame waits its turn in a rotation, so one direction can be
+  delayed by most of a second while the other is not — measured on two handsets in one
+  room, the one-way estimate moved between 113 ms and 1 242 ms, and the resulting offset
+  error produced an end-to-end figure of **minus 79 ms**. Queueing only ever *adds* to a
+  round trip, so the quickest ones are the least distorted: samples slower than twice the
+  quickest in the window are dropped before the median is taken. On a symmetric link
+  nothing is dropped and the figure is unchanged.
+
+- **A negative figure is set aside, not averaged.** Audio cannot reach the receiver's
+  speaker before the operator let go of the control; such a row means the offset was wrong.
+  It is excluded from the median and counted on the metrics screen, and it stays in
+  `latency.csv` untouched. The direction matters: a negative row pulls the median *down*,
+  and an error that flatters the result is the one nobody goes looking for.
 - **An unsynchronised clock refuses to produce a figure** rather than returning a zero
   offset. A zero would look plausible and would make every latency figure derived from it
   wrong.
@@ -192,8 +208,18 @@ cter_biased,cter_unbiased,mos,mos_panel_n,rtf_asr,rtf_tts,device,build,soak_minu
 ```
 utterance_id,lang,mode,transport,t_mic,t_vad,t_first_partial,t_endpoint,t_final,
 t_tx,t_rx,t_norm,t_chunk1,t_audio,t_done,payload_bytes,frame_bytes,
-compression_ratio,confidence,template_id,end_to_end_ms
+compression_ratio,confidence,template_id,end_to_end_ms,pipeline_ms
 ```
+
+`end_to_end_ms` is `t_audio - t_mic`, the literal claim: microphone open on the sender to
+speaker on the receiver. In push-to-talk it necessarily contains however long the operator
+held the control, so on a three-second sentence it reads around 3 700 ms.
+
+`pipeline_ms` is `t_audio - t_endpoint`: release to sound. That is the quantity the stage
+budget above is a sum of — decode, transmit, normalise, synthesise, output — and it is the
+figure the metrics screen puts in its headline and the one to compare against 800–1200 ms.
+Both are written for every utterance, so neither has to be reconstructed from the other and
+a reader can see that they differ only by the hold.
 
 ### `resource.csv` schema
 

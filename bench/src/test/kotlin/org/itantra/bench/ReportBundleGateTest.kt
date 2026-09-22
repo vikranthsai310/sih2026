@@ -46,6 +46,43 @@ class ReportBundleGateTest {
         assertTrue("three files of headers were written", threw)
     }
 
+    /**
+     * The other half of the gate: refusing to write a *reportable* file is not the same as
+     * refusing to write anything. A run that falls short still produces the rows, with the
+     * verdict and every unmet condition above them.
+     */
+    @Test
+    fun `a run that falls short is written provisionally, with the reasons in every file`() {
+        val short = good.copy(soakMinutes = 2, onCharge = true, isReleaseBuild = false)
+        val files = ReportBundle(short).writeProvisional(listOf(trace(1)), emptyList(), emptyList())
+        assertEquals(3, files.size)
+        for ((name, body) in files) {
+            assertTrue("$name has no verdict", body.startsWith("# NOT REPORTABLE"))
+            assertTrue("$name does not name the soak", body.contains("# unmet: soaked 2 minutes"))
+            assertTrue("$name does not name the charge", body.contains("measured on charge"))
+            assertTrue("$name does not name the build", body.contains("not a release build"))
+            // The caveat sits above the column line -- the first line that is not a
+            // comment -- so a spreadsheet shows it before anything it will plot.
+            val lines = body.lines()
+            val columnLine = lines.indexOfFirst { !it.startsWith("#") }
+            assertTrue("$name has no column line", columnLine > 0)
+            assertTrue(
+                "$name puts a row above its verdict",
+                lines.take(columnLine).all { it.startsWith("#") },
+            )
+        }
+    }
+
+    /** And a run that meets everything says so, rather than saying nothing. */
+    @Test
+    fun `a reportable run stamps its verdict too`() {
+        val traces = List(LatencySummary.MINIMUM_UTTERANCES) { trace(it) }
+        val files = ReportBundle(good).write(traces, emptyList(), emptyList())
+        for ((name, body) in files) {
+            assertTrue("$name has no verdict", body.startsWith("# REPORTABLE"))
+        }
+    }
+
     @Test
     fun `a resource-only check still passes without a latency run`() {
         assertTrue(good.unmetRequirements().isEmpty())

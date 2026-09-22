@@ -191,4 +191,52 @@ class LatencyStagesTest {
         val buckets = StageSummary.histogram(traces)
         assertEquals(traces.size, buckets.sumOf { it.count })
     }
+
+    /** The histogram can be taken over either figure, and they differ by the hold. */
+    @Test
+    fun `the histogram can be bucketed on the pipeline figure`() {
+        val traces = List(4) { n -> trace("u$n") }
+        val total = StageSummary.histogram(traces, figure = LatencySummary.END_TO_END)
+        val pipeline = StageSummary.histogram(traces, figure = LatencySummary.PIPELINE)
+        assertEquals(traces.size, pipeline.sumOf { it.count })
+        // 850 ms of mic-to-audio, of which 230 is capture plus the hold.
+        assertTrue("the pipeline run is shorter", pipeline.size < total.size)
+    }
+
+    // ── the stages nothing reached ───────────────────────────────────────────
+
+    /**
+     * A screen that drops the unmeasured rows presents a quarter of the pipeline as all of
+     * it. `byStage` is right to omit them from a results file; the screen needs to know
+     * which ones it omitted.
+     */
+    @Test
+    fun `stages no utterance reached are named rather than silently dropped`() {
+        // A sender-side row: the receipt has not come back, so everything from the
+        // transmit boundary onward is unmeasured.
+        val senderOnly =
+            trace().copy(tRx = null, tNorm = null, tChunk1 = null, tAudio = null)
+        val missing = StageSummary.missingStages(listOf(senderOnly))
+        assertEquals(
+            listOf(Stage.TRANSMIT, Stage.NORMALISE, Stage.SYNTHESIS, Stage.OUTPUT),
+            missing,
+        )
+        assertEquals(
+            listOf(Stage.CAPTURE, Stage.ENDPOINT, Stage.DECODE),
+            StageSummary.byStage(listOf(senderOnly)).map { it.stage },
+        )
+    }
+
+    @Test
+    fun `a complete run is missing no stage`() {
+        assertTrue(StageSummary.missingStages(List(3) { trace("u$it") }).isEmpty())
+    }
+
+    /** Every stage says why it would be blank, so the screen never has to guess. */
+    @Test
+    fun `every stage carries a reason for being unmeasured`() {
+        for (stage in Stage.entries) {
+            assertTrue("${stage.label} has no reason", stage.absentBecause.isNotBlank())
+        }
+    }
 }

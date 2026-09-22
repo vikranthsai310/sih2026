@@ -10,11 +10,11 @@ import org.itantra.proto.Language
 import org.itantra.proto.Locate
 import org.itantra.proto.MessageType
 import org.itantra.proto.Presence
-import org.itantra.proto.Timing
 import org.itantra.proto.RejectReason
 import org.itantra.proto.ReplayWindow
 import org.itantra.proto.ScriptPacker
 import org.itantra.proto.TemplateTable
+import org.itantra.proto.Timing
 import org.itantra.proto.TransportClass
 
 /**
@@ -246,7 +246,7 @@ class Session(
      * @return whether a frame left
      */
     suspend fun sendPresence(presence: Presence): Boolean =
-        sendControl(MessageType.HEARTBEAT, presence.encode(), queue = false)
+        sendControl(MessageType.HEARTBEAT, presence.encode(), queue = false, announcement = true)
 
     /**
      * A clock-sync ping or pong, or the receipt that says when a message was heard. Never
@@ -255,8 +255,7 @@ class Session(
      *
      * @return whether a frame left
      */
-    suspend fun sendTiming(timing: Timing): Boolean =
-        sendControl(MessageType.HEARTBEAT, timing.encode(), queue = false)
+    suspend fun sendTiming(timing: Timing): Boolean = sendControl(MessageType.HEARTBEAT, timing.encode(), queue = false)
 
     /** Asks [Locate.target] to beacon for this unit, or to stop. Queued if the link is down. */
     suspend fun sendLocate(
@@ -269,12 +268,18 @@ class Session(
         payload: ByteArray,
         queue: Boolean,
         nowMillis: Long = 0,
+        /**
+         * True only for the presence: a broadcast link pins this unit's standing
+         * announcement and queues everything else, and from the bytes it cannot tell a
+         * sealed presence from a sealed clock-sync ping. See [Link.send].
+         */
+        announcement: Boolean = false,
     ): Boolean {
         val frame = nextFrame(type, Flags.FINAL or Flags.ENCRYPTED, payload, language)
         val wire = seal(frame).encode()
         relay.remember(localSrc, epoch, frame.seq)
         return if (link.state.value == LinkState.CONNECTED) {
-            link.send(wire)
+            link.send(wire, urgent = false, announcement = announcement)
             true
         } else {
             if (queue) outbox.offer(wire, nowMillis)

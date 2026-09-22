@@ -383,7 +383,9 @@ class BleBroadcastLink(
     private fun mayStartScan(): Boolean {
         val now = SystemClock.elapsedRealtime()
         synchronized(scanStarts) {
-            while (scanStarts.isNotEmpty() && now - scanStarts.first() > SCAN_START_WINDOW_MILLIS) scanStarts.removeFirst()
+            while (scanStarts.isNotEmpty() && now - scanStarts.first() > SCAN_START_WINDOW_MILLIS) {
+                scanStarts.removeFirst()
+            }
             if (scanStarts.size >= MAX_SCAN_STARTS) return false
             scanStarts.addLast(now)
             return true
@@ -559,10 +561,16 @@ class BleBroadcastLink(
         _state.value = LinkState.IDLE
     }
 
-    override suspend fun send(frame: ByteArray) {
+    override suspend fun send(frame: ByteArray) = send(frame, urgent = false, announcement = false)
+
+    override suspend fun send(
+        frame: ByteArray,
+        urgent: Boolean,
+        announcement: Boolean,
+    ) {
         if (_state.value != LinkState.CONNECTED) return
         val air = onAir ?: return
-        if (!air.offer(frame, SystemClock.elapsedRealtime())) {
+        if (!air.offer(frame, SystemClock.elapsedRealtime(), announcement)) {
             // Either this frame or an older waiting one is gone. Counted, because an
             // operator whose message was discarded is entitled to know.
             Log.w(TAG, "a ${frame.size} B frame could not be held for the air (waiting ${air.waitingCount})")

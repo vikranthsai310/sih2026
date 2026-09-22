@@ -80,11 +80,35 @@ class ClockSync(
     fun reset() = samples.clear()
 
     /**
-     * The median offset over the completed round trips.
+     * The offset, over the quickest of the completed round trips.
      *
-     * Median rather than mean because Bluetooth round trips are occasionally delayed by
-     * tens of milliseconds while the radio is busy, and a single such outlier drags a
-     * mean far more than it moves a median.
+     * ## Median rather than mean
+     *
+     * Bluetooth round trips are occasionally delayed by tens of milliseconds while the
+     * radio is busy, and a single such outlier drags a mean far more than it moves a
+     * median.
+     *
+     * ## And over the quickest half rather than all of them
+     *
+     * A median over every sample is not enough on a **broadcast** link. The estimator's
+     * one assumption is that the two directions take the same time, and the error it makes
+     * is half of however wrong that is — which was fine on RFCOMM, where a round trip is
+     * tens of milliseconds and symmetric. On BLE advertising a frame waits its turn in a
+     * rotation, so one direction can be delayed by most of a second while the other is
+     * not, and the median of those round trips inherits the asymmetry rather than
+     * rejecting it.
+     *
+     * Measured on two handsets over BLE broadcast, the one-way estimate moved between
+     * 113 ms and 1 242 ms over the same pair of devices in the same room, and the
+     * resulting offset error produced an end-to-end figure of **minus 79 ms** — audio
+     * arriving before the operator let go of the control. A negative latency is worse than
+     * a missing one because it silently improves the median it lands in.
+     *
+     * A round trip cannot be *quicker* than the path allows, only slower: queueing only
+     * ever adds. So the shortest round trips are the ones least distorted, and a median
+     * taken over only those discards exactly the samples that carry the asymmetry. This is
+     * the minimum-delay filter every serious time protocol uses, and it costs nothing when
+     * the link is symmetric — see [unqueued] for why nothing is discarded in that case.
      *
      * @throws IllegalStateException if called before [isSynchronised]. Reporting a
      *   latency figure derived from an unsynchronised clock is exactly the error this
@@ -94,15 +118,39 @@ class ClockSync(
         check(isSynchronised) {
             "clock not synchronised: ${samples.size} of $requiredSamples round trips"
         }
-        return median(samples.map { it.offsetNanos })
+        return median(unqueued().map { it.offsetNanos })
     }
 
     fun offsetMillis(): Long = offsetNanos() / 1_000_000
 
-    /** Median one-way delay — the transport's contribution, useful on its own. */
+    /** One-way delay over the same samples — the transport's contribution, useful alone. */
     fun oneWayDelayNanos(): Long {
         check(isSynchronised) { "clock not synchronised" }
-        return median(samples.map { it.delayNanos }) / 2
+        return median(unqueued().map { it.delayNanos }) / 2
+    }
+
+    /**
+     * The round trips that were not obviously queued: those within [QUEUE_TOLERANCE] of
+     * the quickest one in the window.
+     *
+     * A tolerance rather than "the fastest half", which was the first thing tried and is
+     * wrong in both directions. On a symmetric link every round trip takes about the same
+     * time, so half of them would be thrown away for no reason — and which half is decided
+     * by how ties happen to sort, which is not a property anyone should be relying on. On
+     * a link with one queued sample in four, a fixed fraction either keeps it or discards
+     * a good one along with it.
+     *
+     * Relative to the minimum rather than an absolute millisecond figure, because this
+     * class is used over RFCOMM, BLE advertising and Wi-Fi, whose honest round trips
+     * differ by two orders of magnitude. Twice the quickest is generous on every one of
+     * them and still an order of magnitude below a rotation's wait.
+     *
+     * Never empty: the quickest sample is always within twice itself.
+     */
+    private fun unqueued(): List<Sample> {
+        val quickest = samples.minOf { it.delayNanos }
+        val tolerated = quickest * QUEUE_TOLERANCE
+        return samples.filter { it.delayNanos <= tolerated }
     }
 
     /**
@@ -119,6 +167,12 @@ class ClockSync(
 
         /** A rolling window of the last eight round trips; a minute or so at the live cadence. */
         const val MAX_SAMPLES = 8
+
+        /**
+         * How much slower than the quickest round trip in the window a sample may be and
+         * still be believed. Past this it was waiting for the radio, not travelling.
+         */
+        const val QUEUE_TOLERANCE = 2
 
         /** Even counts take the mean of the two central values. */
         fun median(values: List<Long>): Long {

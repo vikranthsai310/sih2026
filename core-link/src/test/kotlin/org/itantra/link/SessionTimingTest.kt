@@ -122,6 +122,9 @@ class SessionTimingTest {
             val wire = link.sent.last()
             assertTrue(a.receive(wire, nowMillis = 1L) is Session.Received.Timing)
             val again = a.receive(wire, nowMillis = 2L)
-            assertTrue("replay was $again", again is Session.Received.Dropped && again.reason == Session.Reason.REPLAYED)
+            assertTrue(
+                "replay was $again",
+                again is Session.Received.Dropped && again.reason == Session.Reason.REPLAYED,
+            )
         }
 }

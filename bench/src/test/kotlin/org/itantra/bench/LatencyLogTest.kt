@@ -58,7 +58,7 @@ class LatencyLogTest {
         val expected =
             "utterance_id,lang,mode,transport,t_mic,t_vad,t_first_partial,t_endpoint," +
                 "t_final,t_tx,t_rx,t_norm,t_chunk1,t_audio,t_done,payload_bytes," +
-                "frame_bytes,compression_ratio,confidence,template_id,end_to_end_ms"
+                "frame_bytes,compression_ratio,confidence,template_id,end_to_end_ms,pipeline_ms"
         assertEquals(expected, rowsOf(trace()).first())
     }
 
@@ -66,7 +66,7 @@ class LatencyLogTest {
     fun `every row has exactly as many fields as the header`() {
         val lines = rowsOf(trace("u1"), trace("u2"), trace("u3"))
         val width = lines.first().split(",").size
-        assertEquals(21, width)
+        assertEquals(22, width)
         for (line in lines.drop(1)) {
             assertEquals("row '$line' is the wrong width", width, line.split(",").size)
         }
@@ -144,6 +144,7 @@ class LatencyLogTest {
         val fields = rowsOf(trace(tAudio = null))[1].split(",")
         assertEquals("t_audio", "", fields[13])
         assertEquals("end_to_end_ms", "", fields[20])
+        assertEquals("pipeline_ms", "", fields[21])
     }
 
     @Test
@@ -167,7 +168,7 @@ class LatencyLogTest {
         try {
             java.util.Locale.setDefault(java.util.Locale.GERMANY)
             val fields = rowsOf(trace())[1].split(",")
-            assertEquals(21, fields.size)
+            assertEquals(22, fields.size)
             assertEquals("2182.0", fields[17])
         } finally {
             java.util.Locale.setDefault(original)
@@ -179,7 +180,68 @@ class LatencyLogTest {
     @Test
     fun `end to end is the receiver audio minus the sender microphone`() {
         assertEquals(900L, trace().endToEndMillis)
-        assertEquals("900", rowsOf(trace())[1].split(",").last())
+        assertEquals("900", rowsOf(trace())[1].split(",")[20])
+    }
+
+    /**
+     * The figure the stage budget is a sum of, and the one the metrics screen quotes.
+     *
+     * 180 ms of this trace is the operator holding the control, which is their speech and
+     * not the system's delay. Quoting the 900 against an 800-1200 ms budget compares two
+     * different quantities; the 720 is the comparable one.
+     */
+    @Test
+    fun `the pipeline figure runs from the endpoint, not the microphone`() {
+        assertEquals(720L, trace().pipelineMillis)
+        assertEquals("720", rowsOf(trace())[1].split(",").last())
+    }
+
+    @Test
+    fun `the pipeline figure is corrected for the clock difference too`() {
+        val offset = 47_000 * ms
+        val t = trace(tAudio = tMic + 900 * ms + offset, offset = offset)
+        assertEquals(720L, t.pipelineMillis)
+    }
+
+    /** An utterance with no endpoint has no pipeline figure, rather than one from zero. */
+    @Test
+    fun `a trace with no endpoint has no pipeline figure`() {
+        val t = trace().copy(tEndpoint = null)
+        assertEquals(null, t.pipelineMillis)
+        assertEquals(900L, t.endToEndMillis)
+    }
+
+    /**
+     * The error that flatters the result. A negative figure is a bad clock offset, and
+     * averaging it in pulls the median down — nobody audits a number that looks better
+     * than expected.
+     */
+    @Test
+    fun `a physically impossible figure is set aside rather than averaged in`() {
+        val good = List(3) { trace("g$it") }
+        // Audio timed 200 ms before the release: the offset for that unit was out.
+        val impossible = trace("bad", tAudio = tMic + 100 * ms)
+        val stats = LatencySummary.of(good + impossible, LatencySummary.PIPELINE)
+        assertEquals(3, stats?.n)
+        assertEquals(1, stats?.discarded)
+        assertEquals(720L, stats?.medianMillis)
+        // And it stays in the file, because the raw record is the evidence of the defect.
+        assertEquals("-80", rowsOf(impossible)[1].split(",").last())
+    }
+
+    /** The histogram drops them too, or its counts would not sum to the run. */
+    @Test
+    fun `an impossible figure lands in no bucket`() {
+        val traces = List(3) { trace("g$it") } + trace("bad", tAudio = tMic + 100 * ms)
+        val buckets = StageSummary.histogram(traces, figure = LatencySummary.PIPELINE)
+        assertEquals(3, buckets.sumOf { it.count })
+    }
+
+    @Test
+    fun `a summary can be taken over either figure`() {
+        val traces = listOf(trace("u1"), trace("u2"))
+        assertEquals(900L, LatencySummary.of(traces, LatencySummary.END_TO_END)?.medianMillis)
+        assertEquals(720L, LatencySummary.of(traces, LatencySummary.PIPELINE)?.medianMillis)
     }
 
     /**

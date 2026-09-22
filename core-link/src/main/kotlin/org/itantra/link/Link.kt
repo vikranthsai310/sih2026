@@ -43,6 +43,37 @@ interface Link {
     suspend fun send(
         frame: ByteArray,
         urgent: Boolean,
+    ) = send(frame, urgent, announcement = false)
+
+    /**
+     * [send], with a second word of context: whether this frame is this unit's standing
+     * **announcement** of itself — its hello or its presence — rather than traffic.
+     *
+     * ## Why the link has to be told
+     *
+     * A broadcast link keeps a buffer of what it is saying and repeats it (see [OnAir]).
+     * Only the newest hello and the newest presence belong in it: an announcement older
+     * than the one beside it is worth nothing, so each replaces its predecessor in a
+     * pinned slot rather than queueing.
+     *
+     * The link decides that from the bytes, and from the bytes alone it cannot. A
+     * presence and a clock-sync ping are both sealed `HEARTBEAT` frames carrying this
+     * unit's `SRC`; what tells them apart is the *encrypted* payload, which the link by
+     * contract does not read. So every ping, pong and audio receipt was landing in the
+     * presence slot and evicting the announcement that belonged there — the unit stopped
+     * announcing itself, every roster in range emptied, and because the same slot held
+     * only one frame at a time a pong was routinely overwritten before it reached the air.
+     * That is a clock exchange that can never complete and a receipt that never comes
+     * back, from two units sitting on the same table.
+     *
+     * One word from the sender settles it, exactly as `urgent` settles the other thing a
+     * link cannot see. The default is false: traffic, control and anything relayed for
+     * another unit are all *not* this unit's announcement.
+     */
+    suspend fun send(
+        frame: ByteArray,
+        urgent: Boolean,
+        announcement: Boolean,
     ) = send(frame)
 
     val incoming: Flow<ByteArray>

@@ -31,8 +31,32 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.itantra.bench.LatencySummary
+import org.itantra.bench.Stage
 import org.itantra.bench.StageSummary
 import org.itantra.bench.UtteranceTrace
+
+/**
+ * Why an end-to-end figure is not on the screen yet, in the terms that distinguish the
+ * reasons from each other.
+ *
+ * A sender-side row is complete within milliseconds of the press. The half that makes it
+ * an *end-to-end* measurement has to come back from the other handset, and it can be
+ * missing because nobody is on the channel, because the clocks have not finished their
+ * four round trips, because the receipt is still in flight, or because the unit that heard
+ * the message had no voice to speak it with and so had no audio to report. Those are four
+ * different situations with four different responses, and a screen that only knows the
+ * number is absent presents them as one.
+ */
+data class LatencyHealth(
+    /** Units heard from recently. Zero means there is nothing to measure against. */
+    val peersPresent: Int = 0,
+    /** Of those, how many have completed the four-round-trip clock exchange. */
+    val peersSynchronised: Int = 0,
+    /** Utterances sent whose receipt has not come back. */
+    val awaitingReceipt: Int = 0,
+    /** Receipts that did come back, held until that unit's clock is known. */
+    val heldForSync: Int = 0,
+)
 
 /**
  * The metrics screen. Task **W8.1**.
@@ -45,15 +69,40 @@ import org.itantra.bench.UtteranceTrace
  * number move. A figure that can be reproduced in the room is worth more than a figure that
  * was measured properly last week.
  *
- * ## The screen refuses to quote an unreportable figure
+ * ## What the headline figure is, and what it is not
+ *
+ * The headline is **release to sound**: the operator letting go of transmit, to the first
+ * audio leaving the other handset's speaker. That is
+ * [UtteranceTrace.pipelineMillis], and it is what the 800–1200 ms budget in
+ * `docs/EVALUATION.md` section 4 is a sum of — decode, transmit, normalise, synthesise,
+ * output, every one of them after the endpoint.
+ *
+ * It is deliberately **not** [UtteranceTrace.endToEndMillis], which runs from the
+ * microphone opening and therefore carries however long the operator held the control. A
+ * three-second sentence makes that figure read 3 700 ms against a 1 200 ms target, and the
+ * gap is the operator's speech, not the system's delay. The literal figure is kept, is
+ * exported, and is shown underneath — but not in the size that gets photographed.
+ *
+ * ## The screen says what it is waiting for
+ *
+ * This screen used to show *"nothing measured yet"* whenever no utterance had completed a
+ * full round trip, which is most of the time on a freshly paired pair of handsets: the
+ * sender's own stages were already recorded and it counted none of them. Two units could
+ * be talking to each other perfectly while the screen insisted nothing had happened.
+ *
+ * So the count in the header is utterances **timed**, the empty state appears only when
+ * there are genuinely none, and where an end-to-end figure is missing the screen names the
+ * reason — no peer, unsynchronised clocks, a receipt in flight, or a receiver with no
+ * voice — rather than leaving an operator to guess which of the four it is.
+ *
+ * ## It still refuses to quote an unreportable figure as reportable
  *
  * `docs/EVALUATION.md` section 1 asks for a hundred utterances minimum, median and p95,
- * never a single run. Below that this screen shows the sample count and the words *not
- * reportable* instead of a number — because a plausible-looking millisecond figure on a
- * device screen is exactly the sort of thing that gets photographed and quoted, and by then
- * nobody remembers it came from nine utterances on a cold handset.
- *
- * That refusal is the feature. It costs nothing when the run is real.
+ * never a single run. Below that the figure is shown — a control-room demonstration is
+ * never going to reach a hundred, and a blank screen proves nothing — but it is shown
+ * under an amber rule that says *provisional, n of 100*, directly beneath the number and
+ * in the same card. A photograph of this screen cannot be quoted as a reportable median
+ * without the words that say it is not one.
  *
  * ## Three views, because one number cannot carry the argument
  *
@@ -78,12 +127,13 @@ fun MetricsScreen(
      * useful output, so it has to appear on the screen the button is on.
      */
     status: String? = null,
+    /** Why an end-to-end figure is missing, when one is. */
+    health: LatencyHealth = LatencyHealth(),
     modifier: Modifier = Modifier,
 ) {
     val p = palette
-    val summary = LatencySummary.of(traces)
-    val reportable = LatencySummary.isReportable(traces)
-    val completed = traces.count { it.endToEndMillis != null }
+    val pipeline = LatencySummary.of(traces, LatencySummary.PIPELINE)
+    val total = LatencySummary.of(traces, LatencySummary.END_TO_END)
 
     Column(
         modifier
@@ -100,15 +150,18 @@ fun MetricsScreen(
         ) {
             Text("Metrics", fontSize = Tokens.Title, fontWeight = FontWeight.Bold, color = p.ink)
             Spacer(Modifier.weight(1f))
-            Mono("$completed utterances", p.muted)
+            // Utterances **timed**, not utterances completed. The old header counted only
+            // rows with an end-to-end figure and so read "0 utterances" on a handset that
+            // had just sent a dozen.
+            Mono("${traces.size} timed", p.muted)
         }
         Box(Modifier.fillMaxWidth().height(Tokens.Hairline).background(p.hairline))
 
-        if (completed == 0) {
+        if (traces.isEmpty()) {
             EmptyState(
                 icon = Icons.Chart,
                 title = "Nothing measured yet",
-                body = "Send one utterance and the strip fills.",
+                body = "Hold transmit and speak. Every press that opens the microphone is timed.",
                 family = p.sky,
             )
             return@Column
@@ -118,7 +171,11 @@ fun MetricsScreen(
             Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Headline(summary, reportable, completed, traces)
+            if (pipeline == null) {
+                Waiting(traces.size, health)
+            } else {
+                Headline(pipeline, total, traces)
+            }
             StageTable(traces)
             ExportRow(onExportCsv)
             status?.let {
@@ -146,66 +203,221 @@ private fun Mono(
 }
 
 /**
- * The headline card, or the reason there isn't one.
+ * What the screen is waiting for, when no utterance has come back yet.
+ *
+ * The card this replaced said *"NOT REPORTABLE — 0 of 100 utterances"*, which was true and
+ * useless: on a pair of handsets that have never completed a round trip, the number of
+ * utterances is not the thing standing in the way, and an operator reading it goes on
+ * pressing transmit ninety-nine more times to no effect.
+ */
+@Composable
+private fun Waiting(
+    timed: Int,
+    health: LatencyHealth,
+) {
+    val p = palette
+    val reason =
+        when {
+            health.peersPresent == 0 ->
+                "No other unit on the channel. An end-to-end figure is the time until " +
+                    "audio leaves a *second* handset, so one has to be in range and paired."
+
+            health.heldForSync > 0 ->
+                "${health.heldForSync} receipt${s(health.heldForSync)} held until the clocks agree. " +
+                    "Four round trips, about twenty seconds."
+
+            health.peersSynchronised == 0 ->
+                "Clocks not synchronised with the ${health.peersPresent} unit" +
+                    "${s(health.peersPresent)} on the channel. Four round trips, about " +
+                    "twenty seconds from when they first hear each other."
+
+            health.awaitingReceipt > 0 ->
+                "${health.awaitingReceipt} utterance${s(health.awaitingReceipt)} sent, waiting for a " +
+                    "receiver to report audio."
+
+            else ->
+                "Sent, and no receiver reported audio. A unit with no voice installed for " +
+                    "this language speaks nothing, so it has nothing to report — check " +
+                    "the other handset's language pack."
+        }
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(p.paper, RoundedCornerShape(Tokens.RadiusTile))
+            .border(Tokens.SignalBorder, p.butter.mid, RoundedCornerShape(Tokens.RadiusTile))
+            .padding(16.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "No end-to-end figure yet. $reason $timed utterances timed so far."
+            },
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(
+                Icons.Hourglass,
+                contentDescription = null,
+                tint = p.butter.core,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                "NO END-TO-END FIGURE YET",
+                fontSize = Tokens.BodySmall,
+                fontWeight = FontWeight.Bold,
+                color = p.butter.deep,
+            )
+        }
+        Text(reason, fontSize = Tokens.Label, lineHeight = Tokens.Label * 1.45f, color = p.muted)
+        // The sender's own stages are already measured and the table below shows them.
+        // Saying so is what stops this card reading as "nothing works".
+        Mono("$timed utterance${s(timed)} timed on this handset · stages below", p.muted)
+    }
+}
+
+private fun s(n: Int) = if (n == 1) "" else "s"
+
+/**
+ * The headline card.
  *
  * Median **and** p95 together, never the median alone: an operator remembers the slowest
  * exchange, not the average one, and a median quoted by itself is the number that makes a
- * system look better than it feels. The median is set at 38 sp and the other two at 22 sp
+ * system look better than it feels. The median is set at 46 sp and the other two at 22 sp
  * because one of the three is the answer and two are the caveat — a row of three equal
  * figures says the opposite.
  */
 @Composable
 private fun Headline(
-    summary: LatencySummary.Stats?,
-    reportable: Boolean,
-    completed: Int,
+    pipeline: LatencySummary.Stats,
+    total: LatencySummary.Stats?,
     traces: List<UtteranceTrace>,
 ) {
     val p = palette
-    if (summary == null || !reportable) {
-        // The refusal has to look deliberate and expensive rather than like a bug. It is
-        // this screen's best argument for every other number on it.
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .background(p.paper, RoundedCornerShape(Tokens.RadiusTile))
-                .border(Tokens.SignalBorder, p.butter.mid, RoundedCornerShape(Tokens.RadiusTile))
-                .padding(16.dp)
-                .semantics(mergeDescendants = true) {
-                    contentDescription =
-                        "Not reportable. $completed of " +
-                        "${LatencySummary.MINIMUM_UTTERANCES} utterances collected."
-                },
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Icon(
-                    Icons.Hourglass,
-                    contentDescription = null,
-                    tint = p.butter.core,
-                    modifier = Modifier.size(20.dp),
-                )
-                Text(
-                    "NOT REPORTABLE",
-                    fontSize = Tokens.BodySmall,
-                    fontWeight = FontWeight.Bold,
-                    color = p.butter.deep,
-                )
-            }
-            Text(
-                "$completed of ${LatencySummary.MINIMUM_UTTERANCES} utterances. " +
-                    "A median over fewer is not a median.",
-                fontSize = Tokens.Label,
-                lineHeight = Tokens.Label * 1.45f,
-                color = p.muted,
+    // The count the median was actually taken over, which is not the number of rows that
+    // have a figure: a row set aside as impossible did not contribute to it and must not
+    // be counted towards the hundred that makes the figure reportable.
+    val completed = pipeline.n
+    val reportable = completed >= LatencySummary.MINIMUM_UTTERANCES
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(p.paper, RoundedCornerShape(Tokens.RadiusTile))
+            .border(
+                if (reportable) Tokens.Hairline else Tokens.SignalBorder,
+                if (reportable) p.hairline else p.butter.mid,
+                RoundedCornerShape(Tokens.RadiusTile),
             )
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Mono("RELEASE TO SOUND", p.muted)
+            Mono("target 800-1200", p.muted)
+        }
+        Row(
+            Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
+                contentDescription =
+                    "Median ${pipeline.medianMillis} milliseconds from release to audio, " +
+                    "p95 ${pipeline.p95Millis}, worst ${pipeline.worstMillis}, " +
+                    "over $completed utterances."
+            },
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Mono("${pipeline.medianMillis}", p.sky.deep, Tokens.Display, FontWeight.Bold)
+                Text("MEDIAN ms", fontSize = Tokens.Instrument, color = p.muted)
+            }
+            Box(Modifier.size(width = 1.dp, height = 44.dp).background(p.hairline))
+            Column {
+                Mono("${pipeline.p95Millis}", p.ink, Tokens.Figure, FontWeight.Bold)
+                Text("P95", fontSize = Tokens.Instrument, color = p.muted)
+            }
+            Column {
+                Mono("${pipeline.worstMillis}", p.ink, Tokens.Figure, FontWeight.Bold)
+                Text("WORST", fontSize = Tokens.Instrument, color = p.muted)
+            }
+        }
+        Histogram(traces, pipeline.p95Millis)
+        // The literal microphone-to-speaker figure, in the small: it is the one
+        // `docs/EVALUATION.md` names, and it must be on the screen somewhere, but it
+        // carries the operator's hold and so cannot be the number a reader takes away.
+        total?.let {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // Weighted rather than space-between: the label is long enough to wrap
+                // into the figure at 200 % text scale, and a wrapped label that collides
+                // with the number it labels is worse than no second figure at all.
+                Box(Modifier.weight(1f)) { Mono("from the microphone", p.muted) }
+                Mono("${it.medianMillis} ms", p.muted)
+            }
+        }
+        Reportability(completed, reportable, pipeline.discarded)
+    }
+}
+
+/**
+ * The sample count, and what it does and does not license.
+ *
+ * Inside the headline card and directly under the figure, deliberately. A caveat one card
+ * away from the number it qualifies is a caveat that will be cropped out of the
+ * photograph.
+ */
+@Composable
+private fun Reportability(
+    completed: Int,
+    reportable: Boolean,
+    discarded: Int,
+) {
+    val p = palette
+    val family = if (reportable) p.mint else p.butter
+    val words =
+        if (reportable) {
+            "REPORTABLE · median and p95 over $completed utterances"
+        } else {
+            "PROVISIONAL · $completed of ${LatencySummary.MINIMUM_UTTERANCES} utterances — " +
+                "a median over fewer is not a median"
+        }
+    // A negative figure means the clock offset was wrong, and it would have pulled the
+    // median down. Saying how many were set aside is the difference between a screen that
+    // is quietly right and one that can be checked.
+    val setAside =
+        if (discarded > 0) {
+            "$discarded row${s(discarded)} set aside: audio timed before the release, " +
+                "which means the clock offset for that unit was out."
+        } else {
+            null
+        }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(family.tint, RoundedCornerShape(Tokens.RadiusInset))
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = listOfNotNull(words, setAside).joinToString(" ")
+            },
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            words,
+            fontSize = Tokens.Label,
+            lineHeight = Tokens.Label * 1.4f,
+            fontWeight = FontWeight.SemiBold,
+            color = family.deep,
+        )
+        setAside?.let {
+            Text(it, fontSize = Tokens.Label, lineHeight = Tokens.Label * 1.4f, color = p.blush.deep)
+        }
+        if (!reportable) {
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(6.dp)
+                    .height(4.dp)
                     .background(p.sunken, RoundedCornerShape(Tokens.RadiusPill)),
             ) {
                 Box(
@@ -213,50 +425,11 @@ private fun Headline(
                         .fillMaxWidth(
                             (completed.toFloat() / LatencySummary.MINIMUM_UTTERANCES).coerceIn(0f, 1f),
                         )
-                        .height(6.dp)
-                        .background(p.butter.core, RoundedCornerShape(Tokens.RadiusPill)),
+                        .height(4.dp)
+                        .background(family.core, RoundedCornerShape(Tokens.RadiusPill)),
                 )
             }
         }
-        return
-    }
-
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(p.paper, RoundedCornerShape(Tokens.RadiusTile))
-            .border(Tokens.Hairline, p.hairline, RoundedCornerShape(Tokens.RadiusTile))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Mono("END TO END", p.muted)
-            Mono("target 800-1200", p.muted)
-        }
-        Row(
-            Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
-                contentDescription =
-                    "Median ${summary.medianMillis} milliseconds, " +
-                    "p95 ${summary.p95Millis}, worst ${summary.worstMillis}."
-            },
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Column(Modifier.weight(1f)) {
-                Mono("${summary.medianMillis}", p.sky.deep, Tokens.Display, FontWeight.Bold)
-                Text("MEDIAN ms", fontSize = Tokens.Instrument, color = p.muted)
-            }
-            Box(Modifier.size(width = 1.dp, height = 44.dp).background(p.hairline))
-            Column {
-                Mono("${summary.p95Millis}", p.ink, Tokens.Figure, FontWeight.Bold)
-                Text("P95", fontSize = Tokens.Instrument, color = p.muted)
-            }
-            Column {
-                Mono("${summary.worstMillis}", p.ink, Tokens.Figure, FontWeight.Bold)
-                Text("WORST", fontSize = Tokens.Instrument, color = p.muted)
-            }
-        }
-        Histogram(traces, summary.p95Millis)
     }
 }
 
@@ -267,6 +440,9 @@ private fun Headline(
  * dependency here would be carried into an APK that constraint **N2** caps at thirty
  * megabytes, for the sake of one diagnostic chart. The modal bucket is the only one in the
  * signal colour — a chart where every bar is the accent has no accent.
+ *
+ * Bucketed on the same figure as the headline. It used to be drawn inside the branch that
+ * required a hundred completed utterances, so in practice it was never drawn at all.
  */
 @Composable
 private fun Histogram(
@@ -274,7 +450,7 @@ private fun Histogram(
     p95: Long?,
 ) {
     val p = palette
-    val buckets = StageSummary.histogram(traces)
+    val buckets = StageSummary.histogram(traces, figure = LatencySummary.PIPELINE)
     if (buckets.isEmpty()) return
     val tallest = buckets.maxOf { it.count }.coerceAtLeast(1)
     val busiest = buckets.maxByOrNull { it.count }
@@ -321,12 +497,18 @@ private fun Histogram(
     }
 }
 
-/** One row per stage, with the budget beside it so a reader need not know it. */
+/**
+ * One row per stage, with the budget beside it so a reader need not know it.
+ *
+ * Every stage appears, measured or not. Dropping the unmeasured ones — which is what this
+ * did — left a table of one row that read as a complete decomposition of the latency, and
+ * a reader had no way to tell that five of the seven boundaries were never timed at all.
+ */
 @Composable
 private fun StageTable(traces: List<UtteranceTrace>) {
     val p = palette
     val stages = StageSummary.byStage(traces)
-    if (stages.isEmpty()) return
+    val missing = StageSummary.missingStages(traces)
 
     Column(
         Modifier
@@ -367,12 +549,12 @@ private fun StageTable(traces: List<UtteranceTrace>) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    stat.stage.label,
-                    fontSize = Tokens.BodySmall,
-                    color = p.ink,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(stat.stage.label, fontSize = Tokens.BodySmall, color = p.ink)
+                    // The budget on the row, so a reader is not asked to hold seven
+                    // ranges in their head while scanning for the one that is red.
+                    Mono("budget $budget · n ${stat.n}", p.muted)
+                }
                 // Blush where the median is past the budget ceiling. A p95 outside it is
                 // expected and is not marked, or every row would be red.
                 Mono(
@@ -391,6 +573,31 @@ private fun StageTable(traces: List<UtteranceTrace>) {
                 }
             }
         }
+        missing.forEach { stage -> MissingStage(stage) }
+    }
+}
+
+/** A stage with no figure, and the reason, which is the part that makes it useful. */
+@Composable
+private fun MissingStage(stage: Stage) {
+    val p = palette
+    Box(Modifier.fillMaxWidth().height(1.dp).background(p.sunken))
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 40.dp)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${stage.label}: not measured. ${stage.absentBecause}."
+            },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(stage.label, fontSize = Tokens.BodySmall, color = p.muted)
+            Mono(stage.absentBecause, p.muted)
+        }
+        Mono("—", p.muted, Tokens.Label)
     }
 }
 

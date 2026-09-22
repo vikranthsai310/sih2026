@@ -180,12 +180,18 @@ class Speaker(
      *   latency the problem statement asks for — *"the time delay between the text received
      *   and audio processed and played"* — and it is the first **sound**, not the end of
      *   synthesis, because that is the moment a listener hears something.
+     * @param onNormalised called on the worker the moment normalisation finishes, before a
+     *   sample has been synthesised. `t_norm` in `latency.csv`, and the boundary that turns
+     *   "everything after the frame arrived" into a normalise row and a synthesis row.
+     * @param onFirstSound called once the device has accepted the first chunk. `t_audio`.
      */
     fun speak(
         languageCode: String,
         text: String,
         onFirstAudio: () -> Unit = {},
         onFinished: () -> Unit = {},
+        onNormalised: () -> Unit = {},
+        onFirstSound: () -> Unit = {},
     ) {
         if (text.isBlank() || !canSpeak(languageCode)) {
             onFinished()
@@ -204,11 +210,13 @@ class Speaker(
             speaking.set(true)
             try {
                 val normalised = normaliserFor(languageCode)?.normalise(text) ?: text
+                onNormalised()
                 engine.speakSentence(
                     text = normalised,
                     shaper = shaperFor(languageCode),
                     onFirstAudio = onFirstAudio,
                     shouldContinue = { speaking.get() },
+                    onFirstSound = onFirstSound,
                 )
             } catch (e: RuntimeException) {
                 // A voice that fails mid-sentence must not take the net down with it.

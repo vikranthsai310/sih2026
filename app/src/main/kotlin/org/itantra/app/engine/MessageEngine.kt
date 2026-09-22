@@ -27,6 +27,7 @@ import org.itantra.app.platform.Speaker
 import org.itantra.app.platform.UnitPreferences
 import org.itantra.app.ui.BandFMetrics
 import org.itantra.app.ui.LanguageOption
+import org.itantra.app.ui.LatencyHealth
 import org.itantra.app.ui.LocateState
 import org.itantra.app.ui.LoggedMessage
 import org.itantra.app.ui.OperatingState
@@ -256,11 +257,26 @@ class MessageEngine(
     /**
      * Real latency traces, for the metrics screen.
      *
-     * Only utterances that were actually recognised. A template send has no recognition
-     * stage to time, and padding the series with zeroes would make the median a lie in
-     * exactly the direction that flatters the project.
+     * Every press that opened the microphone, recognised or not. A row carries the stages
+     * it reached and leaves the rest blank; nothing is ever padded with a zero, which
+     * would make the median a lie in exactly the direction that flatters the project.
      */
     val traces: StateFlow<List<UtteranceTrace>> = _traces.asStateFlow()
+
+    private val _latencyHealth = MutableStateFlow(LatencyHealth())
+
+    /**
+     * Why the end-to-end figure is not there yet, for the metrics screen.
+     *
+     * A sender-side row is complete within milliseconds of the press; the half that makes
+     * it an *end-to-end* measurement has to come back from the other handset, and it can
+     * be missing for three quite different reasons — nobody is on the channel, the clocks
+     * have not finished their four round trips, or the receipt is in flight. Those look
+     * identical on a screen that only knows the figure is absent, and an operator who
+     * cannot tell them apart either waits for something that will never come or walks
+     * away from something that was twenty seconds off.
+     */
+    val latencyHealth: StateFlow<LatencyHealth> = _latencyHealth.asStateFlow()
 
     /**
      * How far each unit's clock is from this one, from the ping-pong exchange in
@@ -349,7 +365,7 @@ class MessageEngine(
                     // Announced at once as well as on the tick, so a restarted handset is
                     // known again within a second rather than within five.
                     delay(HELLO_AFTER_CONNECT_MILLIS)
-                    if (mesh.state.value == LinkState.CONNECTED) runCatching { mesh.send(session.hello()) }
+                    if (mesh.state.value == LinkState.CONNECTED) runCatching { sayHello() }
                     watchLink()
                 }
         }
@@ -393,7 +409,7 @@ class MessageEngine(
         // be carrying within a second of the operator coming back.
         scope.launch {
             mesh.reconnectDown()
-            if (mesh.state.value == LinkState.CONNECTED) runCatching { mesh.send(session.hello()) }
+            if (mesh.state.value == LinkState.CONNECTED) runCatching { sayHello() }
         }
         refresh()
     }
@@ -435,7 +451,7 @@ class MessageEngine(
                     // Sixteen bytes saying which epoch this unit is on, so a unit that
                     // has just met us -- or that we have just restarted on -- finds our
                     // frames' epoch in one check instead of a search.
-                    if (mesh.state.value == LinkState.CONNECTED) mesh.send(session.hello())
+                    if (mesh.state.value == LinkState.CONNECTED) sayHello()
                 }.onFailure { Log.w(TAG, "recovery tick failed", it) }
             }
         }
@@ -600,22 +616,20 @@ class MessageEngine(
         // For the open line's echo filter: what the microphone may be about to hear.
         speakingText = text
         lastSpokenText = text
+        // The three receiver-side stage boundaries, taken as they pass and reported
+        // together. All three callbacks run in order on the speaker's single worker, so
+        // no synchronisation is needed between them.
+        var normNanos: Long? = null
+        var chunk1Nanos: Long? = null
         speaker.speak(
             languageCode = voice.code,
             text = text,
+            onNormalised = { normNanos = System.nanoTime() },
             onFirstAudio = {
                 // The same instant that stops the TTS clock starts the screen's speaking
                 // state: the first chunk reaching the audio device is both the latency the
                 // problem statement asks for and the moment a listener has heard something.
-                // It is also the receiver's last stage, and the sender is told about it.
-                receipt?.let { r ->
-                    val audioNanos = System.nanoTime()
-                    scope.launch {
-                        runCatching {
-                            session.sendTiming(Timing.AudioReport(r.sender, r.seq, r.rxNanos, audioNanos))
-                        }.onFailure { Log.w(TAG, "audio receipt for node ${r.sender} seq ${r.seq} not sent", it) }
-                    }
-                }
+                chunk1Nanos = System.nanoTime()
                 _state.value =
                     _state.value.copy(
                         speakingFrom = from,
@@ -624,6 +638,30 @@ class MessageEngine(
                                 ttsMillis = SystemClock.elapsedRealtime() - receivedAt,
                             ),
                     )
+            },
+            onFirstSound = {
+                // The receiver's last stage, and the sender is told about it along with
+                // the two boundaries inside it -- without those the sender can only ever
+                // see one undifferentiated block of receiver time in its stage table.
+                receipt?.let { r ->
+                    val audioNanos = System.nanoTime()
+                    val norm = normNanos
+                    val chunk1 = chunk1Nanos
+                    scope.launch {
+                        runCatching {
+                            session.sendTiming(
+                                Timing.AudioReport(
+                                    sender = r.sender,
+                                    seq = r.seq,
+                                    rxNanos = r.rxNanos,
+                                    audioNanos = audioNanos,
+                                    normNanos = norm,
+                                    chunk1Nanos = chunk1,
+                                ),
+                            )
+                        }.onFailure { Log.w(TAG, "audio receipt for node ${r.sender} seq ${r.seq} not sent", it) }
+                    }
+                }
             },
             // Cleared on the same callback that ends the utterance, so the indicator cannot
             // outlive the sound. `Speaker.speak` runs onFinished on its worker whatever
@@ -879,8 +917,17 @@ class MessageEngine(
             )
         // isStarted: a press where the microphone never opened has no MIC mark, and
         // toTrace refuses to invent one.
-        if (heard != null && clock != null && clock.isStarted) {
-            val pending = PendingTrace(clock, sent, heard.confidence)
+        //
+        // A press that *did* open the microphone is timed whether or not the recogniser
+        // returned words. It used to need `heard != null`, which meant a handset falling
+        // back to templates -- no acoustic model installed, or nothing recognised in a
+        // noisy hall -- logged no utterance at all and left the metrics screen
+        // permanently empty, on the very run where an operator most wants to see where
+        // the time is going. The message went out either way, the receiver speaks it
+        // either way, and every stage from the endpoint onwards is the same measurement.
+        // What is missing is a confidence, and that column is simply left blank.
+        if (clock != null && clock.isStarted) {
+            val pending = PendingTrace(clock, sent, heard?.confidence)
             // The sender-side row goes in now, so the metrics screen has the STT and link
             // stages at once; it is replaced by the full row when a receiver reports
             // audio (onAudioReport). Until then end_to_end_ms is empty, which is honest.
@@ -889,6 +936,7 @@ class MessageEngine(
                 awaitingAudio[sent.seq] = pending
                 while (awaitingAudio.size > MAX_AWAITING_AUDIO) awaitingAudio.remove(awaitingAudio.keys.first())
             }
+            refreshLatencyHealth()
         }
     }
 
@@ -916,10 +964,24 @@ class MessageEngine(
         when (val timing = received.timing) {
             is Timing.Ping ->
                 scope.launch {
-                    runCatching { session.sendTiming(Timing.Pong(timing.t1, t2 = arrived, t3 = System.nanoTime())) }
+                    runCatching {
+                        session.sendTiming(
+                            Timing.Pong(
+                                t1 = timing.t1,
+                                t2 = arrived,
+                                t3 = System.nanoTime(),
+                                // Addressed, because the answer is broadcast: without this
+                                // every other unit in range reads the pinger's t1 as its
+                                // own and derives an offset from two unrelated clocks.
+                                to = received.from,
+                            ),
+                        )
+                    }
                 }
 
             is Timing.Pong -> {
+                // Somebody else's round trip. Its t1 is on their clock, not this one.
+                if (!timing.answers(identity.src)) return
                 val sample = ClockSync.Sample(timing.t1, timing.t2, timing.t3, t4 = arrived)
                 val synced =
                     synchronized(clockSyncs) {
@@ -950,8 +1012,8 @@ class MessageEngine(
         report: Timing.AudioReport,
     ) {
         if (report.sender != identity.src) return
-        val offset =
-            synchronized(clockSyncs) { clockSyncs[from]?.takeIf { it.isSynchronised }?.offsetNanos() }
+        val sync = synchronized(clockSyncs) { clockSyncs[from]?.takeIf { it.isSynchronised } }
+        val offset = sync?.offsetNanos()
         if (offset == null) {
             synchronized(reportsAwaitingSync) {
                 reportsAwaitingSync[report.seq] = from to report
@@ -959,16 +1021,41 @@ class MessageEngine(
                     reportsAwaitingSync.remove(reportsAwaitingSync.keys.first())
                 }
             }
+            refreshLatencyHealth()
             Log.i(TAG, "audio receipt for seq ${report.seq} held: node $from's clock is not synchronised yet")
             return
         }
         val pending = synchronized(awaitingAudio) { awaitingAudio.remove(report.seq) } ?: return
-        pending.clock
-            .markAt(UtteranceClock.Stage.RX, report.rxNanos)
-            .markAt(UtteranceClock.Stage.AUDIO, report.audioNanos)
+        pending.clock.markAt(UtteranceClock.Stage.RX, report.rxNanos)
+        // Absent from a unit running a build that predates the staged receipt. Marking
+        // nothing leaves those three stage rows unmeasured, which the screen says.
+        report.normNanos?.let { pending.clock.markAt(UtteranceClock.Stage.NORM, it) }
+        report.chunk1Nanos?.let { pending.clock.markAt(UtteranceClock.Stage.CHUNK1, it) }
+        pending.clock.markAt(UtteranceClock.Stage.AUDIO, report.audioNanos)
         val complete = traceOf(pending, clockOffsetNanos = offset)
         _traces.value = _traces.value.map { if (it.utteranceId == complete.utteranceId) complete else it }
-        Log.i(TAG, "seq ${report.seq} heard on node $from: end to end ${complete.endToEndMillis} ms")
+        refreshLatencyHealth()
+        Log.i(
+            TAG,
+            "seq ${report.seq} heard on node $from: ${complete.pipelineMillis} ms from release, " +
+                "${complete.endToEndMillis} ms from the microphone " +
+                "(offset ${offset / 1_000_000} ms over ${sync.sampleCount} round trips, " +
+                "one way ${sync.oneWayDelayNanos() / 1_000_000} ms)",
+        )
+    }
+
+    /** Recomputed rather than incremented: three maps and a roster cannot drift this way. */
+    private fun refreshLatencyHealth() {
+        val present = roster.present(SystemClock.elapsedRealtime())
+        val synchronised =
+            synchronized(clockSyncs) { present.count { clockSyncs[it.src]?.isSynchronised == true } }
+        _latencyHealth.value =
+            LatencyHealth(
+                peersPresent = present.size,
+                peersSynchronised = synchronised,
+                awaitingReceipt = synchronized(awaitingAudio) { awaitingAudio.size },
+                heldForSync = synchronized(reportsAwaitingSync) { reportsAwaitingSync.size },
+            )
     }
 
     private fun retryUnconvertedReports(from: Int) {
@@ -979,6 +1066,17 @@ class MessageEngine(
                 mine.values.map { it.second }
             }
         held.forEach { onAudioReport(from, it) }
+    }
+
+    /**
+     * This unit's epoch, to everyone in range.
+     *
+     * Sent as an **announcement**, which is the word a broadcast link needs: only the
+     * newest hello belongs on the air, so it takes a pinned slot rather than queueing
+     * behind traffic. See [org.itantra.link.Link.send].
+     */
+    private suspend fun sayHello() {
+        mesh.send(session.hello(), urgent = false, announcement = true)
     }
 
     /**
@@ -1418,6 +1516,7 @@ class MessageEngine(
         if (tick % PING_EVERY_TICKS == 0L && (tick % PING_REFRESH_TICKS == 0L || anyPeerUnsynchronised(now))) {
             sendPing()
         }
+        refreshLatencyHealth()
     }
 
     // ── locating a unit ──────────────────────────────────────────────────────

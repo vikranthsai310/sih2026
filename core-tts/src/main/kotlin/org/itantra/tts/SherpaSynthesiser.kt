@@ -124,6 +124,11 @@ class SherpaSynthesiser(
      *
      * @param onFirstAudio invoked when the first phrase reaches `AudioTrack` — this is the
      *   `t_chunk1` stage in `latency.csv`
+     * @param onFirstSound invoked once the first phrase has been accepted by the device —
+     *   this is `t_audio`, and the gap from [onFirstAudio] to here is the "output pipeline"
+     *   row of the stage table. The two were previously the same callback, which meant the
+     *   output stage could never have a figure and `t_audio` was a synthesis timestamp
+     *   wearing a playback name.
      * @param shouldContinue polled per phrase; returning false stops at a phrase boundary,
      *   which is what barge-in needs (task W5.7)
      */
@@ -131,6 +136,7 @@ class SherpaSynthesiser(
         phrases: List<Phrase>,
         onFirstAudio: () -> Unit = {},
         shouldContinue: () -> Boolean = { true },
+        onFirstSound: () -> Unit = {},
     ) {
         if (phrases.isEmpty()) return
         val track = createTrack()
@@ -142,13 +148,19 @@ class SherpaSynthesiser(
                 if (!shouldContinue()) break
                 val pcm = synthesisePhrase(phrase.text)
                 if (pcm.isEmpty()) continue
-                if (first) {
+                val isFirst = first
+                if (isFirst) {
                     first = false
                     onFirstAudio()
                 }
-                // WRITE_BLOCKING: if synthesis falls behind, the write waits rather than
-                // returning short and leaving a hole in the middle of a sentence.
-                framesWritten += write(track, pcm)
+                framesWritten +=
+                    if (isFirst) {
+                        writeFirst(track, pcm, onFirstSound)
+                    } else {
+                        // WRITE_BLOCKING: if synthesis falls behind, the write waits rather
+                        // than returning short and leaving a hole in the middle of a sentence.
+                        write(track, pcm)
+                    }
                 if (phrase.pauseAfterMillis > 0 && shouldContinue()) {
                     framesWritten += write(track, AudioPolish.silence(phrase.pauseAfterMillis, sampleRate))
                 }
@@ -168,7 +180,8 @@ class SherpaSynthesiser(
         shaper: SpeechShaper = SpeechShaper(),
         onFirstAudio: () -> Unit = {},
         shouldContinue: () -> Boolean = { true },
-    ) = speak(shaper.shape(text), onFirstAudio, shouldContinue)
+        onFirstSound: () -> Unit = {},
+    ) = speak(shaper.shape(text), onFirstAudio, shouldContinue, onFirstSound)
 
     /**
      * Task **W3.8**. Synthesis runs at `THREAD_PRIORITY_AUDIO` because it is feeding a
@@ -191,6 +204,47 @@ class SherpaSynthesiser(
     ): Int {
         val written = track.write(pcm, 0, pcm.size, AudioTrack.WRITE_BLOCKING)
         return if (written > 0) written else 0
+    }
+
+    /**
+     * The first phrase, with [onFirstSound] fired at the instant sound actually starts.
+     *
+     * ## Why this is not simply a blocking write followed by a callback
+     *
+     * `WRITE_BLOCKING` does not return until the device has accepted **every** sample. The
+     * track buffer is a few tens of milliseconds, so on a phrase longer than that the call
+     * does not return until most of the phrase has already *played* — and a `t_audio`
+     * taken there overstates the figure by however long the phrase is. Measured on a
+     * handset it read 386 ms against a 30–80 ms budget, a third of the whole headline,
+     * and the error grew with the length of the sentence, which is the worst shape a
+     * measurement error can have.
+     *
+     * So a short head is written first and the **playback head** is watched. That counter
+     * is the device's own tally of frames it has played, the same authority [drain]
+     * already trusts to decide a sentence has finished; the moment it leaves zero, sound
+     * is leaving the speaker. The poll is bounded, because a track that never starts must
+     * not hold the audio thread — and on that path the mark is simply late rather than
+     * absent, which the trace cannot distinguish but the operator would notice as silence
+     * anyway.
+     */
+    private fun writeFirst(
+        track: AudioTrack,
+        pcm: ShortArray,
+        onFirstSound: () -> Unit,
+    ): Int {
+        val head = minOf(pcm.size, sampleRate / HEAD_SLICES_PER_SECOND)
+        var written = write(track, pcm.copyOfRange(0, head))
+        val deadline = SystemClock.elapsedRealtime() + FIRST_SOUND_WAIT_MILLIS
+        while (track.playbackHeadPosition == 0 && SystemClock.elapsedRealtime() < deadline) {
+            try {
+                Thread.sleep(FIRST_SOUND_POLL_MILLIS)
+            } catch (interrupted: InterruptedException) {
+                break
+            }
+        }
+        onFirstSound()
+        if (pcm.size > head) written += write(track, pcm.copyOfRange(head, pcm.size))
+        return written
     }
 
     /**
@@ -256,6 +310,17 @@ class SherpaSynthesiser(
         /** Past the expected end of playback, how long to keep waiting for the device. */
         private const val DRAIN_GRACE_MILLIS = 400L
         private const val DRAIN_POLL_MILLIS = 15L
+
+        /**
+         * The head of the first phrase is written as a 20 ms slice: long enough for the
+         * device to start on, short enough that the blocking write cannot itself become
+         * the thing being measured.
+         */
+        private const val HEAD_SLICES_PER_SECOND = 50
+
+        /** A track that has not started by here is not going to, and the poll gives up. */
+        private const val FIRST_SOUND_WAIT_MILLIS = 250L
+        private const val FIRST_SOUND_POLL_MILLIS = 1L
 
         fun FloatArray.toShortArray(): ShortArray =
             ShortArray(size) { (this[it].coerceIn(-1f, 1f) * 32767).toInt().toShort() }

@@ -255,10 +255,18 @@ class MeshLink(
     override suspend fun send(
         frame: ByteArray,
         urgent: Boolean,
+    ) = send(frame, urgent, announcement = false)
+
+    override suspend fun send(
+        frame: ByteArray,
+        urgent: Boolean,
+        announcement: Boolean,
     ) {
         var delivered = 0
         for (peer in eligible(urgent)) {
-            runCatching { peer.link.send(frame) }.onSuccess { delivered++ }
+            // The hint travels the whole way down: a broadcast peer keeps a buffer and
+            // needs it, a point-to-point peer ignores it.
+            runCatching { peer.link.send(frame, urgent, announcement) }.onSuccess { delivered++ }
         }
         _metrics.value =
             _metrics.value.copy(

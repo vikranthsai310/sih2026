@@ -102,6 +102,8 @@ enum class Destination(val title: String) {
 data class AppState(
     val operating: OperatingState,
     val traces: List<UtteranceTrace> = emptyList(),
+    /** Why the metrics screen has no end-to-end figure, when it has none. */
+    val latencyHealth: LatencyHealth = LatencyHealth(),
     val languages: List<LanguageOption> = emptyList(),
     val transports: List<TransportOption> = emptyList(),
     val packs: List<PackRow> = emptyList(),
@@ -358,6 +360,7 @@ private fun Routed(
                     traces = state.traces,
                     onExportCsv = actions.onExportCsv,
                     status = state.packStatus,
+                    health = state.latencyHealth,
                 )
 
             Destination.MODE ->

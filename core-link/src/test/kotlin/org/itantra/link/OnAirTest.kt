@@ -97,10 +97,10 @@ class OnAirTest {
     fun `hello and presence are pinned at the head and only the latest of each is kept`() {
         val air = air()
         air.offer(message(5), 0)
-        air.offer(hello(1), 100)
-        air.offer(presence(1), 200)
-        air.offer(hello(2), 300)
-        air.offer(presence(2), 400)
+        air.offer(hello(1), 100, announcement = true)
+        air.offer(presence(1), 200, announcement = true)
+        air.offer(hello(2), 300, announcement = true)
+        air.offer(presence(2), 400, announcement = true)
 
         val onAir = air.contents(400)
         assertEquals(3, onAir.size)
@@ -112,8 +112,8 @@ class OnAirTest {
     @Test
     fun `pins count against the budget but never block a message for ever`() {
         val air = air(soft = 100)
-        air.offer(hello(), 0) // 16 B
-        air.offer(presence(1), 0) // 42 B
+        air.offer(hello(), 0, announcement = true) // 16 B
+        air.offer(presence(1), 0, announcement = true) // 42 B
         air.offer(message(1, 60), 0) // 72 B: does not fit beside 58 B of pins
         val onAir = air.contents(0)
         assertEquals("alone with the pins, over the soft budget, rather than never", 3, onAir.size)
@@ -195,8 +195,9 @@ class OnAirTest {
     @Test
     fun `another unit's hello and presence queue as messages and leave this unit's pins alone`() {
         val air = OnAir(softBudget = 200, hardBudget = 1_600, localSrc = 7)
-        air.offer(hello(), 0)
-        air.offer(presence(1), 0)
+        air.offer(hello(), 0, announcement = true)
+        air.offer(presence(1), 0, announcement = true)
+        // Relayed, so offered as any other frame is: a relay does not announce this unit.
         val farHello = frame(MessageType.HEARTBEAT, 0, 4, encrypted = false, src = 9)
         val farPresence = frame(MessageType.HEARTBEAT, 5, 30, src = 9)
         air.offer(farHello, 0)
@@ -207,11 +208,73 @@ class OnAirTest {
         assertEquals("this unit's pins lead", listOf(7, 7, 9, 9), contents.map { it[7].toInt() })
 
         // A newer own hello replaces the own pin only; the relayed ones stay where they were.
-        air.offer(hello(epoch = 2), 100)
+        air.offer(hello(epoch = 2), 100, announcement = true)
         val again = air.contents(100)
         assertEquals(4, again.size)
         assertEquals(listOf(7, 7, 9, 9), again.map { it[7].toInt() })
         assertEquals("the pin is the newer hello", 2, again[0][10].toInt())
+    }
+
+    // ── control traffic, which is neither an announcement nor a message ──────
+
+    /**
+     * The bug this distinction exists for, from two handsets on one table.
+     *
+     * A clock-sync ping and this unit's presence are the same frame to anything that
+     * cannot read the payload: `HEARTBEAT`, `ENCRYPTED` set, this unit's `SRC`. Pinned
+     * together in one slot they destroyed each other — the presence stopped going out, so
+     * both operating screens read "0 units", and a pong was overwritten by the next
+     * control frame milliseconds later and never reached the air, so the four round trips
+     * the clock exchange needs never completed and no audio receipt could be converted
+     * into a latency.
+     */
+    @Test
+    fun `a clock-sync frame never evicts this unit's presence`() {
+        val air = OnAir(softBudget = 300, hardBudget = 1_600, localSrc = 7)
+        air.offer(hello(), 0, announcement = true)
+        air.offer(presence(1), 0, announcement = true)
+
+        // A ping, a pong and an audio receipt: sealed heartbeats this unit sent that are
+        // not its announcement. Offered exactly as Session offers them.
+        val ping = frame(MessageType.HEARTBEAT, 11, 10)
+        val pong = frame(MessageType.HEARTBEAT, 12, 26)
+        val receipt = frame(MessageType.HEARTBEAT, 13, 37)
+        air.offer(ping, 10)
+        air.offer(pong, 16)
+        air.offer(receipt, 20)
+
+        val contents = air.contents(20)
+        assertEquals("the pins survive and all three control frames are on the air", 5, contents.size)
+        assertEquals("the presence is still pinned", 1, seqOf(contents[1]))
+        assertEquals(listOf(11, 12, 13), contents.drop(2).map(::seqOf))
+    }
+
+    /**
+     * And they leave again quickly. During a two-way conversation there is one audio
+     * receipt for every message either unit speaks; held as long as a message, they would
+     * fill a 198-byte advertisement with answers to questions nobody is still asking.
+     */
+    @Test
+    fun `control traffic leaves the air long before a message would`() {
+        val air = OnAir(softBudget = 300, hardBudget = 1_600, localSrc = 7)
+        air.offer(message(1), 0)
+        air.offer(frame(MessageType.HEARTBEAT, 11, 10), 0)
+        assertEquals(listOf(1, 11), seqs(air.contents(0)))
+        assertEquals("still up at seven seconds", listOf(1, 11), seqs(air.contents(7_999)))
+        assertEquals("gone at eight, while the message stays", listOf(1), seqs(air.contents(8_000)))
+        assertEquals(listOf(1), seqs(air.contents(29_999)))
+        assertEquals(emptyList<Int>(), seqs(air.contents(30_000)))
+    }
+
+    /** A control frame yields room to a waiting message after two seconds, not five. */
+    @Test
+    fun `control traffic yields the packet sooner than a message`() {
+        val air = OnAir(softBudget = 60, hardBudget = 1_600, localSrc = 7)
+        air.offer(frame(MessageType.HEARTBEAT, 11, 30), 0)
+        assertEquals(listOf(11), seqs(air.contents(0)))
+        air.offer(message(2, 30), 100)
+        assertEquals("not yet", listOf(11), seqs(air.contents(1_999)))
+        assertEquals("at two seconds the message takes the room", listOf(2), seqs(air.contents(2_000)))
     }
 
     @Test
