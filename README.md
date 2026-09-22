@@ -31,6 +31,8 @@ Smart India Hackathon 2026 · Problem Statement **26173** · ISRO, Department of
 
 <br>
 
+**Demo video (3:46):** https://youtu.be/GVBlYKCdaDs — two phones in airplane mode, ten languages, relay, alerts and Locate.
+
 > **Speech goes in one end. Speech comes out the other.** In between it becomes a few dozen
 > bytes — small enough to cross a radio link that could never carry a voice.
 
