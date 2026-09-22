@@ -211,39 +211,65 @@ class SherpaSynthesiser(
      *
      * ## Why this is not simply a blocking write followed by a callback
      *
-     * `WRITE_BLOCKING` does not return until the device has accepted **every** sample. The
-     * track buffer is a few tens of milliseconds, so on a phrase longer than that the call
-     * does not return until most of the phrase has already *played* — and a `t_audio`
-     * taken there overstates the figure by however long the phrase is. Measured on a
-     * handset it read 386 ms against a 30–80 ms budget, a third of the whole headline,
-     * and the error grew with the length of the sentence, which is the worst shape a
-     * measurement error can have.
+     * `WRITE_BLOCKING` does not return until the device has accepted **every** sample. On a
+     * phrase longer than the track buffer the call therefore does not return until most of
+     * the phrase has already *played*, and a `t_audio` taken there overstates the figure by
+     * however long the phrase is. Measured on a handset it read 386 ms against a 30-80 ms
+     * budget, and the error grew with the length of the sentence, which is the worst shape
+     * a measurement error can have.
      *
-     * So a short head is written first and the **playback head** is watched. That counter
-     * is the device's own tally of frames it has played, the same authority [drain]
-     * already trusts to decide a sentence has finished; the moment it leaves zero, sound
-     * is leaving the speaker. The poll is bounded, because a track that never starts must
-     * not hold the audio thread — and on that path the mark is simply late rather than
-     * absent, which the trace cannot distinguish but the operator would notice as silence
-     * anyway.
+     * ## And not a short head slice followed by a wait, either
+     *
+     * The first attempt wrote 20 ms, waited for the playback head to leave zero, and gave
+     * up after a fixed deadline. The track is `MODE_STREAM` with a buffer several times the
+     * device minimum, so 20 ms is not enough to start it: the head stayed at zero, the wait
+     * always expired, and every row in `latency.csv` came back within a millisecond or two
+     * of the deadline. A figure that is the same on every utterance is not a measurement of
+     * that utterance -- it is the timeout, wearing the name of one.
+     *
+     * So the phrase is written in slices and the head is checked after each. The moment the
+     * device's own counter moves, sound is leaving the speaker and the mark is taken --
+     * whether that happens after the first slice or once the whole phrase is queued. The
+     * counter is the same authority [drain] trusts to decide a sentence has finished.
+     *
+     * If the device never reports a move, the mark is taken late rather than not at all: a
+     * missing `t_audio` loses the whole row, and a late one is visible as an outlier.
      */
     private fun writeFirst(
         track: AudioTrack,
         pcm: ShortArray,
         onFirstSound: () -> Unit,
     ): Int {
-        val head = minOf(pcm.size, sampleRate / HEAD_SLICES_PER_SECOND)
-        var written = write(track, pcm.copyOfRange(0, head))
+        val slice = (sampleRate / HEAD_SLICES_PER_SECOND).coerceAtLeast(1)
+        var written = 0
+        var at = 0
+        var sounded = false
+
+        fun soundedYet() {
+            if (!sounded && track.playbackHeadPosition != 0) {
+                sounded = true
+                onFirstSound()
+            }
+        }
+
+        while (at < pcm.size) {
+            val count = minOf(slice, pcm.size - at)
+            val took = track.write(pcm, at, count, AudioTrack.WRITE_BLOCKING)
+            if (took <= 0) break
+            written += took
+            at += took
+            soundedYet()
+        }
         val deadline = SystemClock.elapsedRealtime() + FIRST_SOUND_WAIT_MILLIS
-        while (track.playbackHeadPosition == 0 && SystemClock.elapsedRealtime() < deadline) {
+        while (!sounded && SystemClock.elapsedRealtime() < deadline) {
             try {
                 Thread.sleep(FIRST_SOUND_POLL_MILLIS)
             } catch (interrupted: InterruptedException) {
                 break
             }
+            soundedYet()
         }
-        onFirstSound()
-        if (pcm.size > head) written += write(track, pcm.copyOfRange(head, pcm.size))
+        if (!sounded) onFirstSound()
         return written
     }
 
@@ -312,13 +338,17 @@ class SherpaSynthesiser(
         private const val DRAIN_POLL_MILLIS = 15L
 
         /**
-         * The head of the first phrase is written as a 20 ms slice: long enough for the
-         * device to start on, short enough that the blocking write cannot itself become
-         * the thing being measured.
+         * The first phrase is written in 20 ms slices, so the playback head is asked fifty
+         * times a second while the device is being filled. Small enough that the mark is
+         * never more than a slice late; large enough that the write is not all overhead.
          */
         private const val HEAD_SLICES_PER_SECOND = 50
 
-        /** A track that has not started by here is not going to, and the poll gives up. */
+        /**
+         * Once the phrase is fully queued, how long to keep asking before giving up and
+         * marking it anyway. A device that has taken a whole phrase and still reports
+         * nothing played is not about to start.
+         */
         private const val FIRST_SOUND_WAIT_MILLIS = 250L
         private const val FIRST_SOUND_POLL_MILLIS = 1L
 
