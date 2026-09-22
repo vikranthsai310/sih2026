@@ -102,7 +102,7 @@ td.n{text-align:right; white-space:nowrap}
       <tr><td class="l">PS Category</td><td>Software</td></tr>
       <tr><td class="l">Organisation</td><td>Indian Space Research Organisation (ISRO)</td></tr>
       <tr><td class="l">Department</td><td>Department of Space</td></tr>
-      <tr><td class="l">Team ID</td><td><span class="fill"></span></td></tr>
+      <tr><td class="l">Team ID</td><td><b>130034</b></td></tr>
       <tr><td class="l">Team Name</td><td><b>Taraket</b></td></tr>
     </table>
   </div>
@@ -410,7 +410,7 @@ td.n{text-align:right; white-space:nowrap}
     <tr><td>Silero VAD</td><td>MIT</td><td>Tier-one voice activity detection, 1.8 MB</td></tr>
     <tr><td>espeak-ng</td><td>GPL-3.0 ⚠</td><td>Phonemisation. Copyleft; disclosed rather than discovered</td></tr>
     <tr><td>Xiph RNNoise</td><td>BSD-3-Clause</td><td>Noise suppression on the recognition path only</td></tr>
-    <tr><td>Meta MMS</td><td>CC-BY-NC ⚠</td><td>Retained only as a contingency. Verification found Piper voices for all ten languages including Odia, so this dependency is expected to be dropped</td></tr></tbody>
+    <tr><td>Meta MMS</td><td>CC-BY-NC ⚠</td><td>Evaluated for Tamil, Kannada and Odia, where no permissive voice exists, and left out of the build: those three languages are recognised and shown as text. Piper voices trained on the IIT Madras IndicTTS corpus are the planned replacement</td></tr></tbody>
 </table>
   <p class="cap"><b>Table 2.2:</b> Machine learning components. Two carry restrictive licences
   and both are disclosed here rather than left to be found.</p>
@@ -894,7 +894,7 @@ td.n{text-align:right; white-space:nowrap}
   <h4>4.2.3 Environmental and operational benefits</h4>
   <ul>
     <li><b>Energy efficiency.</b> Three-tier detection holds idle processor usage below two per
-    cent, supporting more than eight hours of standby listening on a single charge — significant
+    cent, with a target of more than eight hours of standby listening on a single charge (to be confirmed by the sustained-power test) — significant
     where recharging is not possible.</li>
     <li><b>Spectrum efficiency.</b> A sentence occupies 1.2 seconds of airtime instead of sixty,
     so many more users share the same channel, and duty-cycle regulations are respected

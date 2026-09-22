@@ -34,7 +34,7 @@ Smart India Hackathon 2026 · Problem Statement **26173** · ISRO, Department of
 > **Speech goes in one end. Speech comes out the other.** In between it becomes a few dozen
 > bytes — small enough to cross a radio link that could never carry a voice.
 
-Two people hold two ordinary phones. One speaks Tamil; the other hears Tamil. No SIM, no
+Two people hold two ordinary phones. One speaks Hindi; the other hears Hindi. No SIM, no
 tower, no cloud — the demo runs in aeroplane mode. What crosses the link is not audio. It
 is meaning, and meaning is small.
 
